@@ -792,6 +792,7 @@ function drawPartisans() {
     const o = i.center().add(i.toPoint());
     drawPartisanMarker(t, o.x, o.y, 40);
   }
+  scheduleStatusRefresh();
 }
 function drawReinforcementTokens(e, t, n) {
   ((e.width = Math.max(300, 70 * n)), (e.height = 80), (e.style.display = "block"));
@@ -800,6 +801,274 @@ function drawReinforcementTokens(e, t, n) {
   for (let o = 0; o < n; o++)
     "ski" === t ? drawSnowflake(i, 65 * o + 40, 40, 24) : drawPartisanMarker(i, 65 * o + 40, 40, 30);
 }
+// ---------------------------------------------------------------- Unit status display (supply markers, unit card, supply view)
+let supplyView = !1,
+  statusRefreshTimer = null,
+  unitCardPinned = null,
+  unitCardShown = null,
+  unitCardHoverKey = "";
+function ordinalOf(e) {
+  const t = e % 100;
+  return e + (t >= 11 && t <= 13 ? "th" : ["th", "st", "nd", "rd"][e % 10] || "th");
+}
+function romanOf(e) {
+  const t = [
+    [50, "L"],
+    [40, "XL"],
+    [10, "X"],
+    [9, "IX"],
+    [5, "V"],
+    [4, "IV"],
+    [1, "I"],
+  ];
+  let n = "";
+  for (const [i, o] of t) for (; e >= i; ) ((n += o), (e -= i));
+  return n;
+}
+function unitDisplayName(e) {
+  const t = parseInt(e.id.replace(/\D/g, ""), 10);
+  return "soviet" === e.army
+    ? "shock" === e.type
+      ? ordinalOf(t) + " Shock Army"
+      : "cavalry" === e.type
+        ? ordinalOf(t) + " Guards Cavalry Corps" + (1 === t ? " (Belov)" : 2 === t ? " (Dovator)" : "")
+        : ordinalOf(t) + " Army"
+    : romanOf(t) + ("tank" === e.type ? " Panzer Corps" : " Army Corps");
+}
+function unitTypeName(e) {
+  return "tank" === e.type
+    ? "Panzer"
+    : "shock" === e.type
+      ? "Shock infantry"
+      : "cavalry" === e.type
+        ? "Cavalry"
+        : "Infantry";
+}
+// Same rule as isInCommunication, computed for the whole map at once: a single search outward from the map edge
+// gives, for every hex, the shortest open path to the edge; a unit is in communication if a neighbouring hex
+// reaches the edge within its step budget (the budget isInCommunication starts with).
+let commTopology = null;
+// The hex layout never changes, so the neighbour lists are built once
+function getCommTopology() {
+  if (commTopology) return commTopology;
+  const e = new Map(),
+    t = new Map();
+  for (const t of b4mGrid) {
+    const n = grid.get({ x: t.x, y: t.y });
+    n && "off" !== n.terrain && e.set(t.x + "," + t.y, n);
+  }
+  for (const [n, i] of e)
+    t.set(
+      n,
+      grid
+        .neighborsOf(i)
+        .filter(function (e) {
+          return e && "off" !== e.terrain;
+        })
+        .map(function (e) {
+          return e.x + "," + e.y;
+        }),
+    );
+  return (commTopology = { hexes: e, neighbors: t });
+}
+function communicationMap(e, t) {
+  const n = "german" === e ? "soviet" : "german",
+    { hexes: i, neighbors: o } = getCommTopology(),
+    r = new Map(),
+    a = new Set(),
+    l = "soviet" === e ? "sovietReplacement" : "germanReplacement";
+  for (const e of b4mUnits) e.position && r.set(e.position.x + "," + e.position.y, e.army);
+  // Partisan hexes and the ring around them (empty when partisans are ignored)
+  if (!0 !== t)
+    for (const e of partisans) {
+      const t = e.x + "," + e.y;
+      a.add(t);
+      for (const e of o.get(t) || []) a.add(e);
+    }
+  const s = function (t) {
+      return (
+        r.get(t) !== n &&
+        !o.get(t).some(function (e) {
+          return r.get(e) === n;
+        }) &&
+        !("german" === e && a.has(t))
+      );
+    },
+    c = new Map(),
+    d = [];
+  for (const [e, t] of i) t[l] && s(e) && (c.set(e, 0), d.push(e));
+  for (; d.length > 0; ) {
+    const e = d.shift(),
+      t = c.get(e);
+    for (const n of o.get(e)) c.has(n) || !s(n) || (c.set(n, t + 1), d.push(n));
+  }
+  return function (t) {
+    if (t[l]) return !0;
+    const n = t.x + "," + t.y;
+    if ("soviet" === e && a.has(n)) return !0;
+    const i = "soviet" === e ? 10 * (13 - t.x) : 10 * t.x;
+    return (o.get(n) || []).some(function (e) {
+      return c.has(e) && 1 + c.get(e) <= i;
+    });
+  };
+}
+function supplyContext() {
+  let e = null,
+    t = null;
+  return {
+    soviet: communicationMap("soviet"),
+    german: communicationMap("german"),
+    sovietNoPartisans: function (t) {
+      return (e = e || communicationMap("soviet", !0))(t);
+    },
+    germanNoPartisans: function (e) {
+      return (t = t || communicationMap("german", !0))(e);
+    },
+  };
+}
+// Supply status of a unit on the map, based on the "in communication" rule
+function unitSupplyStatus(e, t) {
+  if (!e || !e.position) return null;
+  t = t || supplyContext();
+  const n = grid.get(e.position),
+    i = "soviet" === e.army ? "the red-bordered east map edge" : "the west map edge";
+  return "soviet" === e.army && "moscow" === n.city
+    ? { ok: !0, text: "Supplied: Moscow (Russian units there can always be restored)" }
+    : t[e.army](n)
+      ? "soviet" === e.army && inPartisanZOC(n) && !t.sovietNoPartisans(n)
+        ? { ok: !0, text: "Supplied by the partisans" }
+        : { ok: !0, text: "In communication with " + i }
+      : {
+          ok: !1,
+          text:
+            "Cut off from " +
+            i +
+            ("german" === e.army && t.germanNoPartisans(n) ? " (partisans block the way)" : ""),
+          effect: "While cut off it cannot be restored to full strength.",
+        };
+}
+function strokeRoundRect(e, t, n, i, o, r) {
+  (e.beginPath(),
+    e.moveTo(t + r, n),
+    e.lineTo(t + i - r, n),
+    e.arcTo(t + i, n, t + i, n + r, r),
+    e.lineTo(t + i, n + o - r),
+    e.arcTo(t + i, n + o, t + i - r, n + o, r),
+    e.lineTo(t + r, n + o),
+    e.arcTo(t, n + o, t, n + o - r, r),
+    e.lineTo(t, n + r),
+    e.arcTo(t, n, t + r, n, r),
+    e.closePath(),
+    e.stroke());
+}
+function refreshStatusMarkers() {
+  statusRefreshTimer = null;
+  const e = document.getElementById("status_markers");
+  if (!e || !e.width) return;
+  const t = e.getContext("2d");
+  t.clearRect(0, 0, e.width, e.height);
+  const n = { german: 0, soviet: 0 },
+    s = supplyContext();
+  for (const e of b4mUnits) {
+    if (!e.position) continue;
+    const i = unitSupplyStatus(e, s);
+    if (!i || i.ok) continue;
+    n[e.army]++;
+    const o = grid.get(e.position),
+      r = o.center().add(o.toPoint());
+    (supplyView && highlightHex(t, o, "rgba(226, 75, 74, 0.35)"),
+      t.save(),
+      t.setLineDash([7, 4]),
+      (t.lineWidth = 3),
+      (t.strokeStyle = "#e24b4a"),
+      strokeRoundRect(t, r.x - 36, r.y - 36, 72, 72, 9),
+      t.restore());
+  }
+  const i = document.getElementById("supply_view_count");
+  (i &&
+    (i.innerText = supplyView
+      ? " · cut off: " + n.german + " German, " + n.soviet + " Russian"
+      : ""),
+    unitCardShown && renderUnitCard(unitCardShown));
+}
+function scheduleStatusRefresh() {
+  (clearTimeout(statusRefreshTimer), (statusRefreshTimer = setTimeout(refreshStatusMarkers, 400)));
+}
+function renderUnitCard(e) {
+  const t = document.getElementById("unit_card"),
+    n = e && b4mUnits[b4mUnitsIndex(e)];
+  if (!t || !n || !n.position) return void hideUnitCard();
+  unitCardShown = { id: n.id };
+  const i = unitSupplyStatus(n),
+    o = "full" === n.strength,
+    r = [];
+  ("cavalry" === n.type &&
+    r.push("Cavalry: may keep moving after entering its first enemy ZOC hex in a phase."),
+    n.ski &&
+      r.push(
+        "Ski battalions: in winter, forest costs 1 MP and the forest does not reduce the odds when it attacks.",
+      ),
+    "tank" === n.type && r.push("Panzer: moves in the Panzer Movement Phase; attack strength halved in mud."));
+  let a =
+    '<span id="unit_card_close" title="Close">&times;</span><div class="unit_card_title">' +
+    unitDisplayName(n) +
+    '</div><div class="unit_card_sub">' +
+    unitTypeName(n) +
+    " · " +
+    (o ? "full strength" : "reduced") +
+    " · combat " +
+    (o ? n.combatFull : n.combatReduced) +
+    " · movement " +
+    n.movement +
+    '</div><div class="unit_card_row ' +
+    (i.ok ? "ok" : "cut") +
+    '"><strong>Supply:</strong> ' +
+    i.text +
+    (i.effect ? "<br />" + i.effect : "") +
+    "</div>";
+  for (const e of r) a += '<div class="unit_card_row"><strong>Special:</strong> ' + e.replace(/^[^:]+: /, "") + "</div>";
+  ((t.innerHTML = a),
+    (t.style.display = "block"),
+    (document.getElementById("unit_card_close").onclick = function (e) {
+      (e.stopPropagation(), (unitCardPinned = null), hideUnitCard());
+    }));
+}
+function hideUnitCard() {
+  const e = document.getElementById("unit_card");
+  (e && (e.style.display = "none"), (unitCardShown = null), (unitCardHoverKey = ""));
+}
+function initStatusUI() {
+  const e = document.getElementById("counters_highlights"),
+    t = document.getElementById("supply_view_button");
+  if (!e || !t) return;
+  const n = function (t) {
+    const n = grid.get(Grid.pointToHex(t.offsetX, t.offsetY));
+    return n ? lookupUnit(n) : null;
+  };
+  (e.addEventListener("mousemove", function (e) {
+    const t = n(e),
+      i = t ? t.id + "@" + t.position.x + "," + t.position.y : "";
+    i !== unitCardHoverKey &&
+      ((unitCardHoverKey = i),
+      t ? renderUnitCard(t) : unitCardPinned ? renderUnitCard(unitCardPinned) : hideUnitCard(),
+      (unitCardHoverKey = i));
+  }),
+    e.addEventListener("mouseleave", function () {
+      unitCardPinned ? renderUnitCard(unitCardPinned) : hideUnitCard();
+    }),
+    // A click (or a tap) pins the card; it never stops the game's own click handling
+    e.addEventListener("click", function (e) {
+      const t = n(e);
+      t ? ((unitCardPinned = { id: t.id }), renderUnitCard(t)) : ((unitCardPinned = null), hideUnitCard());
+    }),
+    (t.onclick = function (e) {
+      (e.stopPropagation(),
+        (supplyView = !supplyView),
+        t.classList.toggle("active", supplyView),
+        refreshStatusMarkers());
+    }));
+}
+window.addEventListener("load", initStatusUI);
 function b4mUnitsIndex(e) {
   for (let t = 0; t < b4mUnits.length; t++) if (e.id === b4mUnits[t].id) return t;
   return -1;
@@ -912,7 +1181,9 @@ function drawUnit(e, t, n, i) {
         ? document.getElementById("soviets")
         : document.getElementById("germans"),
     r = "full" === t.strength ? 0 : 120;
-  (e.drawImage(o, 120 * t.pos, r, 120, 120, n, i, 60, 60), t.ski && drawSkiBadge(e, n, i));
+  (e.drawImage(o, 120 * t.pos, r, 120, 120, n, i, 60, 60),
+    t.ski && drawSkiBadge(e, n, i),
+    scheduleStatusRefresh());
 }
 function clearUnit(e, t, n, i) {
   for (let e = 0; e < b4mUnits.length; e++)
@@ -920,7 +1191,7 @@ function clearUnit(e, t, n, i) {
       b4mUnits[e].position = null;
       break;
     }
-  e.clearRect(n, i, 80, 80);
+  (e.clearRect(n, i, 80, 80), scheduleStatusRefresh());
 }
 function moveUnit(e, t, n) {
   let i = { x: e.position.x, y: e.position.y },
@@ -1270,6 +1541,7 @@ function setTurnInfo() {
 function turn1GermanSetupPhase() {
   ((currentTurn = { turn: 1, army: "german", phase: "setup", subphase: "" }),
     (document.getElementById("turn_info").style.display = "block"),
+    (document.getElementById("supply_view_button").style.display = "block"),
     setTurnInfo(),
     (document.getElementById("step_0_tip").innerText =
       "german" !== playAIAs
@@ -3802,6 +4074,7 @@ function continueFromSave() {
     (followingReinforcement = b4mSave.followingReinforcement),
     (playAIAs = b4mSave.play_ai_as),
     (document.getElementById("turn_info").style.display = "block"),
+    (document.getElementById("supply_view_button").style.display = "block"),
     setTurnInfo(),
     drawPositionedUnits(),
     window[b4mSave.function_name]());
@@ -3977,6 +4250,8 @@ function startGame() {
     (canvasCountersHighlights.height = document.getElementById("map").height),
     (document.getElementById("partisan_markers").width = document.getElementById("map").width),
     (document.getElementById("partisan_markers").height = document.getElementById("map").height),
+    (document.getElementById("status_markers").width = document.getElementById("map").width),
+    (document.getElementById("status_markers").height = document.getElementById("map").height),
     (countersHighlights = canvasCountersHighlights.getContext("2d")),
     true)
   ) {
