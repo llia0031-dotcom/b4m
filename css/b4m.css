@@ -61,7 +61,7 @@ input[type=checkbox] {
     margin-top: 30px;
 }
 
-#board, #hex_highlights, #counters_highlights, #cities_highlights {
+#partisan_markers, #board, #hex_highlights, #counters_highlights, #cities_highlights {
     position: absolute;
     top: 30px;
     left: 6px;

@@ -664,7 +664,142 @@ let b4mUnits = [
     movement: 4,
     strength: "full",
   },
+  // Winter counteroffensive: Stavka reserves committed on turn 8
+  {
+    id: "s1gc",
+    pos: 0,
+    sheet: "soviets_cavalry",
+    army: "soviet",
+    type: "cavalry",
+    size: "XXX",
+    combatFull: 6,
+    combatReduced: 3,
+    movement: 6,
+    strength: "full",
+  },
+  {
+    id: "s2gc",
+    pos: 1,
+    sheet: "soviets_cavalry",
+    army: "soviet",
+    type: "cavalry",
+    size: "XXX",
+    combatFull: 6,
+    combatReduced: 3,
+    movement: 6,
+    strength: "full",
+  },
 ];
+const b4mDefaultUnits = JSON.parse(JSON.stringify(b4mUnits));
+
+// ---------------------------------------------------------------- Winter counteroffensive
+const LAST_TURN = 9,
+  WINTER_START = 8,
+  MAX_PARTISANS = 3,
+  SPECIAL_ARRIVALS = {
+    4: { units: ["s1sh"] },
+    8: { units: ["s1gc", "s2gc"], ski: 3, partisans: 2 },
+    9: { partisans: 1 },
+  };
+let partisans = [],
+  reinforcementAIToken = null;
+function isWinterTurn() {
+  return currentTurn.turn >= WINTER_START;
+}
+function arrivalTurnOf(e) {
+  for (const t in SPECIAL_ARRIVALS)
+    if ((SPECIAL_ARRIVALS[t].units || []).indexOf(e) > -1) return Number(t);
+  return 0;
+}
+function hasReinforcementStep(e) {
+  return !!SPECIAL_ARRIVALS[e];
+}
+function hasPartisan(e) {
+  return (
+    !!e &&
+    partisans.some(function (t) {
+      return t.x === e.x && t.y === e.y;
+    })
+  );
+}
+function inPartisanZOC(e) {
+  if (!e) return !1;
+  if (hasPartisan(e)) return !0;
+  for (const t of grid.neighborsOf(e)) if (t && hasPartisan(t)) return !0;
+  return !1;
+}
+function removePartisanAt(e) {
+  if (!e) return;
+  const t = partisans.length;
+  ((partisans = partisans.filter(function (t) {
+    return t.x !== e.x || t.y !== e.y;
+  })),
+    partisans.length !== t && drawPartisans());
+}
+function drawSnowflake(e, t, n, i) {
+  (e.save(),
+    e.beginPath(),
+    e.arc(t, n, i, 0, 2 * Math.PI),
+    (e.fillStyle = "#ffffff"),
+    e.fill(),
+    (e.lineWidth = Math.max(1, i / 7)),
+    (e.strokeStyle = "#1f5fbf"),
+    e.stroke(),
+    (e.lineCap = "round"),
+    (e.lineWidth = Math.max(1.2, i / 5)));
+  for (let r = 0; r < 3; r++) {
+    const o = (r * Math.PI) / 3 + Math.PI / 2,
+      a = 0.68 * i * Math.cos(o),
+      l = 0.68 * i * Math.sin(o);
+    (e.beginPath(), e.moveTo(t - a, n - l), e.lineTo(t + a, n + l), e.stroke());
+  }
+  e.restore();
+}
+function drawSkiBadge(e, t, n) {
+  drawSnowflake(e, t + 51, n + 10, 7);
+}
+function drawPartisanMarker(e, t, n, i) {
+  (e.save(),
+    e.beginPath(),
+    e.arc(t, n, i, 0, 2 * Math.PI),
+    (e.fillStyle = "rgba(47, 74, 42, 0.92)"),
+    e.fill(),
+    (e.lineWidth = Math.max(2, i / 12)),
+    (e.strokeStyle = "#f2e6c0"),
+    e.stroke(),
+    e.beginPath());
+  for (let r = 0; r < 10; r++) {
+    const o = r % 2 ? 0.2 * i : 0.48 * i,
+      a = -Math.PI / 2 + (r * Math.PI) / 5;
+    e.lineTo(t + o * Math.cos(a), n + o * Math.sin(a));
+  }
+  (e.closePath(),
+    (e.fillStyle = "#d9232e"),
+    e.fill(),
+    (e.lineWidth = 1),
+    (e.strokeStyle = "#5a0d12"),
+    e.stroke(),
+    e.restore());
+}
+function drawPartisans() {
+  const e = document.getElementById("partisan_markers");
+  if (!e || !e.width) return;
+  const t = e.getContext("2d");
+  t.clearRect(0, 0, e.width, e.height);
+  for (const n of partisans) {
+    const i = grid.get(n);
+    if (!i) continue;
+    const o = i.center().add(i.toPoint());
+    drawPartisanMarker(t, o.x, o.y, 40);
+  }
+}
+function drawReinforcementTokens(e, t, n) {
+  ((e.width = Math.max(300, 70 * n)), (e.height = 80), (e.style.display = "block"));
+  const i = e.getContext("2d");
+  i.clearRect(0, 0, e.width, e.height);
+  for (let o = 0; o < n; o++)
+    "ski" === t ? drawSnowflake(i, 65 * o + 40, 40, 24) : drawPartisanMarker(i, 65 * o + 40, 40, 30);
+}
 function b4mUnitsIndex(e) {
   for (let t = 0; t < b4mUnits.length; t++) if (e.id === b4mUnits[t].id) return t;
   return -1;
@@ -708,6 +843,7 @@ function cleanAndSaveBeforeNewPhase(e) {
     (b4mSave.followingReinforcement = followingReinforcement),
     (b4mSave.function_name = e),
     (b4mSave.play_ai_as = playAIAs),
+    (b4mSave.partisans = partisans.slice()),
     window.localStorage.setItem("b4mSave", JSON.stringify(b4mSave))),
     hexHighlights.clearRect(0, 0, canvasHexHighlights.width, canvasHexHighlights.height),
     countersHighlights.clearRect(
@@ -770,10 +906,13 @@ function drawUnit(e, t, n, i) {
         n && n.city && "none" !== n.city && (n.control = t.army);
         break;
       }
-  const o =
-      "soviet" === t.army ? document.getElementById("soviets") : document.getElementById("germans"),
+  const o = t.sheet
+      ? document.getElementById(t.sheet)
+      : "soviet" === t.army
+        ? document.getElementById("soviets")
+        : document.getElementById("germans"),
     r = "full" === t.strength ? 0 : 120;
-  e.drawImage(o, 120 * t.pos, r, 120, 120, n, i, 60, 60);
+  (e.drawImage(o, 120 * t.pos, r, 120, 120, n, i, 60, 60), t.ski && drawSkiBadge(e, n, i));
 }
 function clearUnit(e, t, n, i) {
   for (let e = 0; e < b4mUnits.length; e++)
@@ -798,6 +937,7 @@ function moveUnit(e, t, n) {
               80,
               80,
             ),
+          "german" === e.army && removePartisanAt(e.position),
           clearInterval(a))
         : (clearUnit(board, e, o.x - 40, o.y - 40),
           r && r.id !== e.id && drawUnit(board, r, o.x - 30, o.y - 30),
@@ -823,6 +963,8 @@ function lookupUnit(e) {
           combatReduced: t.combatReduced,
           movement: t.movement,
           strength: t.strength,
+          sheet: t.sheet,
+          ski: t.ski,
         };
         return (t.position && (e.position = { x: t.position.x, y: t.position.y }), e);
       }
@@ -849,6 +991,7 @@ function drawPositionedUnits() {
         n = t.center().add(t.toPoint());
       drawUnit(board, b4mUnits[e], n.x - 30, n.y - 30);
     }
+  drawPartisans();
 }
 function drawAvailableUnits(e, t) {
   if (t && t.length > 0) {
@@ -872,7 +1015,13 @@ function computeBattleOdds() {
     let e = grid.get(battle.defendingUnit.position),
       t = [];
     ((("fortification" === e.terrain && "soviet" === battle.defendingUnit.army) ||
-      "forest" === e.terrain) &&
+      ("forest" === e.terrain &&
+        !(
+          isWinterTurn() &&
+          battle.attackingUnits.some(function (e) {
+            return e.ski;
+          })
+        ))) &&
       t.push(e.terrain),
       !e.city || ("major" !== e.city && "moscow" !== e.city) || t.push("major"));
     let n = !0;
@@ -1087,25 +1236,31 @@ function setTurnInfo() {
   let e = "";
   switch (currentTurn.turn) {
     case 1:
-      e = "October 2nd, 1941 - Turn 1/7";
+      e = "October 2nd, 1941 - Turn 1/" + LAST_TURN;
       break;
     case 2:
-      e = "October 10th, 1941 - Turn 2/7";
+      e = "October 10th, 1941 - Turn 2/" + LAST_TURN;
       break;
     case 3:
-      e = "October 17th, 1941 - Turn 3/7 (Mud)";
+      e = "October 17th, 1941 - Turn 3/" + LAST_TURN + " (Mud)";
       break;
     case 4:
-      e = "November 1st, 1941 - Turn 4/7 (Mud)";
+      e = "November 1st, 1941 - Turn 4/" + LAST_TURN + " (Mud)";
       break;
     case 5:
-      e = "November 16th, 1941 - Turn 5/7";
+      e = "November 16th, 1941 - Turn 5/" + LAST_TURN;
       break;
     case 6:
-      e = "November 23rd, 1941 - Turn 6/7";
+      e = "November 23rd, 1941 - Turn 6/" + LAST_TURN;
       break;
     case 7:
-      e = "December 1st, 1941 - Turn 7/7";
+      e = "December 1st, 1941 - Turn 7/" + LAST_TURN;
+      break;
+    case 8:
+      e = "December 5th, 1941 - Turn 8/" + LAST_TURN + " (Winter)";
+      break;
+    case 9:
+      e = "December 15th, 1941 - Turn 9/" + LAST_TURN + " (Winter)";
       break;
     default:
       console.log("ERROR - Invalid turn: ", currentTurn);
@@ -2102,8 +2257,13 @@ function combatResolvePhase(e) {
 }
 function getValidNormalDestinations(e, t, n, i = !0) {
   let o = Hex(e);
-  const r = "german" === t ? "soviet" : "german";
-  ((o.credit = 3 === currentTurn.turn || 4 === currentTurn.turn ? 1 : n), (o.path = []));
+  const r = "german" === t ? "soviet" : "german",
+    mover = lookupUnit(grid.get(e)),
+    isCavalry = !!mover && "cavalry" === mover.type,
+    skiInWinter = !!mover && !!mover.ski && isWinterTurn();
+  ((o.credit = 3 === currentTurn.turn || 4 === currentTurn.turn ? 1 : n),
+    (o.path = []),
+    (o.ezocUsed = !1));
   let a = [o],
     l = [o],
     s = [],
@@ -2115,20 +2275,29 @@ function getValidNormalDestinations(e, t, n, i = !0) {
       let o = Hex(n);
       if (o && "off" !== o.terrain) {
         ((o.credit = e.credit - 1),
+          (o.ezocUsed = e.ezocUsed),
           "forest" === o.terrain &&
             3 !== currentTurn.turn &&
             4 !== currentTurn.turn &&
+            !skiInWinter &&
             (o.credit > 0 ? o.credit-- : i && (o.credit = -1)));
         let n = lookupUnit(o);
-        (n && n.army === r && (o.credit = -1), isEZOC(o, t) && o.credit > -1 && (o.credit = 0));
+        (n && n.army === r && (o.credit = -1),
+          // Cavalry may keep moving after entering its first enemy ZOC hex, but stops at the second one
+          isEZOC(o, t) && o.credit > -1 && (isCavalry && !e.ezocUsed ? (o.ezocUsed = !0) : (o.credit = 0)),
+          // German units must stop when they enter a partisan hex (which clears the partisans)
+          "german" === t && o.credit > 0 && hasPartisan(o) && (o.credit = 0));
         let s = indexOfHex(o, l);
         s < 0
           ? o.credit > -1 &&
             (l.push(o), (o.path = e.path.slice()), o.path.push({ x: e.x, y: e.y }), a.push(o))
-          : o.credit > l[s].credit &&
+          : (o.credit > l[s].credit || (o.credit === l[s].credit && l[s].ezocUsed && !o.ezocUsed)) &&
             ((l[s].credit = o.credit),
+            (l[s].ezocUsed = o.ezocUsed),
             (o.path = e.path.slice()),
             o.path.push({ x: e.x, y: e.y }),
+            // keep the recorded route in step with the better state, so units animate along the route actually used
+            (l[s].path = o.path),
             a.push(o));
       }
     }
@@ -2390,7 +2559,7 @@ function movementPhase(e) {
           "Select all the units you choose to move and their destination in order to conclude the turn."),
         (document.getElementById("skip_movement").style.display = "block"),
         (document.getElementById("undo_movement").style.display = "inline-block"),
-        7 === currentTurn.turn && "soviet" === currentTurn.army
+        LAST_TURN === currentTurn.turn && "soviet" === currentTurn.army
           ? ((document.getElementById("next_step_movement").style.display = "none"),
             (document.getElementById("skip_to_other_player").onclick = function () {
               ((document.getElementById("next_step_final").style.display = this.checked
@@ -2403,7 +2572,7 @@ function movementPhase(e) {
               ((document.getElementById("next_step_movement").style.display = this.checked
                 ? "block"
                 : "none"),
-                4 === currentTurn.turn && "german" === currentTurn.army
+                hasReinforcementStep(currentTurn.turn) && "german" === currentTurn.army
                   ? (document.getElementById("next_step_movement").onclick = reinforcementPhase)
                   : (document.getElementById("next_step_movement").onclick = replacementPhase),
                 (document.getElementById("undo_movement").style.display = this.checked
@@ -2580,13 +2749,13 @@ function movementPhase(e) {
             );
         }
         setTimeout(function () {
-          7 === currentTurn.turn && "soviet" === currentTurn.army
+          LAST_TURN === currentTurn.turn && "soviet" === currentTurn.army
             ? ((document.getElementById("next_step_movement").style.display = "none"),
               (document.getElementById("next_step_final").style.display = "block"),
               (document.getElementById("next_step_final").onclick = finalResults))
             : ((document.getElementById("next_step_final").style.display = "none"),
               (document.getElementById("next_step_movement").style.display = "block"),
-              4 === currentTurn.turn && "german" === currentTurn.army
+              hasReinforcementStep(currentTurn.turn) && "german" === currentTurn.army
                 ? (document.getElementById("next_step_movement").onclick = reinforcementPhase)
                 : (document.getElementById("next_step_movement").onclick = replacementPhase));
         }, 2150 * e.length);
@@ -2606,107 +2775,217 @@ function reinforcementPhase(e) {
     (document.getElementById("next_step_reinforcement").style.display = "none"),
     (document.getElementById("step_replacement").style.display = "block"),
     (document.querySelector("#step_replacement > div.hud_title > img").src =
-      "img/" + currentTurn.army + "_turn.png"),
-    "" === playAIAs || playAIAs !== currentTurn.army
-      ? ((document.getElementById("step_replacement_tip").innerText =
-          "Place the reinforcement unit in the eligible area of the map."),
-        (document.getElementById("undo_replacement").style.display = "inline-block"))
-      : ((document.getElementById("step_replacement_tip").innerText =
-          "The enemy places the reinforcement unit in the eligible area of the map."),
-        (document.getElementById("undo_replacement").style.display = "none")));
-  let t = b4mGrid
-      .filter(function (e) {
-        let t = grid.get({ x: e.x, y: e.y }),
-          n = !1;
+      "img/" + currentTurn.army + "_turn.png"));
+  const isHuman = "" === playAIAs || playAIAs !== currentTurn.army,
+    plan = SPECIAL_ARRIVALS[currentTurn.turn] || {},
+    canvas = document.getElementById("canvas_step_reinforcement"),
+    tip = document.getElementById("step_replacement_tip"),
+    count = document.getElementById("step_replacement_count"),
+    nextButton = document.getElementById("next_step_reinforcement");
+  isHuman && (document.getElementById("undo_replacement").style.display = "inline-block");
+  let units = b4mUnits.filter(function (e) {
+      return (plan.units || []).indexOf(e.id) > -1 && !e.position;
+    }),
+    skiLeft = plan.ski || 0,
+    partisansLeft = Math.max(0, Math.min(plan.partisans || 0, MAX_PARTISANS - partisans.length));
+  const allHexes = function () {
+      return b4mGrid.map(function (e) {
+        return grid.get({ x: e.x, y: e.y });
+      });
+    },
+    // Reinforcements enter on the red-bordered map edge, in an empty hex outside enemy ZOCs
+    unitHexes = function () {
+      return allHexes()
+        .filter(function (e) {
+          return e.sovietReplacement && !lookupUnit(e) && !isEZOC(e, "soviet");
+        })
+        .sort(function (e, t) {
+          return (t.rail ? t.rail.length : 0) - (e.rail ? e.rail.length : 0) || e.y - t.y;
+        });
+    },
+    // Ski battalions reinforce infantry armies that are in communication
+    skiCandidates = function () {
+      return b4mUnits.filter(function (e) {
         return (
-          !t.sovietReplacement ||
-            lookupUnit(t) ||
-            isEZOC(t, "soviet") ||
-            (highlightHex(hexHighlights, t), (n = !0)),
-          n
+          "soviet" === e.army &&
+          "infantry" === e.type &&
+          e.position &&
+          !e.ski &&
+          isInCommunication(grid.get(e.position), "soviet")
         );
-      })
-      .sort(function (e, t) {
-        let n = e.rail ? e.rail.length : 0;
-        return (t.rail ? t.rail.length : 0) - n || e.y - t.y;
-      }),
-    n = document.getElementById("canvas_step_reinforcement");
-  n.style.display = "block";
-  let i = b4mUnits.filter(function (e) {
-    return "soviet" === e.army && "shock" === e.type;
-  });
-  drawAvailableUnits(n, i);
-  const o = function (e) {
-    let o = grid.get(e),
-      r = -1;
-    for (let e = 0; e < t.length; e++)
-      if (Hex(t[e]).equals(o)) {
-        r = e;
-        break;
+      });
+    },
+    // Partisans rise in forests behind the German lines: cut off from Russian communication, not next to German units
+    partisanHexes = function () {
+      return allHexes().filter(function (e) {
+        return (
+          "forest" === e.terrain &&
+          !lookupUnit(e) &&
+          !hasPartisan(e) &&
+          !isEZOC(e, "soviet") &&
+          !isInCommunication(e, "soviet")
+        );
+      });
+    },
+    stage = function () {
+      return units.length > 0 && unitHexes().length > 0
+        ? "units"
+        : skiLeft > 0 && skiCandidates().length > 0
+          ? "ski"
+          : partisansLeft > 0 && partisanHexes().length > 0
+            ? "partisans"
+            : "done";
+    },
+    germanPositions = function () {
+      return b4mUnits
+        .filter(function (e) {
+          return "german" === e.army && e.position;
+        })
+        .map(function (e) {
+          return Hex(e.position);
+        });
+    },
+    distanceToGermans = function (e) {
+      let t = 99;
+      for (const n of germanPositions()) t = Math.min(t, e.distance(n));
+      return t;
+    },
+    refresh = function () {
+      hexHighlights.clearRect(0, 0, canvasHexHighlights.width, canvasHexHighlights.height);
+      const e = stage();
+      let t = [];
+      "units" === e
+        ? ((t = unitHexes()),
+          (tip.innerText = isHuman
+            ? isWinterTurn()
+              ? "The Stavka reserves are committed! Place the reinforcement units in the eligible area of the map (red-bordered edge)."
+              : "Place the reinforcement unit in the eligible area of the map."
+            : "The enemy places the reinforcement units in the eligible area of the map."),
+          (count.innerHTML = ""),
+          drawAvailableUnits(canvas, units),
+          (canvas.style.display = "block"))
+        : "ski" === e
+          ? ((t = skiCandidates().map(function (e) {
+              return grid.get(e.position);
+            })),
+            (tip.innerText = isHuman
+              ? "Ski battalions arrive: select infantry armies in communication to reinforce them (optional). In winter, ski-reinforced armies move through forests at 1 MP per hex and ignore the forest shift when they attack."
+              : "The enemy reinforces infantry armies with ski battalions."),
+            (count.innerHTML = "Ski battalions left: <strong>" + skiLeft + "</strong>"),
+            drawReinforcementTokens(canvas, "ski", skiLeft))
+          : "partisans" === e
+            ? ((t = partisanHexes()),
+              (tip.innerText = isHuman
+                ? "Partisans rise behind the German lines: place them on forest hexes cut off from Russian communication and not next to German units (optional). They cut German lines of communication around them."
+                : "Partisans rise behind the German lines."),
+              (count.innerHTML = "Partisan markers left: <strong>" + partisansLeft + "</strong>"),
+              drawReinforcementTokens(canvas, "partisans", partisansLeft))
+            : ((tip.innerText = isHuman
+                ? "All the reinforcements have been deployed."
+                : "The enemy has deployed its reinforcements."),
+              (count.innerHTML = ""),
+              (canvas.style.display = "none"));
+      for (const n of t) highlightHex(hexHighlights, n);
+      // The arriving units must be placed; ski battalions and partisans are optional for a human player
+      const n = isHuman ? "units" !== e : "done" === e;
+      n
+        ? ((followingReinforcement = !0),
+          (nextButton.style.display = "block"),
+          (nextButton.onclick = replacementPhase))
+        : (nextButton.style.display = "none");
+    },
+    act = function (e) {
+      if (!e) return;
+      const t = stage(),
+        n = e.center().add(e.toPoint());
+      if ("units" === t) {
+        if (
+          !unitHexes().some(function (t) {
+            return t.equals(e);
+          })
+        )
+          return;
+        const i = units.shift();
+        ((i.position = { x: e.x, y: e.y }), drawUnit(board, i, n.x - 30, n.y - 30));
+      } else if ("ski" === t) {
+        const t = lookupUnit(e);
+        if (
+          !t ||
+          !skiCandidates().some(function (e) {
+            return e.id === t.id;
+          })
+        )
+          return;
+        const i = b4mUnits[b4mUnitsIndex(t)];
+        ((i.ski = !0), skiLeft--, drawUnit(board, i, n.x - 30, n.y - 30));
+      } else {
+        if ("partisans" !== t) return;
+        if (
+          !partisanHexes().some(function (t) {
+            return t.equals(e);
+          })
+        )
+          return;
+        (partisans.push({ x: e.x, y: e.y }), partisansLeft--, drawPartisans());
       }
-    if (r > -1) {
-      let e = o.center().add(o.toPoint()),
-        t = lookupUnit(o);
-      if (t)
-        (clearUnit(board, t, e.x - 40, e.y - 40),
-          countersHighlights.clearRect(e.x - 40, e.y - 40, 80, 80),
-          i.unshift(t),
-          drawAvailableUnits(n, i));
-      else {
-        let t = i.shift();
-        ((t.position = { x: o.x, y: o.y }),
-          drawUnit(board, t, e.x - 30, e.y - 30),
-          countersHighlights.drawImage(
-            document.getElementById("delete_counter"),
-            e.x - 40,
-            e.y - 40,
-            80,
-            80,
-          ),
-          drawAvailableUnits(n, i));
-      }
-    }
-    0 === i.length
-      ? ((followingReinforcement = !0),
-        (document.getElementById("next_step_reinforcement").style.display = "block"),
-        (document.getElementById("next_step_reinforcement").onclick = replacementPhase))
-      : (document.getElementById("next_step_reinforcement").style.display = "none");
-  };
-  handleReinforcementClick = function (e) {
-    if ("counters_highlights" === e.target.id) {
-      const t = Grid.pointToHex(e.offsetX, e.offsetY);
-      o(t);
-    }
-  };
-  if (0 === t.length)
-    ((followingReinforcement = !0),
-      (document.getElementById("step_replacement_tip").innerText +=
-        " But there is no valid location, so the only choice is to move to the next phase."),
-      (document.getElementById("next_step_reinforcement").style.display = "block"),
-      (document.getElementById("next_step_reinforcement").onclick = replacementPhase));
-  else if ("" === playAIAs || playAIAs !== currentTurn.army)
+      refresh();
+    };
+  if (
+    ((handleReinforcementClick = function (e) {
+      "counters_highlights" === e.target.id && act(grid.get(Grid.pointToHex(e.offsetX, e.offsetY)));
+    }),
+    refresh(),
+    isHuman)
+  )
     document.addEventListener("click", handleReinforcementClick);
   else {
-    const e = (function () {
-      let e = [];
-      return (t.length > 0 && e.push({ x: t[0].x, y: t[0].y }), e);
-    })();
-    for (let t = 0; t < e.length; t++)
-      setTimeout(
-        function () {
-          (window.scrollTo(
-            grid.get(e[t]).toPoint().x - window.innerWidth / 2,
-            grid.get(e[t]).toPoint().y - window.innerHeight / 2,
-          ),
-            o(e[t]));
-        },
-        1500 * (t + 1),
-      );
+    const e = {};
+    reinforcementAIToken = e;
+    const t = function () {
+      if (reinforcementAIToken !== e || "reinforcement" !== currentTurn.subphase) return;
+      const n = stage();
+      let i = null;
+      if ("units" === n) {
+        const e = unitHexes();
+        i = isWinterTurn()
+          ? e.sort(function (e, t) {
+              return distanceToGermans(e) - distanceToGermans(t);
+            })[0]
+          : e[0];
+      } else if ("ski" === n)
+        i = skiCandidates()
+          .map(function (e) {
+            return grid.get(e.position);
+          })
+          .sort(function (e, t) {
+            return distanceToGermans(e) - distanceToGermans(t);
+          })[0];
+      else if ("partisans" === n) {
+        const e = function (e) {
+          return germanPositions().filter(function (t) {
+            return e.distance(t) <= 3;
+          }).length;
+        };
+        i = partisanHexes().sort(function (t, n) {
+          return e(n) - e(t);
+        })[0];
+      }
+      i &&
+        (window.scrollTo(
+          i.toPoint().x - window.innerWidth / 2,
+          i.toPoint().y - window.innerHeight / 2,
+        ),
+        act(i),
+        setTimeout(t, 1500));
+    };
+    setTimeout(t, 1500);
   }
 }
 const isInCommunication = function (e, t) {
   let n = Hex(grid.get(e));
   if ("soviet" === t ? n.sovietReplacement : n.germanReplacement) return !0;
+  // Russian units in or next to a partisan hex are supplied by the partisans
+  if ("soviet" === t && inPartisanZOC(n)) return !0;
   const i = "soviet" === t ? 10 * (13 - n.x) : 10 * n.x,
     o = "german" === t ? "soviet" : "german";
   ((n.credit = i), (n.path = []));
@@ -2718,13 +2997,18 @@ const isInCommunication = function (e, t) {
     l++;
     const n = "soviet" === t ? e.sovietReplacement : e.germanReplacement,
       i = lookupUnit(e);
-    if (l > 1 && n && (!i || i.army === t) && !isEZOC(e, t)) return !0;
+    if (l > 1 && n && (!i || i.army === t) && !isEZOC(e, t) && !("german" === t && inPartisanZOC(e)))
+      return !0;
     for (const n of grid.neighborsOf(e)) {
       let i = Hex(n);
       if (i && "off" !== i.terrain) {
         i.credit = e.credit - 1;
         let n = lookupUnit(i);
-        (n && n.army === o && (i.credit = -1), isEZOC(i, t) && i.credit > -1 && (i.credit = 0));
+        (n && n.army === o && (i.credit = -1),
+          isEZOC(i, t) && i.credit > -1 && (i.credit = 0),
+          // Partisans cut German lines of communication: their hex is impassable, the hexes around it act like an enemy ZOC
+          "german" === t &&
+            (hasPartisan(i) ? (i.credit = -1) : i.credit > -1 && inPartisanZOC(i) && (i.credit = 0)));
         let l = indexOfHex(i, a);
         l < 0
           ? i.credit > -1 &&
@@ -2803,7 +3087,7 @@ function replacementPhase(e) {
     let e = b4mUnits
       .filter(function (e) {
         return (
-          e.army === currentTurn.army && ("shock" !== e.type || currentTurn.turn > 4) && !e.position
+          e.army === currentTurn.army && currentTurn.turn > arrivalTurnOf(e.id) && !e.position
         );
       })
       .sort(function (e, t) {
@@ -2813,7 +3097,7 @@ function replacementPhase(e) {
             ? -1
             : t.combatFull - e.combatFull;
       });
-    return 0 === e.length ? null : ((e[0].strength = "reduced"), e[0]);
+    return 0 === e.length ? null : ((e[0].strength = "reduced"), (e[0].ski = !1), e[0]);
   };
   let o = [];
   i() &&
@@ -3404,13 +3688,13 @@ function finalResults(e) {
         (r = 3),
         (t = '<img src="img/german_marker.png" /><span>German Decisive Victory!</span>'),
         (n =
-          "The German Army wins <strong>3 points</strong> because it controls Moscow and Tula at the end of Game Turn 7."))
+          "The German Army wins <strong>3 points</strong> because it controls Moscow and Tula at the end of Game Turn " + LAST_TURN + "."))
       : "german" === i && "soviet" === e
         ? ((o = "german"),
           (r = 2),
           (t = '<img src="img/german_marker.png" /><span>German Major Victory!</span>'),
           (n =
-            "The German Army wins <strong>2 points</strong> because it controls Moscow at the end of Game Turn 7, while the Red Army still controls Tula."))
+            "The German Army wins <strong>2 points</strong> because it controls Moscow at the end of Game Turn " + LAST_TURN + ", while the Red Army still controls Tula."))
         : "soviet" !== i || "german" !== e || isInCommunication(grid.get({ x: 10, y: 2 }), "soviet")
           ? "soviet" === i &&
             "german" === e &&
@@ -3419,7 +3703,7 @@ function finalResults(e) {
               (r = 1),
               (t = '<img src="img/soviet_marker.png" /><span>Russian Minor Victory!</span>'),
               (n =
-                "The Red Army wins <strong>1 point</strong> because it controls Moscow at the end of Game Turn 7, and the city is in communication, while the German Army controls Tula."))
+                "The Red Army wins <strong>1 point</strong> because it controls Moscow at the end of Game Turn " + LAST_TURN + ", and the city is in communication, while the German Army controls Tula."))
             : "soviet" !== i ||
                 "soviet" !== e ||
                 (isInCommunication(grid.get({ x: 10, y: 2 }), "soviet") &&
@@ -3432,17 +3716,17 @@ function finalResults(e) {
                 (r = 3),
                 (t = '<img src="img/soviet_marker.png" /><span>Russian Decisive Victory!</span>'),
                 (n =
-                  "The Red Army wins <strong>3 points</strong> because it controls Moscow and Tula at the end of Game Turn 7, and both cities are in communication."))
+                  "The Red Army wins <strong>3 points</strong> because it controls Moscow and Tula at the end of Game Turn " + LAST_TURN + ", and both cities are in communication."))
               : ((o = "soviet"),
                 (r = 2),
                 (t = '<img src="img/soviet_marker.png" /><span>Russian Major Victory!</span>'),
                 (n =
-                  "The Red Army wins <strong>2 points</strong> because it controls Moscow and Tula at the end of Game Turn 7, but either or both cities are not in communication."))
+                  "The Red Army wins <strong>2 points</strong> because it controls Moscow and Tula at the end of Game Turn " + LAST_TURN + ", but either or both cities are not in communication."))
           : ((o = "german"),
             (r = 1),
             (t = '<img src="img/german_marker.png" /><span>German Minor Victory!</span>'),
             (n =
-              "The German Army wins <strong>1 point</strong> because it controls Tula at the end of Game Turn 7, while the Red Army still controls Moscow, but Moscow is not in communication."));
+              "The German Army wins <strong>1 point</strong> because it controls Tula at the end of Game Turn " + LAST_TURN + ", while the Red Army still controls Moscow, but Moscow is not in communication."));
     const a = b4mUnits.reduce(function (e, t) {
       let n = 0;
       return (
@@ -3469,7 +3753,7 @@ function finalResults(e) {
             : "<br />Although they lost, the Red Army gets <strong>1 point</strong> because the Germans have 7 or fewer Panzer steps on the map at the end of the game.");
   } else if ("german" === i)
     ((t = '<img src="img/german_marker.png" /><span>The German Army won!</span>'),
-      (n = "The German Army wins because it controls Moscow at the end of Game Turn 7."));
+      (n = "The German Army wins because it controls Moscow at the end of Game Turn " + LAST_TURN + "."));
   else {
     b4mGrid.filter(function (e) {
       const t = grid.get(e);
@@ -3477,10 +3761,10 @@ function finalResults(e) {
     }).length > 0
       ? ((t = '<img src="img/soviet_marker.png" /><span>The Red Army won!</span>'),
         (n =
-          "The Red Army wins because it controls Moscow and one other city at the end of Game Turn 7."))
+          "The Red Army wins because it controls Moscow and one other city at the end of Game Turn " + LAST_TURN + "."))
       : ((t = "<span>It is a draw!</span>"),
         (n =
-          "The Red Army still controls Moscow but the German Army controls all the other cities at the end of Game Turn 7."));
+          "The Red Army still controls Moscow but the German Army controls all the other cities at the end of Game Turn " + LAST_TURN + "."));
   }
   ((document.querySelector("#final_results > div.hud_title").innerHTML = t),
     (document.getElementById("final_results_tip").innerHTML = n));
@@ -3499,6 +3783,13 @@ function startGameVsGermanAI() {
 }
 function continueFromSave() {
   b4mUnits = b4mSave.units.slice();
+  for (const e of b4mDefaultUnits)
+    b4mUnits.some(function (t) {
+      return t.id === e.id;
+    }) || b4mUnits.push(JSON.parse(JSON.stringify(e)));
+  partisans = (b4mSave.partisans || []).map(function (e) {
+    return { x: e.x, y: e.y };
+  });
   for (const e of b4mSave.cities) {
     let t = grid.get(e.position);
     t && t.city && "none" !== t.city && (t.control = e.control);
@@ -3684,6 +3975,8 @@ function startGame() {
     (canvasCountersHighlights = document.getElementById("counters_highlights")),
     (canvasCountersHighlights.width = document.getElementById("map").width),
     (canvasCountersHighlights.height = document.getElementById("map").height),
+    (document.getElementById("partisan_markers").width = document.getElementById("map").width),
+    (document.getElementById("partisan_markers").height = document.getElementById("map").height),
     (countersHighlights = canvasCountersHighlights.getContext("2d")),
     true)
   ) {

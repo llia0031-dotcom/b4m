@@ -2,7 +2,7 @@
 // Handles offline caching and resource serving
 
 // Cache version - increment this to force cache refresh
-const CACHE_VERSION = 'b4m-v1.0.6';
+const CACHE_VERSION = 'b4m-v1.1.2';
 const CACHE_NAME = `battle-for-moscow-${CACHE_VERSION}`;
 
 // All resources to precache for offline functionality
@@ -23,8 +23,7 @@ const PRECACHE_URLS = [
 
   // JavaScript files
   // The live site lists /b4m/js/b4m.js here, but that file 404s.
-  // The page loads b4m.min.js, so the local copy precaches the file that exists.
-  'js/b4m.min.js',
+  'js/b4m.js',
   'js/honeycomb.min.js',
 
   // Local images
@@ -56,6 +55,7 @@ const PRECACHE_URLS = [
   'img/soviet_marker.png',
   'img/soviet_turn.png',
   'img/soviets.png',
+  'img/soviets_cavalry.png',
   'img/unit_type_symbols.png',
   'img/zoc.png',
   'img/map.png',
@@ -87,7 +87,10 @@ self.addEventListener('install', (event) => {
         console.log('[Service Worker] Precaching local resources');
 
         // Cache local resources first
-        const localCachePromise = cache.addAll(PRECACHE_URLS);
+        // cache: 'reload' bypasses the browser's HTTP cache, so a new version never precaches stale files
+        const localCachePromise = cache.addAll(
+          PRECACHE_URLS.map((url) => new Request(url, { cache: 'reload' }))
+        );
 
         // Cache cross-origin resources with no-cors mode
         const corsCachePromises = CORS_URLS.map(url => {

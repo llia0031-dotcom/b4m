@@ -23,7 +23,7 @@
     <link rel="stylesheet" type="text/css" href="css/font-awesome.min.css">
     <link rel="stylesheet" type="text/css" href="css/b4m.css" />
     <script src="js/honeycomb.min.js"></script>
-    <script src="js/b4m.min.js"></script>
+    <script src="js/b4m.js"></script>
   </head>
   <body style="overflow: hidden;">
     <!-- Splash screen -->
@@ -51,8 +51,10 @@
     <img id="arrows_counter" src="img/arrows_counter.png" style="display: none;">
     <img id="soviet_marker" src="img/soviet_marker.png" style="display: none;">
     <img id="german_marker" src="img/german_marker.png" style="display: none;">
+    <img id="soviets_cavalry" src="img/soviets_cavalry.png" style="display: none;">
     <!-- Map and canvas -->
     <img id="map" src="img/map.png">
+    <canvas id="partisan_markers"></canvas>
     <canvas id="hex_highlights"></canvas>
     <canvas id="board"></canvas>
     <canvas id="counters_highlights"></canvas>
@@ -256,6 +258,7 @@
       <div id="help_toc">
         <a href="#help_sequence">Sequence of Play</a> | 
         <a href="#help_howto">How To...</a> | 
+        <a href="#help_winter">Winter Counteroffensive</a> | 
         <a href="#help_terrain">Terrain Effects Chart</a> | 
         <a href="#help_crt">Combat Results Table</a> | 
         <a id="help_close" href="#" style="font-weight: normal; font-style: italic;">Close</a>
@@ -288,10 +291,24 @@
       <div style="display: inline-block;">
         <h4>... View Cities' Control</h4>
         <img src="img/help_view_cities.png" style="float: right; padding-left: 10px;"/>
-        <p>Who's controlling cities at the end of the game is a key victory condition: the Germans win if they control Moscow at the end of Game Turn 7. The Russians win if they control Moscow and any one other city. Any other result (i.e., the Germans control every city but Moscow) is a draw.</p>
+        <p>Who's controlling cities at the end of the game is a key victory condition: the Germans win if they control Moscow at the end of Game Turn 9. The Russians win if they control Moscow and any one other city. Any other result (i.e., the Germans control every city but Moscow) is a draw.</p>
         <p>Each city's control is with the army whose units were the last ones to have entered that city.</p>
         <p>In order to assess which city is under which army's control at any point throughout the game, simply click on the <strong>turn information</strong> bar to open a summary and highlight the cities' current status on the map. Then, click again on the turn information to close the view.</p>
       </div>
+      <div id="help_winter" class="help_section_title">Winter Counteroffensive</div>
+      <p>The game continues into the Russian winter counteroffensive and ends after <strong>Game Turn 9</strong> (December 15th, 1941). Turns 8 and 9 are winter turns. The victory conditions are checked at the end of Game Turn 9.</p>
+      <h4>Turn 8: the Stavka reserves are committed</h4>
+      <ul>
+        <li><strong>1st and 2nd Guards Cavalry Corps</strong> (Belov and Dovator, 6-6) enter on the red-bordered map edge, like the 1st Shock Army on turn 4.</li>
+        <li><strong>3 ski battalions</strong> reinforce infantry armies that are in communication (snowflake badge).</li>
+        <li><strong>2 partisan markers</strong> are placed behind the German lines (1 more on turn 9, at most 3 on the map).</li>
+      </ul>
+      <h4>Cavalry</h4>
+      <p>A cavalry corps may keep moving after it enters its first hex in an enemy Zone of Control during a phase, but must stop when it enters a second one.</p>
+      <h4>Ski-reinforced armies</h4>
+      <p>During winter turns, a ski-reinforced army spends only 1 Movement Point to enter a forest hex, and if at least one ski-reinforced army takes part in an attack, the forest does not reduce the odds. An army loses its ski battalions when it is eliminated.</p>
+      <h4>Partisans</h4>
+      <p>Partisans are placed on empty forest hexes that are cut off from Russian communication and not next to a German unit. German lines of communication cannot pass through a partisan hex or the hexes next to it. Russian units in or next to a partisan hex are in communication. A German unit that enters a partisan hex must stop there and wipes the partisans out.</p>
       <div id="help_terrain" class="help_section_title">Terrain Effects Chart</div>
       <img id="help_terrain_img" src="img/terrain.png" class="help_img" />
       <div id="help_crt" class="help_section_title">Combat Results Table</div>
