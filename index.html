@@ -54,6 +54,7 @@
     <img id="soviets_cavalry" src="img/soviets_cavalry.png" style="display: none;">
     <!-- Map and canvas -->
     <img id="map" src="img/map.png">
+    <canvas id="season_overlay"></canvas>
     <canvas id="partisan_markers"></canvas>
     <canvas id="hex_highlights"></canvas>
     <canvas id="status_markers"></canvas>
@@ -62,6 +63,7 @@
     <!-- Status bar -->
     <div id="turn_info" style="display: none;">
       <span id="turn_info_title"></span>
+      <span id="turn_info_weather"></span>
       <div id="turn_report" style="display: none;"></div>
     </div>
     <div id="layer_toolbar" style="display: none;"><span class="layer_title">Layers</span><label title="Show the units cut off from their map edge (key S)"><input type="checkbox" id="layer_supply"> Supply<span id="supply_view_count"></span></label><label title="Show unit fatigue (key F)"><input type="checkbox" id="layer_fatigue"> Fatigue</label><label title="Show the estimated manpower of each unit (key P)"><input type="checkbox" id="layer_men"> Men</label><label title="Sound effects on or off (key M)"><input type="checkbox" id="layer_sound" checked> Sound</label></div>
@@ -132,6 +134,7 @@
             <label for="skip_to_movement"> Go straight to movement phase</label>
           </p>
           <div id="dashboard_combat"></div>
+          <p id="battle_forecast" class="battle_forecast"></p>
           <p id="combat_losses" class="combat_losses"></p>
           <p id="skip_announce" style="display: none;">
             <input type="checkbox" id="skip_to_resolution" name="skip_to_resolution" value="skip">
@@ -263,6 +266,7 @@
         <a href="#help_howto">How To...</a> | 
         <a href="#help_fatigue">Fatigue and Supply</a> | 
         <a href="#help_winter">Winter Counteroffensive</a> | 
+        <a href="#help_decisions">Command Decisions</a> | 
         <a href="#help_chronicle">Chronicle</a> | 
         <a href="#help_terrain">Terrain Effects Chart</a> | 
         <a href="#help_crt">Combat Results Table</a> | 
@@ -304,11 +308,11 @@
       <p>Tick a box in the <strong>Layers</strong> bar at the top left to show a status on the map; nothing is shown while the boxes are unticked. <strong>Supply</strong>: every unit cut off from its map edge (not in communication) gets a red dashed frame and its hex is shaded, and the bar counts them for both sides. <strong>Fatigue</strong>: a tired unit gets a bar of three segments under it, one filled segment per fatigue level. Press <strong>S</strong> or <strong>F</strong> to switch these layers on or off.</p>
       <div id="help_men" class="help_section_title">Manpower, Losses and Sound</div>
       <p>The rules give a German corps about 25,000 soldiers and a Russian army about 40,000; this version counts the 1st Shock Army as 50,000 and a Guards cavalry corps as 15,000. Every step lost costs half of a unit's men. The losses of both sides and their ratio are shown under the battle table, in the turn report (click the turn bar) and at the end of the game; tick <strong>Men</strong> in the Layers bar (key P) to see the estimated manpower of each unit on the map.</p>
-      <p>Sound effects (key M to switch them off) are synthesised in the browser: the German attacks open with a battery of 15 cm heavy howitzers, the Russian ones with 76 mm divisional guns, the 1st Shock Army with a Katyusha salvo, and in winter the Russian infantry charges with a "Ura!". Moving infantry marches (on snow in winter), panzers rumble and cavalry gallops.</p>
+      <p>Sound effects (key M to switch them off) are synthesised in the browser: the German attacks open with a battery of 15 cm heavy howitzers, the Russian ones with 76 mm divisional guns, the 1st Shock Army with a Katyusha salvo, and in winter the Russian infantry charges with a "Ura!". Moving infantry marches (on snow in winter), panzers rumble and cavalry gallops. When the counteroffensive begins on turn 8, a 1941 recording of the March of the Defenders of Moscow (music by B. Mokrousov, words by A. Surkov) is played.</p>
       <div id="help_fatigue" class="help_section_title">Fatigue and Supply</div>
       <p>Units get tired when they fight, and even more when they are cut off from their map edge. Fatigue is counted in points; every 4 points is one level (at most level 3). A turn is one to two weeks: a unit that attacks every turn is tired after 4 turns and exhausted after 8, like the German divisions of Operation Typhoon by December.</p>
       <ul>
-        <li><strong>Gaining fatigue</strong>: +1 for each attack, +1 for being attacked (unless the result is NE), +3 at the start of each turn spent cut off from the map edge (+2 more if it is completely surrounded: every hex around it is an enemy unit or in an enemy ZOC), +1 for a German unit within 2 hexes of a railway cut by the partisans, and in winter +1 per turn for a German unit outside a city.</li>
+        <li><strong>Gaining fatigue</strong>: +1 for each attack, +1 for being attacked (unless the result is NE), +3 at the start of each turn spent cut off from the map edge (+2 more if it is completely surrounded: every hex around it is an enemy unit or in an enemy ZOC), +1 for a German unit within 2 hexes of a railway cut by the partisans, and in winter, for German units without winter clothing (see Command Decisions), +2 per turn outside the towns and +1 in a town other than Moscow and Tula.</li>
         <li><strong>Recovering</strong> (at the start of the unit's turn, only if it is in communication and not near a cut railway): -1 if it neither attacked nor was attacked since its previous turn, -2 instead if it also did not move (rest), and -1 more in a city controlled by its side. A replacement that brings it back to full strength removes all its fatigue.</li>
         <li><strong>Level 1, tired</strong>: the unit fights at 3/4 of its strength.</li>
         <li><strong>Level 2, exhausted</strong>: the unit fights at half its strength; when a battle with exhausted attackers ends in DE or DRL, the most exhausted attacker loses 1 step as well.</li>
@@ -325,23 +329,31 @@
       <ul>
         <li><strong>1st and 2nd Guards Cavalry Corps</strong> (Belov and Dovator, 6-6) enter on the red-bordered map edge, like the 1st Shock Army on turn 4.</li>
         <li><strong>3 ski battalions</strong> reinforce infantry armies that are in communication (a pair of skis left of the unit symbol).</li>
-        <li><strong>2 partisan bands</strong> form behind the German lines (1 more on turn 9, at most 3 bands on the map).</li>
+        <li><strong>2 partisan bands</strong> form behind the German lines (1 more on turn 9, at most 4 bands on the map).</li>
       </ul>
       <h4>Cavalry</h4>
       <p>A cavalry corps may keep moving after it enters its first hex in an enemy Zone of Control during a phase, but must stop when it enters a second one.</p>
       <h4>Ski-reinforced armies</h4>
       <p>During winter turns, a ski-reinforced army spends only 1 Movement Point to enter a forest hex, and if at least one ski-reinforced army takes part in an attack, the forest does not reduce the odds. An army loses its ski battalions when it is eliminated.</p>
       <h4>Partisans</h4>
-      <p>A band forms on an empty forest hex cut off from Russian communication and not next to a German unit, with strength 1 (at most 3). German lines of communication cannot pass through a band's hex or the hexes next to it, and Russian units in or next to it are in communication. At the start of each Russian turn from turn 8, every band that did not just form chooses one action:</p>
+      <p>A band forms on an empty forest hex behind the German lines (cut off from Russian communication, or farther from Moscow than the German front) and not next to a German unit, with strength 1 (at most 3; the NKVD detachments dropped on turn 3 start with 2). German lines of communication cannot pass through a band's hex or the hexes next to it, and Russian units in or next to it are in communication. At the start of each Russian turn, every band that did not just form may take one action (click a band on the map to give it its orders):</p>
       <ul>
         <li><strong>Raid</strong>: ambush the supply columns of a German unit within 2 hexes, which gains as many fatigue points as the band's strength.</li>
         <li><strong>Sabotage rail</strong>: blow up a rail hex within 1 hex (red cross); for two German turns, German units within 2 hexes of it gain +1 fatigue and cannot recover.</li>
         <li><strong>Guide the army</strong>: this turn, Russian attacks on German units within 1 hex of the band gain one odds column.</li>
-        <li><strong>Move</strong> to an empty forest hex within 2 hexes, <strong>Recruit</strong> (+1 strength, only with no German unit within 2 hexes), or stand by.</li>
+        <li><strong>Rise in a town</strong>: a German-held town within 2 hexes, with no German unit in it or next to it, when the bands within 2 hexes of the town total 3 strength or more. Roll a die: on a roll up to their total strength (at most 5) the town rises and becomes Russian (a red flag, +1 Russian replacement step); otherwise every band taking part loses 1 strength. A German unit entering the town takes it back.</li>
+        <li><strong>Move</strong> to an empty forest hex within 2 hexes, or <strong>Recruit</strong> (+1 strength, only with no German unit within 2 hexes).</li>
       </ul>
       <p>The Germans fight back: a German unit entering a band's hex sweeps it (the band loses 2 strength and the survivors slip away into a forest within 2 hexes), and at the start of each German turn every band next to a German unit loses 1 strength. In 1941 the occupation authorities answered the partisans with mass terror: an order of 16 September 1941 set 50 to 100 executions of hostages for each German soldier killed. The terror only widened the partisan movement.</p>
       <h4>Hitler's stand-fast order</h4>
-      <p>From Game Turn 9 (the order of 16 December 1941), a German unit at full strength defending in any city converts a DR result into a step loss and does not retreat, as in a major city.</p>
+      <p>From Game Turn 9 (the order of 16 December 1941), a German unit at full strength defending in any city converts a DR result into a step loss and does not retreat, as in a major city, unless the German commanders chose an elastic defence (see Command Decisions).</p>
+      <div id="help_decisions" class="help_section_title">Command Decisions, Weather and Forecast</div>
+      <p>At key moments of the campaign you sit at the desk of the Stavka, the General Staff, the NKVD or the OKH and settle what the units on the map cannot settle by themselves: the rail capacity, a special brigade, a parade, the strategic reserves, Hitler's orders. Before that side's turn starts, a dispatch describes the situation, with the documents and broadcasts of the time. <strong>Point at an order</strong> (or tap it once on a touch screen) to see exactly what it does to the game, then click it to give it; the dispatch then tells what was actually done in 1941. When the computer plays a side, it takes the historical choice and a banner announces it. The decisions taken are listed in the turn report (click the turn bar).</p>
+      <p>The counteroffensive of 5 and 6 December (turn 8) and the radio bulletin of 13 December (turn 9) are announced the same way, with a single order.</p>
+      <p>Winter clothing: Army Group Centre needed some 26 to 30 trains a day and received 8 to 10 at its railheads. Woollens and gloves for nearly two million men, at some 5 kg a man, make some 10,000 tonnes, about 20 trains of 500 tonnes: two days of everything that reached the front. In the game they cost the German replacement steps of two turns.</p>
+      <div id="help_decisions_list"></div>
+      <p>The turn bar shows the typical weather around Moscow at the date of the turn. The map turns brown on the mud turns (3 and 4) and white with snow on the winter turns (8 and 9).</p>
+      <p>When you set up a battle, the line under the battle table gives the chance of each result at the current odds, from the Combat Results Table (one die, so each row is 1 in 6).</p>
       <div id="help_chronicle" class="help_section_title">Chronicle</div>
       <p>A note on the history of each turn (also shown when you click the turn bar).</p>
       <div id="help_chronicle_list"></div>

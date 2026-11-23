@@ -695,13 +695,16 @@ const b4mDefaultUnits = JSON.parse(JSON.stringify(b4mUnits));
 // ---------------------------------------------------------------- Winter counteroffensive
 const LAST_TURN = 9,
   WINTER_START = 8,
-  MAX_PARTISANS = 3,
+  MAX_PARTISANS = 4,
   SPECIAL_ARRIVALS = {
+    // turn 3: the NKVD brigade (a command decision)
+    3: {},
     4: { units: ["s1sh"] },
     8: { units: ["s1gc", "s2gc"], ski: 3, partisans: 2 },
     9: { partisans: 1 },
   };
 let partisans = [],
+  partisanTowns = [],
   reinforcementAIToken = null;
 function isWinterTurn() {
   return currentTurn.turn >= WINTER_START;
@@ -712,7 +715,7 @@ function arrivalTurnOf(e) {
   return 0;
 }
 function hasReinforcementStep(e) {
-  return !!SPECIAL_ARRIVALS[e] || (e >= WINTER_START && partisans.length > 0);
+  return !!SPECIAL_ARRIVALS[e] || partisans.length > 0;
 }
 function hasPartisan(e) {
   return (
@@ -755,7 +758,7 @@ function removePartisanAt(e) {
     i ? ((t.x = i.x), (t.y = i.y)) : (t.strength = 0);
   }
   ((partisans = partisans.filter(function (e) {
-    return (e.strength || 1) > 0;
+    return null == e.strength || e.strength > 0;
   })),
     drawPartisans());
 }
@@ -830,6 +833,30 @@ function drawPartisans() {
       t.stroke(),
       (t.strokeStyle = "#d9232e"),
       (t.lineWidth = 3.5),
+      t.stroke(),
+      t.restore());
+  }
+  // Towns taken by a partisan rising, while the Russians hold them: a small red flag
+  for (const n of partisanTowns) {
+    const i = grid.get(n);
+    if (!i || "soviet" !== i.control) continue;
+    const o = i.center().add(i.toPoint());
+    (t.save(),
+      (t.strokeStyle = "#2b2418"),
+      (t.lineWidth = 2.5),
+      t.beginPath(),
+      t.moveTo(o.x - 30, o.y + 26),
+      t.lineTo(o.x - 30, o.y - 2),
+      t.stroke(),
+      (t.fillStyle = "#d9232e"),
+      (t.strokeStyle = "#5a0d12"),
+      (t.lineWidth = 1),
+      t.beginPath(),
+      t.moveTo(o.x - 29, o.y - 2),
+      t.lineTo(o.x - 12, o.y + 4),
+      t.lineTo(o.x - 29, o.y + 10),
+      t.closePath(),
+      t.fill(),
       t.stroke(),
       t.restore());
   }
@@ -1078,7 +1105,7 @@ function setSound(e) {
   try {
     window.localStorage.setItem("b4mSound", soundOn ? "1" : "0");
   } catch (e) {}
-  soundOn ? audioReady() : audioCtx && audioCtx.suspend();
+  soundOn ? audioReady() : (audioCtx && audioCtx.suspend(), stopAnthem());
 }
 function setSupplyLayer(e) {
   setLayer("supply", e);
@@ -1131,6 +1158,26 @@ function initStatusUI() {
 }
 window.addEventListener("load", initStatusUI);
 window.addEventListener("load", function () {
+  const d = document.getElementById("help_decisions_list");
+  d &&
+    (d.innerHTML =
+      "<ul>" +
+      HISTORY_EVENTS.map(function (e) {
+        return (
+          "<li><strong>Turn " +
+          e.turn +
+          ", " +
+          ("german" === e.army ? "German" : "Russian") +
+          "</strong>: " +
+          e.title +
+          " (" +
+          (e.to || e.officeEn) +
+          ", " +
+          e.date +
+          ")</li>"
+        );
+      }).join("") +
+      "</ul>");
   const e = document.getElementById("help_chronicle_list");
   e &&
     (e.innerHTML = Object.keys(CHRONICLE)
@@ -1153,7 +1200,8 @@ const FATIGUE = {
     siegeCutOff: 1,
     siegeRinged: 1,
     railCut: 1,
-    winterOutsideCity: 1,
+    winterOutsideCity: 2,
+    winterInTown: 1,
     idle: 1,
     rest: 2,
     city: 1,
@@ -1189,7 +1237,9 @@ function unitName(e) {
     n = t % 100,
     i = t + (n >= 11 && n <= 13 ? "th" : ["th", "st", "nd", "rd"][t % 10] || "th");
   if ("soviet" === e.army)
-    return "shock" === e.type
+    return e.nkvd
+      ? i + " Army (NKVD)"
+      : "shock" === e.type
       ? i + " Shock Army"
       : "cavalry" === e.type
         ? i + " Guards Cavalry Corps"
@@ -1222,7 +1272,7 @@ function processTurnFatigue(e) {
       isEZOC(grid.get(e), "soviet") && (e.strength = (e.strength || 1) - 1);
     }),
     (partisans = partisans.filter(function (e) {
-      return (e.strength || 1) > 0;
+      return null == e.strength || e.strength > 0;
     })),
     drawPartisans());
   buildCityStocks(e, t);
@@ -1245,7 +1295,7 @@ function processTurnFatigue(e) {
           ((r += FATIGUE.siegeCutOff + (c ? FATIGUE.siegeRinged : 0)), (l.value = Math.max(0, l.value - (c ? 2 : 1))))
         : (r += FATIGUE.cutOff + (c ? FATIGUE.ringed : 0))),
       s && (r += FATIGUE.railCut),
-      isWinterTurn() && "german" === e && "none" === i.city && (r += FATIGUE.winterOutsideCity),
+      "german" === e && (r += germanWinterFatigue(i)),
       o ||
         s ||
         (n.fought || (r -= n.moved ? FATIGUE.idle : FATIGUE.rest),
@@ -1339,15 +1389,21 @@ function takeLiberationBonus() {
   const e = liberationBonus;
   return ((liberationBonus = 0), e);
 }
-function showEventBanner(e) {
+function showEventBanner(e, ms) {
   let t = document.getElementById("event_banner");
-  (t || ((t = document.createElement("div")), (t.id = "event_banner"), document.body.appendChild(t)),
+  (t ||
+    ((t = document.createElement("div")),
+    (t.id = "event_banner"),
+    (t.onclick = function () {
+      t.style.display = "none";
+    }),
+    document.body.appendChild(t)),
     (t.innerHTML = e),
     (t.style.display = "block"),
     clearTimeout(t.hideTimer),
     (t.hideTimer = setTimeout(function () {
       t.style.display = "none";
-    }, 4500)));
+    }, ms || 4500)));
 }
 // A Russian unit enters a German-held city during the Russian turn
 function cityLiberated(e, t) {
@@ -1389,7 +1445,8 @@ function victoryPoints() {
     const i = grid.get({ x: n.x, y: n.y });
     "soviet" === i.control ? (e += cityVP(i)) : (t += cityVP(i));
   }
-  return { soviet: e, german: t };
+  // Hitler sacks the generals who chose an elastic defence
+  return ("elastic" === decisions.haltOrder && e++, { soviet: e, german: t });
 }
 function historicalSovietVP(e) {
   const t = HISTORICAL_SOVIET_CITIES[e];
@@ -1416,16 +1473,9 @@ function turnReportExtra() {
     '<div style="text-align: left;">- ' +
     lossesText() +
     "</div>" +
+    decisionsHtml() +
     chronicleHtml(currentTurn.turn)
   );
-}
-// Big events of the turn, announced at the start of the side's turn
-function announceTurnEvents() {
-  "german" === currentTurn.army &&
-    currentTurn.turn === HALT_ORDER_TURN &&
-    showEventBanner(
-      '<img src="img/german_marker.png" />16 December 1941: Hitler\'s stand-fast order<span>German units defending in a city now hold at all costs: a DR result costs them a step instead of a retreat.</span>',
-    );
 }
 // End of the game (standard rules): victory points compared with what happened in 1941
 function standardResult() {
@@ -1503,6 +1553,59 @@ function railCutNear(e, t) {
   return railCuts.some(function (n) {
     return e.distance(Hex(n)) <= t;
   });
+}
+// ---------------------------------------------------------------- Partisan risings
+// The bands within 2 hexes of a German-held town with no German unit in or next to it can rise and take it
+const PARTISAN_RISING_STRENGTH = 3;
+function risingBands(hex) {
+  return partisans.filter(function (band) {
+    return hex.distance(grid.get(band)) <= 2;
+  });
+}
+// Total strength of the bands that can rise in this town (0 if they cannot)
+function risingStrength(hex) {
+  if (!hex || !hex.city || "none" === hex.city || "german" !== hex.control || germanUnitsWithin(hex, 1).length > 0) return 0;
+  const strength = risingBands(hex).reduce(function (sum, band) {
+    return sum + (band.strength || 1);
+  }, 0);
+  return strength >= PARTISAN_RISING_STRENGTH ? strength : 0;
+}
+// A die roll up to the bands' total strength (at most 5) takes the town; otherwise every band loses 1 strength
+function partisanRising(hex) {
+  const need = Math.min(5, risingStrength(hex)),
+    roll = Math.floor(6 * Math.random()) + 1,
+    success = roll <= need,
+    name = CITY_NAMES[hex.x + "," + hex.y] || "the town";
+  for (const band of risingBands(hex)) ((band.acted = !0), success || (band.strength = (band.strength || 1) - 1));
+  (success && ((hex.control = "soviet"), liberationBonus++, partisanTowns.push({ x: hex.x, y: hex.y })),
+    (partisans = partisans.filter(function (band) {
+      return band.strength > 0;
+    })),
+    drawPartisans(),
+    scheduleStatusRefresh());
+  return { success: success, roll: roll, need: need, name: name };
+}
+function announceRising(result) {
+  const note =
+    "Die roll " +
+    result.roll +
+    " (" +
+    result.need +
+    " or less needed): " +
+    (result.success
+      ? "the partisans rise and take " + result.name + "! +1 Russian replacement step."
+      : "the rising in " + result.name + " is crushed; every band taking part loses 1 strength.");
+  showEventBanner(
+    '<img src="img/' +
+      result.roll +
+      '.png" />' +
+      (result.success ? result.name + " taken by the partisans!" : "The rising in " + result.name + " is crushed") +
+      "<span>" +
+      note +
+      "</span>",
+    8000,
+  );
+  return note;
 }
 // ---------------------------------------------------------------- Encirclement and city stocks
 // Major cities stockpile supplies for their garrison: a stock point is added at the start of the
@@ -1846,6 +1949,766 @@ function refreshLossesDisplay() {
   const e = document.getElementById("combat_losses");
   e && (e.innerText = currentLosses().german + currentLosses().soviet > 0 ? lossesText() : "");
 }
+// ---------------------------------------------------------------- Weather and seasons
+// Typical weather around Moscow at the date of each turn in 1941
+const WEATHER = {
+  1: "Cool and dry, around +5 °C",
+  2: "First snow on 7 October, around 0 °C",
+  3: "Rain and deep mud (rasputitsa), around +3 °C",
+  4: "Mud and frosty nights, around 0 °C",
+  5: "The ground freezes hard, around -8 °C",
+  6: "Snow and frost, around -10 °C",
+  7: "Hard frost, around -15 °C",
+  8: "Severe frost and deep snow, -25 to -35 °C",
+  9: "Deep snow, around -20 °C",
+};
+// The map turns muddy on the mud turns and white in winter
+function drawSeason() {
+  const canvas = document.getElementById("season_overlay");
+  if (!canvas || !canvas.width) return;
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  if (3 === currentTurn.turn || 4 === currentTurn.turn) {
+    ctx.fillStyle = "rgba(110, 80, 40, 0.18)";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  } else if (isWinterTurn()) {
+    ctx.fillStyle = "rgba(236, 242, 250, 0.32)";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    // snow, scattered with a fixed pseudo-random sequence so it never flickers
+    let seed = 7;
+    const next = function () {
+      seed = (seed * 16807) % 2147483647;
+      return seed;
+    };
+    ctx.fillStyle = "rgba(255, 255, 255, 0.75)";
+    for (let i = 0; i < 2600; i++) {
+      const size = i % 3 === 0 ? 2 : 1;
+      ctx.fillRect(next() % canvas.width, next() % canvas.height, size, size);
+    }
+  }
+}
+// ---------------------------------------------------------------- Battle forecast
+// The Combat Results Table: rows are the die roll 1-6, columns the odds 1:1 to 6:1
+const CRT = [
+  ["DR", "DR", "DR", "DR", "DR", "DRL"],
+  ["EX", "DR", "DR", "DR", "DRL", "DRL"],
+  ["EX", "EX", "DR", "EX", "DRL", "DE"],
+  ["NE", "EX", "EX", "DRL", "DRL", "DE"],
+  ["NE", "NE", "EX", "DRL", "DE", "DE"],
+  ["AL", "NE", "DRL", "DE", "DE", "DE"],
+];
+function battleForecast(battleToShow) {
+  if (!battleToShow) return "";
+  const odds = battleToShow.battleOdds;
+  if (odds < 1) return "Forecast: below 1:1, the attack would have no effect.";
+  const counts = {};
+  for (let roll = 0; roll < 6; roll++) {
+    const result = CRT[roll][Math.min(6, odds) - 1];
+    counts[result] = (counts[result] || 0) + 1;
+  }
+  return (
+    "Forecast at " +
+    odds +
+    ":1 — " +
+    ["DE", "DRL", "DR", "EX", "NE", "AL"]
+      .filter(function (result) {
+        return counts[result];
+      })
+      .map(function (result) {
+        return result + " " + Math.round((100 * counts[result]) / 6) + "%";
+      })
+      .join(" · ")
+  );
+}
+// ---------------------------------------------------------------- Command decisions
+// At key moments of 1941 the player stands in for the Stavka, the General Staff or the OKH and settles
+// what the units on the map cannot: rail capacity, special forces, a parade, the strategic reserves,
+// Hitler's orders. A decision comes as a dispatch before the side's turn starts; pointing at an order
+// shows its effect on the game, and the computer takes the historical choice.
+let decisions = {};
+function addFatigueToArmy(army, points) {
+  for (const unit of b4mUnits) unit.army === army && unit.position && addFatigue(unit, points);
+}
+function unitsOf(army) {
+  return b4mUnits.filter(function (unit) {
+    return unit.army === army && unit.position;
+  });
+}
+function namesOf(units) {
+  return units.map(unitName).join(", ");
+}
+// Half-strength Russian infantry armies in communication can take in the NKVD brigade
+function nkvdCandidates() {
+  const ctx = supplyContext();
+  return unitsOf("soviet").filter(function (unit) {
+    return "infantry" === unit.type && "reduced" === unit.strength && ctx.soviet(grid.get(unit.position));
+  });
+}
+function nkvdDone() {
+  return b4mUnits.some(function (unit) {
+    return unit.nkvd;
+  });
+}
+// With the NKVD brigade an army becomes a shock army: 10-4, or 5-4 at half strength
+function convertToShockArmy(unit) {
+  ((unit.type = "shock"), (unit.combatFull = 10), (unit.combatReduced = 5), (unit.nkvd = !0));
+}
+// The counter of an NKVD army: the shock symbol (a black dot), the new strengths and a small NKVD tab
+function drawNkvdMarks(ctx, x, y, strength) {
+  const full = "full" === strength;
+  (ctx.save(),
+    (ctx.fillStyle = "#211c21"),
+    ctx.beginPath(),
+    ctx.arc(x + 29, y + 24.5, 3.6, 0, 2 * Math.PI),
+    ctx.fill(),
+    (ctx.fillStyle = full ? "rgb(231, 69, 82)" : "rgb(247, 162, 156)"),
+    ctx.fillRect(x + 6, y + 36, 48, 15),
+    (ctx.fillStyle = "#211c21"),
+    (ctx.font = "bold " + (full ? 15 : 16) + "px Arial, sans-serif"),
+    (ctx.textAlign = "center"),
+    (ctx.textBaseline = "middle"),
+    ctx.fillText(full ? "10-4" : "5-4", x + 30, y + 44),
+    (ctx.fillStyle = "#1f3a7a"),
+    ctx.fillRect(x + 4, y + 4, 22, 9),
+    (ctx.fillStyle = "#ffffff"),
+    (ctx.font = "bold 7px Arial, sans-serif"),
+    ctx.fillText("NKVD", x + 15, y + 8.8),
+    ctx.restore());
+}
+// Winter fatigue of a German unit at the start of its turn, after the choice made at Orsha
+function germanWinterFatigue(hex) {
+  return !isWinterTurn() || "clothing" === decisions.trains || "moscow" === hex.city || "major" === hex.city
+    ? 0
+    : "none" === hex.city
+      ? FATIGUE.winterOutsideCity
+      : FATIGUE.winterInTown;
+}
+// ---------------------------------------------------------------- Music
+// The March of the Defenders of Moscow (B. Mokrousov and A. Surkov, 1941), for the counteroffensive.
+// The whole file is fetched once, so that it plays from the offline cache too.
+let anthem = null;
+function playAnthem() {
+  if (!soundOn || (anthem && anthem.src && !anthem.paused)) return;
+  anthem || ((anthem = new Audio()), (anthem.volume = 0.7));
+  const start = function () {
+    anthem.currentTime = 0;
+    const playing = anthem.play();
+    playing && playing.catch(function () {});
+  };
+  anthem.src
+    ? start()
+    : fetch("audio/moscow_defenders.mp3")
+        .then(function (response) {
+          return response.ok ? response.blob() : Promise.reject();
+        })
+        .then(function (blob) {
+          ((anthem.src = URL.createObjectURL(blob)), start());
+        })
+        .catch(function () {});
+}
+function stopAnthem() {
+  anthem && anthem.pause();
+}
+// ---------------------------------------------------------------- The dispatches
+const HISTORY_EVENTS = [
+  {
+    id: "nkvd",
+    turn: 3,
+    army: "soviet",
+    office: "Народный комиссариат внутренних дел СССР",
+    officeEn: "People's Commissariat for Internal Affairs of the USSR (NKVD)",
+    stamp: "Совершенно секретно",
+    to: "P. A. Sudoplatov, head of the Special Group of the NKVD",
+    place: "Moscow, Lubyanka",
+    date: "17 October 1941",
+    title: "The special brigade of the NKVD",
+    text: [
+      "The Independent Motorised Rifle Brigade of Special Purpose of the NKVD (OMSBON) was raised in the summer at the Dynamo stadium from athletes, Chekists and foreign Communists, and trained to fight behind the enemy lines.",
+      "Now the front before Moscow is breaking, and the capital is put under a state of siege. Commit the brigade's picked men to the line, or drop its detachments into the forests behind Army Group Centre?",
+    ],
+    quotes: [
+      {
+        original: "Ввести с 20 октября 1941 года в городе Москве и прилегающих к городу районах осадное положение.",
+        translation: "A state of siege is to be introduced in the city of Moscow and the districts adjacent to it from 20 October 1941.",
+        source: "Decree of the State Defence Committee, 19 October 1941",
+      },
+    ],
+    options: [
+      {
+        id: "infantry",
+        label: "Send it into the line as infantry",
+        order: "Stiffen a battered army with the brigade's picked men.",
+        available: function () {
+          return nkvdCandidates().length > 0;
+        },
+        effects: function () {
+          const candidates = nkvdCandidates();
+          return [
+            "You choose a Russian infantry army at half strength that is in communication: it becomes a shock army, 5-4 at once and 10-4 once a replacement step restores it.",
+            candidates.length ? "Armies that can take it now: " + namesOf(candidates) + "." : "",
+          ];
+        },
+      },
+      {
+        id: "drop",
+        label: "Drop it behind the German lines",
+        order: "Parachute the detachments into the forests as partisan bands.",
+        effects: function () {
+          return [
+            "2 partisan bands of strength 2 form now on forest hexes behind the German lines (you place them). They act from your next turn.",
+            "German lines of communication cannot pass through a band's hex or the hexes next to it.",
+            "Partisan bands on the map now: " + partisans.length + " (at most " + MAX_PARTISANS + ").",
+          ];
+        },
+      },
+    ],
+    ai: function () {
+      return nkvdCandidates().length ? "infantry" : "drop";
+    },
+    history:
+      "Both, in fact. In October and November 1941 the brigade prepared the demolition of key objects in Moscow and held sectors of the city's defences, while detachments of it were sent behind the German lines.",
+    historyQuote: {
+      original: "...предоставить войска внутренней охраны НКВД, милицию и добровольческие рабочие отряды.",
+      translation: "...the internal troops of the NKVD, the militia and the volunteer workers' detachments are placed at the disposal [of the commandant of Moscow].",
+      source: "Decree of the State Defence Committee, 19 October 1941, article 3",
+    },
+  },
+  {
+    id: "parade",
+    turn: 4,
+    army: "soviet",
+    office: "Государственный Комитет Обороны",
+    officeEn: "State Defence Committee",
+    stamp: "Совершенно секретно",
+    to: "The members of the State Defence Committee",
+    place: "Moscow, the Kremlin",
+    date: "Early November 1941",
+    title: "A parade on Red Square?",
+    text: [
+      "The anniversary of the Revolution falls on 7 November. Stalin wants the traditional parade held on Red Square with the front less than 100 km away: the troops would march past the Mausoleum and straight on to the front.",
+      "The Luftwaffe can reach Moscow in minutes. Only low clouds and snow would keep it on the ground.",
+    ],
+    options: [
+      {
+        id: "hold",
+        label: "Hold the parade",
+        order: "The troops march from Red Square straight to the front.",
+        effects: function () {
+          const moscow = grid.get({ x: 10, y: 2 }),
+            near = unitsOf("soviet").filter(function (unit) {
+              return Hex(unit.position).distance(moscow) <= 1;
+            });
+          return [
+            "Russian units in and next to Moscow lose 4 fatigue points, one level (" +
+              (near.length ? near.length + " now: " + namesOf(near) : "none there now") +
+              ").",
+            "+1 Russian replacement step this turn.",
+            "Risk: on a die roll of 1 the Luftwaffe bombs Red Square and a full-strength unit in Moscow loses a step.",
+          ];
+        },
+        apply: function () {
+          const moscow = grid.get({ x: 10, y: 2 });
+          for (const unit of b4mUnits)
+            "soviet" === unit.army && unit.position && Hex(unit.position).distance(moscow) <= 1 && addFatigue(unit, -FATIGUE.perLevel);
+          liberationBonus++;
+          if (1 === Math.floor(6 * Math.random()) + 1) {
+            const target = lookupUnit(moscow),
+              unit = target && "soviet" === target.army ? b4mUnits[b4mUnitsIndex(target)] : null;
+            // a full-strength garrison loses a step; a reduced one is only shaken
+            unit && "full" === unit.strength
+              ? ((unit.strength = "reduced"), (casualties.soviet += unitMen(unit) / 2))
+              : unit && addFatigue(unit, FATIGUE.perLevel);
+            return "This time the die rolled a 1: the Luftwaffe bombs the parade.";
+          }
+          return "Snow keeps the Luftwaffe on the ground: the troops march straight to the front.";
+        },
+      },
+      { id: "cancel", label: "Cancel the parade", order: "Take no risk with the garrison.", effects: ["No effect."] },
+    ],
+    ai: "hold",
+    history:
+      "The parade was held on 7 November in a snowstorm that kept the Luftwaffe away. The troops marched past the Mausoleum and on to the front, and the newsreel of the parade was shown across the country.",
+    historyQuote: {
+      original:
+        "Пусть вдохновляет вас в этой войне мужественный образ наших великих предков – Александра Невского, Димитрия Донского, Кузьмы Минина, Димитрия Пожарского, Александра Суворова, Михаила Кутузова!",
+      translation:
+        "Let the manly image of our great ancestors, Alexander Nevsky, Dmitry Donskoy, Kuzma Minin, Dmitry Pozharsky, Alexander Suvorov and Mikhail Kutuzov, inspire you in this war!",
+      source: "Stalin's speech on Red Square, 7 November 1941 (Pravda, 8 November)",
+    },
+  },
+  {
+    id: "trains",
+    turn: 5,
+    army: "german",
+    office: "Oberkommando des Heeres",
+    officeEn: "High Command of the Army, Quartermaster General",
+    stamp: "Geheime Kommandosache",
+    to: "Colonel General F. Halder, Chief of the General Staff of the Army",
+    from: "General E. Wagner, Quartermaster General",
+    place: "Orsha, conference of the chiefs of staff",
+    date: "13 November 1941",
+    title: "Winter clothing or ammunition?",
+    text: [
+      "Army Group Centre needs some 26 to 30 trains a day. The worn-out Russian railways bring 8 to 10 a day up to its railheads.",
+      "The winter clothing of the army group, sweaters, gloves, caps, socks and woollen underwear for nearly two million men, would fill some 20 trains, two days of everything that reaches the front. It lies in the depots in Poland. Every train of clothing is a train less of shells, fuel and replacements for the offensive that must take Moscow before the winter.",
+    ],
+    quotes: [
+      {
+        original: "...daß dieser Gegner bereits gebrochen ist und sich nie mehr erheben wird!",
+        translation: "...this enemy is already broken and will never rise again!",
+        source: "Hitler, speech at the Berlin Sportpalast, 3 October 1941",
+      },
+    ],
+    options: [
+      {
+        id: "ammo",
+        label: "Ammunition and fuel first",
+        order: "The clothing waits in the depots until Moscow is taken.",
+        effects: function () {
+          const german = unitsOf("german"),
+            outside = german.filter(function (unit) {
+              return "none" === grid.get(unit.position).city;
+            });
+          return [
+            "No change now: German replacements as usual.",
+            "In winter (turns 8 and 9), at the start of each German turn: +2 fatigue outside the towns, +1 in a town, none in Moscow or Tula.",
+            "German units outside the towns now: " + outside.length + " of " + german.length + ".",
+          ];
+        },
+      },
+      {
+        id: "clothing",
+        label: "Winter clothing first",
+        order: "Twenty trains of clothing go east ahead of the shells.",
+        effects: [
+          "German units gain no winter fatigue, like the Red Army.",
+          "The trains are lost to the replacements: no German replacement step on turns 6 and 7 (2 of the 4 still to come after this turn).",
+        ],
+      },
+    ],
+    ai: "ammo",
+    history:
+      "Ammunition, fuel and rations kept the priority. When the frost came the winter clothing was still in the depots at the railheads: by mid-December not a third of it had been issued to the troops. On 20 December Goebbels appealed to the German people to give their furs and woollens for the soldiers in the East.",
+    historyQuote: {
+      translation: "Movement of ammunition, gasoline, and rations had to receive an iron priority.",
+      source: "The US Army official history (E. F. Ziemke, Moscow to Stalingrad), from the German records",
+    },
+  },
+  {
+    id: "reserves",
+    turn: 7,
+    army: "soviet",
+    office: "Ставка Верховного Главнокомандования",
+    officeEn: "Stavka of the Supreme High Command",
+    stamp: "Совершенно секретно",
+    to: "Marshal B. M. Shaposhnikov, Chief of the General Staff",
+    place: "Moscow, the General Staff",
+    date: "1 December 1941",
+    title: "The Stavka reserves",
+    text: [
+      "New armies have assembled behind the front in secret, the 10th south-east of Moscow and the 20th to the north. The German pincers stand some 30 km from the Kremlin at Krasnaya Polyana, and before Tula.",
+      "Feed the reserves into the battle now, where the line is breaking, or hold them back for the blow that is being prepared?",
+    ],
+    quotes: [
+      {
+        original:
+          "– Вы уверены, что мы удержим Москву? Я спрашиваю это с болью в душе. Говорите честно, как коммунист.\n– Москву удержим.",
+        translation:
+          "\"Are you sure that we will hold Moscow? I ask this with pain in my heart. Speak honestly, as a Communist.\" \"We will hold Moscow.\"",
+        source: "Stalin and Zhukov on the telephone, November 1941, as Zhukov recalled it in 1966",
+      },
+    ],
+    options: [
+      {
+        id: "commit",
+        label: "Commit them now",
+        order: "Throw the new divisions in where the line is breaking.",
+        effects: ["+2 Russian replacement steps this turn."],
+      },
+      {
+        id: "keep",
+        label: "Keep them for the counteroffensive",
+        order: "The front must hold with what it has.",
+        effects: ["+2 Russian replacement steps on turn 8, when the counteroffensive begins."],
+      },
+    ],
+    ai: "keep",
+    history:
+      "The Stavka gave the fronts only what was needed to stop the pincers and kept its new armies for the counteroffensive of 5 and 6 December.",
+    historyQuote: {
+      original: "Нам важно было выстоять до подхода резервов.",
+      translation: "What mattered to us was to hold out until the reserves arrived.",
+      source: "G. K. Zhukov, 1966",
+    },
+  },
+  {
+    id: "counteroffensive",
+    turn: 8,
+    army: "soviet",
+    music: !0,
+    office: "Ставка Верховного Главнокомандования",
+    officeEn: "Stavka of the Supreme High Command, to the Western Front",
+    stamp: "Совершенно секретно",
+    to: "The armies of the Kalinin, Western and South-Western Fronts",
+    place: "Perkhushkovo, headquarters of the Western Front",
+    date: "5 and 6 December 1941",
+    title: "The counteroffensive",
+    text: [
+      "The German offensive has spent itself. Guderian's panzers are stuck before Tula and Kashira; in the north the enemy stands at Krasnaya Polyana and on the Moscow-Volga canal, some 25 to 30 km from the Kremlin. The frost has fallen to -25 and -35 °C, and the German divisions, exhausted and short of fuel, dig in where they stopped.",
+      "Behind our front the Stavka reserves have reached their start lines, moving only by night and without fires. At dawn the whole front from Kalinin to Yelets goes over to the attack.",
+    ],
+    quotes: [
+      {
+        original: "Наше дело правое. Враг будет разбит. Победа будет за нами.",
+        translation: "Our cause is just. The enemy will be beaten. Victory will be ours.",
+        source: "V. M. Molotov, radio address of 22 June 1941",
+      },
+    ],
+    options: [
+      {
+        id: "attack",
+        label: "Вперёд! Attack",
+        order: "The counteroffensive begins.",
+        effects: function () {
+          const plan = SPECIAL_ARRIVALS[WINTER_START];
+          return [
+            "Arriving this turn: the 1st and 2nd Guards Cavalry Corps (6-6), " +
+              plan.ski +
+              " ski battalions and " +
+              plan.partisans +
+              " partisan bands.",
+            "Winter: Russian ski armies cross forests at 1 MP; " +
+              ("clothing" === decisions.trains
+                ? "the Germans got their winter clothing."
+                : "German units without winter clothing tire fast outside the towns."),
+            "keep" === decisions.reserves ? "The Stavka reserves you kept back: +2 replacement steps this turn." : "",
+          ];
+        },
+      },
+    ],
+    ai: "attack",
+    history:
+      "The Kalinin Front attacked on 5 December, the Western Front on 6 December. Within ten days the Red Army retook Yakhroma, Istra, Solnechnogorsk and Klin; Kalinin was freed on 16 December.",
+  },
+  {
+    id: "haltOrder",
+    turn: 9,
+    army: "german",
+    office: "Oberkommando des Heeres",
+    officeEn: "High Command of the Army, teletype to Army Group Centre",
+    stamp: "Geheime Kommandosache",
+    to: "Field Marshal F. von Bock, Army Group Centre",
+    place: "Führer Headquarters, East Prussia",
+    date: "16 to 18 December 1941",
+    title: "Hitler's stand-fast order",
+    text: [
+      "Army Group Centre is reeling back in the snow. Guderian and Hoepner want to pull back to shorter lines before their divisions are cut off. Hitler fears a rout like Napoleon's in 1812 and forbids any retreat.",
+    ],
+    quotes: [
+      {
+        translation:
+          "The Fuehrer has ordered: Larger evasive movements cannot be made. They will lead to a total loss of heavy weapons and equipment. Commanding generals, commanders, and officers are to intervene in person to compel the troops to fanatical resistance in their positions without regard to enemy broken through on the flanks or to the rear.",
+        source: "Teletype to Army Group Centre, 18 December 1941 (as translated in the US Army official history)",
+      },
+    ],
+    options: [
+      {
+        id: "obey",
+        label: "Obey: hold every position",
+        order: "Every man fights where he stands.",
+        effects: function () {
+          const held = unitsOf("german").filter(function (unit) {
+            return "full" === unit.strength && "none" !== grid.get(unit.position).city;
+          });
+          return [
+            "German units at full strength defending in any city turn a DR result into a step loss and do not retreat.",
+            "German units at full strength in a city now: " + held.length + ".",
+          ];
+        },
+      },
+      {
+        id: "elastic",
+        label: "Pull back, as Guderian urges",
+        order: "Shorten the line before the divisions are cut off.",
+        effects: function () {
+          const vp = victoryPoints().soviet;
+          return [
+            "No stand-fast rule: German units retreat as usual.",
+            "Every German unit loses 2 fatigue points now (" + unitsOf("german").length + " units).",
+            "Hitler sacks the generals: +1 Russian victory point (" + vp + " to " + (vp + 1) + ").",
+          ];
+        },
+        apply: function () {
+          addFatigueToArmy("german", -2);
+        },
+      },
+    ],
+    ai: "obey",
+    history:
+      "Hitler imposed the order. Bock went on sick leave, Brauchitsch was dismissed and Hitler took over the command of the army himself; Guderian was relieved on 26 December, and Hoepner in January for withdrawing without leave.",
+  },
+  {
+    id: "radio",
+    turn: 9,
+    army: "soviet",
+    kind: "radio",
+    music: !0,
+    office: "Советское Информбюро",
+    officeEn: "Soviet Information Bureau, Moscow radio",
+    stamp: "В эфире",
+    place: "Moscow radio",
+    date: "13 December 1941",
+    title: "Attention, this is Moscow speaking!",
+    text: [
+      "At the microphone Yuri Levitan reads a special bulletin. For the first time since June the radio announces a great German defeat: the plan to encircle and take Moscow has failed, the German flank groups are beaten and falling back, leaving their equipment behind, and town after town is freed.",
+    ],
+    quotes: [
+      {
+        original: "Внимание, говорит Москва!\nВ последний час. Провал немецкого плана окружения и взятия Москвы.",
+        translation: "Attention, this is Moscow speaking! In the last hour: the failure of the German plan to encircle and take Moscow.",
+        source: "Bulletin of the Soviet Information Bureau, 13 December 1941",
+      },
+    ],
+    options: [
+      {
+        id: "press",
+        label: "За Родину! Press on",
+        order: "The offensive goes on.",
+        effects: ["No change to the rules: the offensive goes on."],
+      },
+    ],
+    ai: "press",
+    history:
+      "The bulletin was read on the radio and printed in the newspapers with the portraits of the generals of the Western Front. It announced the first great victory of the Red Army in the war.",
+  },
+];
+function textOf(value) {
+  return "function" == typeof value ? value() : value;
+}
+function optionEffects(option) {
+  return (textOf(option.effects) || []).filter(Boolean);
+}
+function optionAvailable(option) {
+  return !option.available || option.available();
+}
+function applyDecision(event, optionId, deferred) {
+  const option = event.options.find(function (o) {
+    return o.id === optionId;
+  });
+  decisions[event.id] = optionId;
+  // a decision taken before a Replacement Phase takes effect after the fatigue of the turn start
+  if (deferred && option.apply) return ((decisions._pending = event.id), { option: option, outcome: "" });
+  const outcome = option.apply ? option.apply() : "";
+  (drawPositionedUnits(), scheduleStatusRefresh());
+  return { option: option, outcome: "string" == typeof outcome ? outcome : "" };
+}
+function runPendingDecision() {
+  const id = decisions._pending;
+  if (!id) return;
+  delete decisions._pending;
+  const event = HISTORY_EVENTS.find(function (e) {
+      return e.id === id;
+    }),
+    option =
+      event &&
+      event.options.find(function (o) {
+        return o.id === decisions[id];
+      });
+  (option && option.apply && option.apply(), drawPositionedUnits(), scheduleStatusRefresh());
+}
+// The computer's decision is announced in a banner
+function showDecisionResult(event, result) {
+  showEventBanner(
+    '<img src="img/' +
+      event.army +
+      '_marker.png" />' +
+      (event.options.length > 1 ? "Enemy decision: " + result.option.label : event.title) +
+      "<span>" +
+      (result.outcome ? result.outcome + " " : "") +
+      "In 1941: " +
+      event.history +
+      "</span>",
+    15000,
+  );
+}
+function quoteHtml(quote) {
+  return (
+    '<blockquote class="dispatch_quote">' +
+    (quote.original ? '<div class="quote_original">' + quote.original.replace(/\n/g, "<br />") + "</div>" : "") +
+    (quote.translation ? '<div class="quote_translation">' + quote.translation + "</div>" : "") +
+    '<div class="quote_source">' +
+    quote.source +
+    "</div></blockquote>"
+  );
+}
+// The dispatch on the commander's desk: orders as buttons, their effect shown when pointed at
+// (first tap on a touch screen), then what was actually done in 1941
+function showDispatch(event, decide, next) {
+  let overlay = document.getElementById("decision_overlay");
+  overlay ||
+    ((overlay = document.createElement("div")), (overlay.id = "decision_overlay"), document.body.appendChild(overlay));
+  const meta = [
+    ["To", event.to],
+    ["From", event.from],
+    ["Place", event.place],
+    ["Date", event.date],
+  ]
+    .filter(function (row) {
+      return row[1];
+    })
+    .map(function (row) {
+      return "<tr><th>" + row[0] + "</th><td>" + row[1] + "</td></tr>";
+    })
+    .join("");
+  overlay.innerHTML =
+    '<div class="dispatch ' +
+    event.army +
+    " " +
+    (event.kind || "order") +
+    '"><div class="dispatch_head"><img src="img/' +
+    event.army +
+    '_marker.png" /><div class="dispatch_office"><div class="office_original">' +
+    event.office +
+    '</div><div class="office_en">' +
+    event.officeEn +
+    "</div></div>" +
+    (event.stamp ? '<div class="dispatch_stamp">' + event.stamp + "</div>" : "") +
+    '</div><table class="dispatch_meta">' +
+    meta +
+    '</table><div class="dispatch_title">' +
+    event.title +
+    '</div><div class="dispatch_text">' +
+    event.text
+      .map(function (p) {
+        return "<p>" + p + "</p>";
+      })
+      .join("") +
+    "</div>" +
+    (event.quotes || []).map(quoteHtml).join("") +
+    '<div class="dispatch_orders_title">' +
+    (event.options.length > 1 ? "Your orders" : "Your order") +
+    '</div><div class="dispatch_orders"></div><div class="dispatch_estimate"><div class="estimate_title">Effect on the game</div><ul><li class="estimate_hint">Point at an order to see what it does.</li></ul></div><div class="dispatch_outcome"></div></div>';
+  const card = overlay.querySelector(".dispatch"),
+    orders = overlay.querySelector(".dispatch_orders"),
+    estimate = overlay.querySelector(".dispatch_estimate ul");
+  let pointerType = "mouse",
+    armed = null;
+  const show = function (option, button) {
+      for (const other of orders.children) other.classList.toggle("focused", other === button);
+      estimate.innerHTML =
+        optionEffects(option)
+          .map(function (line) {
+            return "<li>" + line + "</li>";
+          })
+          .join("") +
+        (optionAvailable(option) ? "" : '<li class="estimate_warn">Not possible now.</li>') +
+        (button === armed ? '<li class="estimate_hint">Tap the order again to give it.</li>' : "");
+    },
+    giveOrder = function (option, button) {
+      const result = decide(option.id);
+      for (const other of Array.from(orders.children)) other !== button && other.remove();
+      ((button.disabled = !0),
+        button.classList.add("given"),
+        button.insertAdjacentHTML(
+          "beforeend",
+          '<span class="order_stamp">' + ("german" === event.army ? "Genehmigt" : "radio" === event.kind ? "Передано" : "Утверждаю") + "</span>",
+        ),
+        (overlay.querySelector(".dispatch_estimate").style.display = "none"));
+      const outcome = overlay.querySelector(".dispatch_outcome");
+      ((outcome.innerHTML =
+        '<div class="outcome_title">What happened in 1941</div>' +
+        (result.outcome ? '<p class="outcome_now">' + result.outcome + "</p>" : "") +
+        "<p>" +
+        event.history +
+        "</p>" +
+        (event.historyQuote ? quoteHtml(event.historyQuote) : "") +
+        '<button type="button" class="dispatch_continue">Continue</button>'),
+        (outcome.style.display = "block"),
+        (outcome.querySelector(".dispatch_continue").onclick = function (e) {
+          (e.stopPropagation(), (overlay.style.display = "none"), (overlay.innerHTML = ""), next());
+        }),
+        outcome.scrollIntoView({ block: "nearest", behavior: "smooth" }));
+    };
+  for (const option of event.options) {
+    const button = document.createElement("button"),
+      ok = optionAvailable(option);
+    ((button.type = "button"),
+      (button.className = "dispatch_option" + (ok ? "" : " unavailable")),
+      (button.innerHTML = '<span class="option_label">' + option.label + '</span><span class="option_order">' + option.order + "</span>"),
+      button.addEventListener("pointerdown", function (e) {
+        pointerType = e.pointerType || "mouse";
+      }),
+      button.addEventListener("mouseenter", function () {
+        show(option, button);
+      }),
+      button.addEventListener("focus", function () {
+        show(option, button);
+      }),
+      button.addEventListener("click", function (e) {
+        if ((e.stopPropagation(), !ok)) return void show(option, button);
+        // on a touch screen the first tap shows the effect and the second gives the order
+        if ("touch" === pointerType && armed !== button)
+          return ((armed = button), button.classList.add("armed"), void show(option, button));
+        giveOrder(option, button);
+      }),
+      orders.appendChild(button));
+  }
+  (1 === event.options.length && show(event.options[0], orders.firstChild),
+    (overlay.onclick = function (e) {
+      e.stopPropagation();
+    }),
+    (overlay.style.display = "flex"),
+    (card.scrollTop = 0));
+}
+// Called at the start of replacementPhase and reinforcementPhase: true if the phase must wait for a decision
+function gateHistoryEvent(phase, turn, army, deferred) {
+  const event = HISTORY_EVENTS.find(function (e) {
+    return e.turn === turn && e.army === army && !decisions[e.id];
+  });
+  if (!event) return !1;
+  event.music && playAnthem();
+  if (!("" === playAIAs || playAIAs !== army))
+    return (showDecisionResult(event, applyDecision(event, textOf(event.ai), deferred)), !1);
+  showDispatch(
+    event,
+    function (optionId) {
+      return applyDecision(event, optionId, deferred);
+    },
+    phase,
+  );
+  return !0;
+}
+// Replacement steps added or taken away by the decisions
+function decisionReplacements(turn, army) {
+  let steps = 0;
+  return (
+    "soviet" === army
+      ? (7 === turn && "commit" === decisions.reserves && (steps += 2),
+        8 === turn && "keep" === decisions.reserves && (steps += 2))
+      : (6 === turn || 7 === turn) && "clothing" === decisions.trains && (steps -= 1),
+    steps
+  );
+}
+function decisionsHtml() {
+  const taken = HISTORY_EVENTS.filter(function (e) {
+    return decisions[e.id] && e.options.length > 1;
+  });
+  return taken.length
+    ? '<div style="text-align: left;">- Command decisions: ' +
+        taken
+          .map(function (e) {
+            return (
+              e.title +
+              " — " +
+              e.options.find(function (o) {
+                return o.id === decisions[e.id];
+              }).label
+            );
+          })
+          .join("; ") +
+        "</div>"
+    : "";
+}
 function b4mUnitsIndex(e) {
   for (let t = 0; t < b4mUnits.length; t++) if (e.id === b4mUnits[t].id) return t;
   return -1;
@@ -1892,10 +2755,12 @@ function cleanAndSaveBeforeNewPhase(e) {
     (b4mSave.play_ai_as = playAIAs),
     (b4mSave.partisans = partisans.slice()),
     (b4mSave.liberationBonus = liberationBonus),
+    (b4mSave.decisions = JSON.parse(JSON.stringify(decisions))),
     (b4mSave.casualties = { german: casualties.german, soviet: casualties.soviet }),
     (b4mSave.railCuts = railCuts.slice()),
     (b4mSave.cityStocks = JSON.parse(JSON.stringify(cityStocks))),
     (b4mSave.partisanGuides = partisanGuides.slice()),
+    (b4mSave.partisanTowns = partisanTowns.slice()),
     window.localStorage.setItem("b4mSave", JSON.stringify(b4mSave))),
     hexHighlights.clearRect(0, 0, canvasHexHighlights.width, canvasHexHighlights.height),
     countersHighlights.clearRect(
@@ -1962,7 +2827,8 @@ function drawUnit(e, t, n, i) {
             "soviet" === t.army &&
             "soviet" === currentTurn.army &&
             cityLiberated(n, b4mUnits[e]),
-          (n.control = t.army));
+          (n.control = t.army),
+          "german" === t.army && partisanTowns.length > 0 && drawPartisans());
         break;
       }
   const o = t.sheet
@@ -1973,6 +2839,7 @@ function drawUnit(e, t, n, i) {
     r = "full" === t.strength ? 0 : 120;
   (e.drawImage(o, 120 * t.pos, r, 120, 120, n, i, 60, 60),
     t.ski && drawSkiBadge(e, n, i),
+    t.nkvd && drawNkvdMarks(e, n, i, t.strength),
     scheduleStatusRefresh());
 }
 function clearUnit(e, t, n, i) {
@@ -2068,6 +2935,7 @@ function lookupUnit(e) {
           sheet: t.sheet,
           ski: t.ski,
           fatigue: t.fatigue,
+          nkvd: t.nkvd,
         };
         return (t.position && (e.position = { x: t.position.x, y: t.position.y }), e);
       }
@@ -2207,6 +3075,8 @@ function refreshBattles() {
     }
   }
   updateDashboardCombat();
+  const f = document.getElementById("battle_forecast");
+  f && (f.innerText = battle ? battleForecast(battle) : "");
 }
 function updateDashboardCombat() {
   if (
@@ -2380,6 +3250,8 @@ function setTurnInfo() {
       console.log("ERROR - Invalid turn: ", currentTurn);
   }
   document.getElementById("turn_info_title").innerText = e;
+  const w = document.getElementById("turn_info_weather");
+  (w && (w.innerText = WEATHER[currentTurn.turn] || ""), drawSeason());
 }
 function turn1GermanSetupPhase() {
   ((currentTurn = { turn: 1, army: "german", phase: "setup", subphase: "" }),
@@ -3285,6 +4157,7 @@ function resolveNextBattle(e) {
             ("moscow" === t.city ||
               "major" === t.city ||
               (currentTurn.turn >= HALT_ORDER_TURN &&
+                "elastic" !== decisions.haltOrder &&
                 "german" === currentDefendingUnit.army &&
                 t.city &&
                 "none" !== t.city))
@@ -3897,15 +4770,16 @@ let followingReinforcement = !1;
 // Russian reinforcements, new partisan bands and partisan operations (one action per band and turn)
 const PARTISAN_ACTIONS = [
   { id: "raid", label: "Raid", tip: "Ambush the supply columns of a German unit within 2 hexes: it gains as many fatigue points as the band's strength." },
-  { id: "sabotage", label: "Sabotage rail", tip: "Cut a rail hex within 1 hex: for two German turns, German units within 2 hexes of the cut get +1 fatigue and cannot recover." },
+  { id: "sabotage", label: "Sabotage rail", tip: "Blow up a rail hex within 1 hex: for two German turns, German units within 2 hexes of it gain +1 fatigue and cannot recover." },
   { id: "guide", label: "Guide the army", tip: "This turn, Russian attacks on German units within 1 hex of the band gain one odds column." },
+  { id: "seize", label: "Rise in a town", tip: "A German-held town within 2 hexes with no German unit in or next to it, if the bands within 2 hexes of it total 3 strength or more: roll a die; up to their total strength (at most 5) the town becomes Russian, otherwise every band taking part loses 1 strength." },
   { id: "move", label: "Move", tip: "Slip through the forests to an empty forest hex within 2 hexes." },
-  { id: "recruit", label: "Recruit", tip: "Grow by 1 strength (at most 3). Only possible with no German unit within 2 hexes." },
-  { id: "wait", label: "Stand by", tip: "Do nothing this turn." },
+  { id: "recruit", label: "Recruit", tip: "+1 strength (at most 3), only with no German unit within 2 hexes." },
 ];
 function reinforcementPhase(e) {
-  (e && e.stopPropagation(),
-    cleanAndSaveBeforeNewPhase("reinforcementPhase"),
+  e && e.stopPropagation();
+  if (gateHistoryEvent(reinforcementPhase, currentTurn.turn, "soviet")) return;
+  (cleanAndSaveBeforeNewPhase("reinforcementPhase"),
     (currentTurn.army = "soviet"),
     (currentTurn.phase = "replacement"),
     (currentTurn.subphase = "reinforcement"),
@@ -3926,20 +4800,20 @@ function reinforcementPhase(e) {
   isHuman && (document.getElementById("undo_replacement").style.display = "inline-block");
   // Every band may act once in each Russian turn; the help of the guides lasts for this turn only
   for (const e of partisans) ((e.strength = e.strength || 1), (e.acted = !1));
-  ((partisanGuides = partisanGuides.filter(function (e) {
+  partisanGuides = partisanGuides.filter(function (e) {
     return e.turn === currentTurn.turn;
-  })),
-    currentTurn.turn === WINTER_START &&
-      showEventBanner(
-        '<img src="img/soviet_marker.png" />5-6 December 1941: the Red Army strikes back<span>The Stavka reserves are committed: Guards cavalry, ski battalions and partisans behind the German lines.</span>',
-      ));
+  });
   let units = b4mUnits.filter(function (e) {
       return (plan.units || []).indexOf(e.id) > -1 && !e.position;
     }),
     skiLeft = plan.ski || 0,
-    partisansLeft = Math.max(0, Math.min(plan.partisans || 0, MAX_PARTISANS - partisans.length)),
+    // the NKVD brigade dropped behind the lines forms 2 bands of strength 2
+    nkvdDrop = 3 === currentTurn.turn && "drop" === decisions.nkvd,
+    partisansLeft = Math.max(0, Math.min((plan.partisans || 0) + (nkvdDrop ? 2 : 0), MAX_PARTISANS - partisans.length)),
+    bandStrength = nkvdDrop ? 2 : 1,
     actionChoice = null,
-    actionNote = "";
+    actionNote = "",
+    selectedBand = null;
   const allHexes = function () {
       return b4mGrid.map(function (e) {
         return grid.get({ x: e.x, y: e.y });
@@ -3965,23 +4839,35 @@ function reinforcementPhase(e) {
         );
       });
     },
+    // behind the German lines: cut off from Russian communication, or farther from Moscow than the German front
     partisanHexes = function () {
+      const moscow = grid.get({ x: 10, y: 2 }),
+        front = Math.min.apply(
+          null,
+          germanPositions().map(function (e) {
+            return e.distance(moscow);
+          }),
+        );
       return allHexes().filter(function (e) {
         return (
           "forest" === e.terrain &&
           !lookupUnit(e) &&
           !hasPartisan(e) &&
           !isEZOC(e, "soviet") &&
-          !isInCommunication(e, "soviet")
+          (e.distance(moscow) > front + 1 || !isInCommunication(e, "soviet"))
         );
       });
     },
+    // the band giving orders: the one clicked on the map, else the first one that has not acted
     actingBand = function () {
-      return (
-        partisans.find(function (e) {
-          return !e.acted;
-        }) || null
-      );
+      return selectedBand && !selectedBand.acted && partisans.indexOf(selectedBand) > -1
+        ? selectedBand
+        : partisans.find(function (e) {
+            return !e.acted;
+          }) || null;
+    },
+    nkvdStage = function () {
+      return 3 === currentTurn.turn && "infantry" === decisions.nkvd && !nkvdDone() && nkvdCandidates().length > 0;
     },
     canRecruit = function (e) {
       return e.strength < PARTISAN_MAX_STRENGTH && 0 === germanUnitsWithin(grid.get(e), 2).length;
@@ -4016,7 +4902,11 @@ function reinforcementPhase(e) {
                   n.distance(e) <= 2
                 );
               })
-            : [];
+            : "seize" === t
+              ? allHexes().filter(function (e) {
+                  return n.distance(e) <= 2 && risingStrength(e) > 0;
+                })
+              : [];
     },
     actionPossible = function (e, t) {
       return "recruit" === t
@@ -4026,7 +4916,9 @@ function reinforcementPhase(e) {
     stage = function () {
       return units.length > 0 && unitHexes().length > 0
         ? "units"
-        : skiLeft > 0 && skiCandidates().length > 0
+        : nkvdStage()
+          ? "nkvd"
+          : skiLeft > 0 && skiCandidates().length > 0
           ? "ski"
           : partisansLeft > 0 && partisanHexes().length > 0
             ? "partisans"
@@ -4068,7 +4960,9 @@ function reinforcementPhase(e) {
               : "recruit" === t
                 ? ((e.strength = Math.min(PARTISAN_MAX_STRENGTH, e.strength + 1)),
                   (actionNote = "A partisan band grows to strength " + e.strength + "."))
-                : (actionNote = "");
+                : "seize" === t
+                  ? (actionNote = announceRising(partisanRising(n)))
+                  : (actionNote = "");
       ((e.acted = !0), (actionChoice = null), drawPartisans(), scheduleStatusRefresh(), refresh());
     },
     actionButtons = function (e) {
@@ -4114,6 +5008,15 @@ function reinforcementPhase(e) {
           (count.innerHTML = ""),
           drawAvailableUnits(canvas, units),
           (canvas.style.display = "block"));
+      else if ("nkvd" === e)
+        ((t = nkvdCandidates().map(function (e) {
+          return grid.get(e.position);
+        })),
+          (canvas.style.display = "none"),
+          (tip.innerText = isHuman
+            ? "The NKVD brigade joins the line: click a half-strength infantry army in communication (highlighted). It becomes a shock army, 5-4 now and 10-4 once restored."
+            : "The NKVD brigade joins an army in the line."),
+          (count.innerHTML = ""));
       else if ("ski" === e)
         ((t = skiCandidates().map(function (e) {
           return grid.get(e.position);
@@ -4126,17 +5029,25 @@ function reinforcementPhase(e) {
       else if ("partisans" === e)
         ((t = partisanHexes()),
           (tip.innerText = isHuman
-            ? "New partisan bands form behind the German lines: place them on forest hexes cut off from Russian communication and not next to German units (optional)."
-            : "New partisan bands form behind the German lines."),
+            ? (nkvdDrop
+                ? "The NKVD detachments parachute behind the German lines: place them as partisan bands of strength 2"
+                : "New partisan bands form behind the German lines: place them") +
+              " on forest hexes behind the German lines, not next to German units (optional)."
+            : nkvdDrop
+              ? "The NKVD detachments parachute behind the German lines."
+              : "New partisan bands form behind the German lines."),
           (count.innerHTML = "New bands left: <strong>" + partisansLeft + "</strong>"),
           drawReinforcementTokens(canvas, "partisans", partisansLeft));
       else if ("actions" === e) {
         const e = actingBand();
         ((canvas.style.display = "none"),
           highlightHex(hexHighlights, grid.get(e), "rgba(255, 215, 0, 0.55)"),
+          partisans.forEach(function (t) {
+            t.acted || t === e || highlightHex(hexHighlights, grid.get(t), "rgba(255, 215, 0, 0.22)");
+          }),
           (t = actionChoice ? actionTargets(e, actionChoice) : []),
           (tip.innerText = isHuman
-            ? "Partisan band at " + hexLabel(e) + " (strength " + e.strength + "): choose its action for this turn."
+            ? "Partisan band at " + hexLabel(e) + " (strength " + e.strength + "): choose its action for this turn. Click another band to give it its orders first; click Next when you are done."
             : "Partisan operations behind the German lines."),
           isHuman ? actionButtons(e) : (count.innerText = actionNote));
       } else
@@ -4147,7 +5058,7 @@ function reinforcementPhase(e) {
           (canvas.style.display = "none"));
       for (const n of t) highlightHex(hexHighlights, n);
       // The arriving units must be placed; everything else is optional for a human player
-      (isHuman ? "units" !== e : "done" === e)
+      (isHuman ? "units" !== e && "nkvd" !== e : "done" === e)
         ? ((followingReinforcement = !0),
           (nextButton.style.display = "block"),
           (nextButton.onclick = replacementPhase))
@@ -4166,6 +5077,19 @@ function reinforcementPhase(e) {
           return;
         const i = units.shift();
         ((i.position = { x: e.x, y: e.y }), drawUnit(board, i, n.x - 30, n.y - 30));
+      } else if ("nkvd" === t) {
+        const t = lookupUnit(e);
+        if (
+          !t ||
+          !nkvdCandidates().some(function (e) {
+            return e.id === t.id;
+          })
+        )
+          return;
+        const i = b4mUnits[b4mUnitsIndex(t)];
+        (convertToShockArmy(i),
+          drawUnit(board, i, n.x - 30, n.y - 30),
+          (actionNote = "The NKVD brigade joins the " + unitName(i) + "."));
       } else if ("ski" === t) {
         const t = lookupUnit(e);
         if (
@@ -4185,9 +5109,14 @@ function reinforcementPhase(e) {
         )
           return;
         // a new band organises itself: it acts from the next turn on
-        (partisans.push({ x: e.x, y: e.y, strength: 1, acted: !0 }), partisansLeft--, drawPartisans());
+        (partisans.push({ x: e.x, y: e.y, strength: bandStrength, acted: !0 }), partisansLeft--, drawPartisans());
       } else {
-        if ("actions" !== t || !actionChoice) return;
+        if ("actions" !== t) return;
+        // clicking another band gives it the orders
+        const band = partisanAt(e);
+        if (band && !band.acted && band !== actingBand())
+          return ((selectedBand = band), (actionChoice = null), void refresh());
+        if (!actionChoice) return;
         const n = actingBand();
         if (
           !actionTargets(n, actionChoice).some(function (t) {
@@ -4221,7 +5150,15 @@ function reinforcementPhase(e) {
               return distanceToGermans(e) - distanceToGermans(t);
             })[0]
           : e[0];
-      } else if ("ski" === n)
+      } else if ("nkvd" === n)
+        i = nkvdCandidates()
+          .map(function (e) {
+            return grid.get(e.position);
+          })
+          .sort(function (e, t) {
+            return distanceToGermans(e) - distanceToGermans(t);
+          })[0];
+      else if ("ski" === n)
         i = skiCandidates()
           .map(function (e) {
             return grid.get(e.position);
@@ -4251,9 +5188,12 @@ function reinforcementPhase(e) {
                 ("full" === e.strength ? e.combatFull : e.combatReduced)
               );
             })[0],
-          o = actionTargets(e, "sabotage")[0];
+          o = actionTargets(e, "sabotage")[0],
+          s = actionTargets(e, "seize")[0];
         return (
-          n
+          s
+            ? doAction(e, "seize", s)
+            : n
             ? doAction(e, "raid", grid.get(n.position))
             : o
               ? doAction(e, "sabotage", o)
@@ -4315,8 +5255,12 @@ const isInCommunication = function (e, t) {
   return !1;
 };
 function replacementPhase(e) {
-  (e && e.stopPropagation(),
-    cleanAndSaveBeforeNewPhase("replacementPhase"),
+  e && e.stopPropagation();
+  // the side and turn that are about to start
+  const nextArmy = "german" === currentTurn.army || followingReinforcement ? "soviet" : "german",
+    nextTurn = "german" === currentTurn.army || followingReinforcement ? currentTurn.turn : currentTurn.turn + 1;
+  if (gateHistoryEvent(replacementPhase, nextTurn, nextArmy, !0)) return;
+  (cleanAndSaveBeforeNewPhase("replacementPhase"),
     "german" === currentTurn.army
       ? (currentTurn.army = "soviet")
       : (followingReinforcement ||
@@ -4325,7 +5269,7 @@ function replacementPhase(e) {
     (currentTurn.phase = "replacement"),
     (currentTurn.subphase = "standard"),
     processTurnFatigue(currentTurn.army),
-    announceTurnEvents(),
+    runPendingDecision(),
     (document.getElementById("step_replacement").style.display = "block"),
     (document.getElementById("next_step_reinforcement").style.display = "none"),
     (document.querySelector("#step_replacement > div.hud_title > img").src =
@@ -4351,8 +5295,13 @@ function replacementPhase(e) {
   let t = 0;
   t =
     "soviet" === currentTurn.army
-      ? (3 === currentTurn.turn || 4 === currentTurn.turn ? 4 : 5) + takeLiberationBonus()
-      : 1;
+      ? Math.max(
+          0,
+          (3 === currentTurn.turn || 4 === currentTurn.turn ? 4 : 5) +
+            takeLiberationBonus() +
+            decisionReplacements(currentTurn.turn, "soviet"),
+        )
+      : Math.max(0, 1 + decisionReplacements(currentTurn.turn, "german"));
   const n = function () {
     t > 0
       ? "" === playAIAs || playAIAs !== currentTurn.army
@@ -5077,7 +6026,9 @@ function continueFromSave() {
   });
   ((railCuts = (b4mSave.railCuts || []).slice()), (partisanGuides = (b4mSave.partisanGuides || []).slice()));
   b4mSave.cityStocks && (cityStocks = JSON.parse(JSON.stringify(b4mSave.cityStocks)));
+  partisanTowns = (b4mSave.partisanTowns || []).slice();
   liberationBonus = b4mSave.liberationBonus || 0;
+  decisions = b4mSave.decisions ? JSON.parse(JSON.stringify(b4mSave.decisions)) : {};
   casualties = b4mSave.casualties ? { german: b4mSave.casualties.german || 0, soviet: b4mSave.casualties.soviet || 0 } : { german: 0, soviet: 0 };
   for (const e of b4mSave.cities) {
     let t = grid.get(e.position);
@@ -5266,6 +6217,8 @@ function startGame() {
     (canvasCountersHighlights = document.getElementById("counters_highlights")),
     (canvasCountersHighlights.width = document.getElementById("map").width),
     (canvasCountersHighlights.height = document.getElementById("map").height),
+    (document.getElementById("season_overlay").width = document.getElementById("map").width),
+    (document.getElementById("season_overlay").height = document.getElementById("map").height),
     (document.getElementById("partisan_markers").width = document.getElementById("map").width),
     (document.getElementById("partisan_markers").height = document.getElementById("map").height),
     (document.getElementById("status_markers").width = document.getElementById("map").width),
