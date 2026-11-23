@@ -64,8 +64,7 @@
       <span id="turn_info_title"></span>
       <div id="turn_report" style="display: none;"></div>
     </div>
-    <div id="supply_view_button" style="display: none;" title="Highlight every unit that is cut off from its map edge"><i class="fa fa-chain-broken" aria-hidden="true"></i> Supply view<span id="supply_view_count"></span></div>
-    <div id="unit_card" style="display: none;"></div>
+    <div id="layer_toolbar" style="display: none;"><span class="layer_title">Layers</span><label title="Show the units cut off from their map edge (key S)"><input type="checkbox" id="layer_supply"> Supply<span id="supply_view_count"></span></label></div>
     <!-- HUDs -->
     <div class="hud_content">
       <div class="hud_container">
@@ -298,8 +297,8 @@
         <p>Each city's control is with the army whose units were the last ones to have entered that city.</p>
         <p>In order to assess which city is under which army's control at any point throughout the game, simply click on the <strong>turn information</strong> bar to open a summary and highlight the cities' current status on the map. Then, click again on the turn information to close the view.</p>
       </div>
-      <h4>... See the status of a unit</h4>
-      <p>Hover over a unit (or tap it) to see its card: strength, supply and special abilities. A unit that is cut off from its map edge (not in communication) has a red dashed frame around it. The <strong>Supply view</strong> button at the top left highlights every cut-off unit and counts them for both sides.</p>
+      <h4>... Show unit status on the map</h4>
+      <p>Tick a box in the <strong>Layers</strong> bar at the top left to show a status on the map; nothing is shown while the boxes are unticked. <strong>Supply</strong>: every unit cut off from its map edge (not in communication) gets a red dashed frame and its hex is shaded, and the bar counts them for both sides. Press <strong>S</strong> to switch the supply layer on or off.</p>
       <div id="help_winter" class="help_section_title">Winter Counteroffensive</div>
       <p>The game continues into the Russian winter counteroffensive and ends after <strong>Game Turn 9</strong> (December 15th, 1941). Turns 8 and 9 are winter turns. The victory conditions are checked at the end of Game Turn 9.</p>
       <h4>Turn 8: the Stavka reserves are committed</h4>

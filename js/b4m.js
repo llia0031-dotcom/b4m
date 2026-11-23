@@ -803,47 +803,7 @@ function drawReinforcementTokens(e, t, n) {
 }
 // ---------------------------------------------------------------- Unit status display (supply markers, unit card, supply view)
 let supplyView = !1,
-  statusRefreshTimer = null,
-  unitCardPinned = null,
-  unitCardShown = null,
-  unitCardHoverKey = "";
-function ordinalOf(e) {
-  const t = e % 100;
-  return e + (t >= 11 && t <= 13 ? "th" : ["th", "st", "nd", "rd"][e % 10] || "th");
-}
-function romanOf(e) {
-  const t = [
-    [50, "L"],
-    [40, "XL"],
-    [10, "X"],
-    [9, "IX"],
-    [5, "V"],
-    [4, "IV"],
-    [1, "I"],
-  ];
-  let n = "";
-  for (const [i, o] of t) for (; e >= i; ) ((n += o), (e -= i));
-  return n;
-}
-function unitDisplayName(e) {
-  const t = parseInt(e.id.replace(/\D/g, ""), 10);
-  return "soviet" === e.army
-    ? "shock" === e.type
-      ? ordinalOf(t) + " Shock Army"
-      : "cavalry" === e.type
-        ? ordinalOf(t) + " Guards Cavalry Corps" + (1 === t ? " (Belov)" : 2 === t ? " (Dovator)" : "")
-        : ordinalOf(t) + " Army"
-    : romanOf(t) + ("tank" === e.type ? " Panzer Corps" : " Army Corps");
-}
-function unitTypeName(e) {
-  return "tank" === e.type
-    ? "Panzer"
-    : "shock" === e.type
-      ? "Shock infantry"
-      : "cavalry" === e.type
-        ? "Cavalry"
-        : "Infantry";
-}
+  statusRefreshTimer = null;
 // Same rule as isInCommunication, computed for the whole map at once: a single search outward from the map edge
 // gives, for every hex, the shortest open path to the edge; a unit is in communication if a neighbouring hex
 // reaches the edge within its step budget (the budget isInCommunication starts with).
@@ -961,111 +921,68 @@ function strokeRoundRect(e, t, n, i, o, r) {
     e.closePath(),
     e.stroke());
 }
+// Status layers: a status is drawn only while its box in the layer bar is ticked
 function refreshStatusMarkers() {
   statusRefreshTimer = null;
-  const e = document.getElementById("status_markers");
+  const e = document.getElementById("status_markers"),
+    t = document.getElementById("supply_view_count");
   if (!e || !e.width) return;
-  const t = e.getContext("2d");
-  t.clearRect(0, 0, e.width, e.height);
-  const n = { german: 0, soviet: 0 },
-    s = supplyContext();
+  const n = e.getContext("2d");
+  if ((n.clearRect(0, 0, e.width, e.height), t && (t.innerText = ""), !supplyView)) return;
+  const i = { german: 0, soviet: 0 },
+    o = supplyContext();
   for (const e of b4mUnits) {
     if (!e.position) continue;
-    const i = unitSupplyStatus(e, s);
-    if (!i || i.ok) continue;
-    n[e.army]++;
-    const o = grid.get(e.position),
-      r = o.center().add(o.toPoint());
-    (supplyView && highlightHex(t, o, "rgba(226, 75, 74, 0.35)"),
-      t.save(),
-      t.setLineDash([7, 4]),
-      (t.lineWidth = 3),
-      (t.strokeStyle = "#e24b4a"),
-      strokeRoundRect(t, r.x - 36, r.y - 36, 72, 72, 9),
-      t.restore());
+    const t = unitSupplyStatus(e, o);
+    if (!t || t.ok) continue;
+    i[e.army]++;
+    const r = grid.get(e.position),
+      a = r.center().add(r.toPoint());
+    (highlightHex(n, r, "rgba(226, 75, 74, 0.35)"),
+      n.save(),
+      n.setLineDash([7, 4]),
+      (n.lineWidth = 3),
+      (n.strokeStyle = "#e24b4a"),
+      strokeRoundRect(n, a.x - 36, a.y - 36, 72, 72, 9),
+      n.restore());
   }
-  const i = document.getElementById("supply_view_count");
-  (i &&
-    (i.innerText = supplyView
-      ? " · cut off: " + n.german + " German, " + n.soviet + " Russian"
-      : ""),
-    unitCardShown && renderUnitCard(unitCardShown));
+  t && (t.innerText = ": " + i.german + " German, " + i.soviet + " Russian cut off");
 }
 function scheduleStatusRefresh() {
-  (clearTimeout(statusRefreshTimer), (statusRefreshTimer = setTimeout(refreshStatusMarkers, 400)));
+  supplyView &&
+    (clearTimeout(statusRefreshTimer), (statusRefreshTimer = setTimeout(refreshStatusMarkers, 400)));
 }
-function renderUnitCard(e) {
-  const t = document.getElementById("unit_card"),
-    n = e && b4mUnits[b4mUnitsIndex(e)];
-  if (!t || !n || !n.position) return void hideUnitCard();
-  unitCardShown = { id: n.id };
-  const i = unitSupplyStatus(n),
-    o = "full" === n.strength,
-    r = [];
-  ("cavalry" === n.type &&
-    r.push("Cavalry: may keep moving after entering its first enemy ZOC hex in a phase."),
-    n.ski &&
-      r.push(
-        "Ski battalions: in winter, forest costs 1 MP and the forest does not reduce the odds when it attacks.",
-      ),
-    "tank" === n.type && r.push("Panzer: moves in the Panzer Movement Phase; attack strength halved in mud."));
-  let a =
-    '<span id="unit_card_close" title="Close">&times;</span><div class="unit_card_title">' +
-    unitDisplayName(n) +
-    '</div><div class="unit_card_sub">' +
-    unitTypeName(n) +
-    " · " +
-    (o ? "full strength" : "reduced") +
-    " · combat " +
-    (o ? n.combatFull : n.combatReduced) +
-    " · movement " +
-    n.movement +
-    '</div><div class="unit_card_row ' +
-    (i.ok ? "ok" : "cut") +
-    '"><strong>Supply:</strong> ' +
-    i.text +
-    (i.effect ? "<br />" + i.effect : "") +
-    "</div>";
-  for (const e of r) a += '<div class="unit_card_row"><strong>Special:</strong> ' + e.replace(/^[^:]+: /, "") + "</div>";
-  ((t.innerHTML = a),
-    (t.style.display = "block"),
-    (document.getElementById("unit_card_close").onclick = function (e) {
-      (e.stopPropagation(), (unitCardPinned = null), hideUnitCard());
-    }));
-}
-function hideUnitCard() {
-  const e = document.getElementById("unit_card");
-  (e && (e.style.display = "none"), (unitCardShown = null), (unitCardHoverKey = ""));
+function setSupplyLayer(e) {
+  supplyView = !!e;
+  const t = document.getElementById("layer_supply");
+  t && (t.checked = supplyView);
+  try {
+    window.localStorage.setItem("b4mLayerSupply", supplyView ? "1" : "0");
+  } catch (e) {}
+  refreshStatusMarkers();
 }
 function initStatusUI() {
-  const e = document.getElementById("counters_highlights"),
-    t = document.getElementById("supply_view_button");
-  if (!e || !t) return;
-  const n = function (t) {
-    const n = grid.get(Grid.pointToHex(t.offsetX, t.offsetY));
-    return n ? lookupUnit(n) : null;
-  };
-  (e.addEventListener("mousemove", function (e) {
-    const t = n(e),
-      i = t ? t.id + "@" + t.position.x + "," + t.position.y : "";
-    i !== unitCardHoverKey &&
-      ((unitCardHoverKey = i),
-      t ? renderUnitCard(t) : unitCardPinned ? renderUnitCard(unitCardPinned) : hideUnitCard(),
-      (unitCardHoverKey = i));
-  }),
-    e.addEventListener("mouseleave", function () {
-      unitCardPinned ? renderUnitCard(unitCardPinned) : hideUnitCard();
+  const e = document.getElementById("layer_supply");
+  if (!e) return;
+  let t = !1;
+  try {
+    t = "1" === window.localStorage.getItem("b4mLayerSupply");
+  } catch (e) {}
+  (setSupplyLayer(t),
+    e.addEventListener("change", function () {
+      setSupplyLayer(e.checked);
     }),
-    // A click (or a tap) pins the card; it never stops the game's own click handling
-    e.addEventListener("click", function (e) {
-      const t = n(e);
-      t ? ((unitCardPinned = { id: t.id }), renderUnitCard(t)) : ((unitCardPinned = null), hideUnitCard());
-    }),
-    (t.onclick = function (e) {
-      (e.stopPropagation(),
-        (supplyView = !supplyView),
-        t.classList.toggle("active", supplyView),
-        refreshStatusMarkers());
+    // "S" switches the supply layer on and off, like the supply view of computer wargames
+    document.addEventListener("keydown", function (e) {
+      ("s" !== e.key && "S" !== e.key) ||
+        e.ctrlKey ||
+        e.metaKey ||
+        e.altKey ||
+        // ignore keys typed into a text field (a ticked checkbox keeps the focus, so it must not count)
+        e.target.isContentEditable ||
+        /^(textarea|select)$/i.test(e.target.tagName) ||
+        (/^input$/i.test(e.target.tagName) && !/^(checkbox|radio|button|submit|reset|range)$/i.test(e.target.type)) ||
+        setSupplyLayer(!supplyView);
     }));
 }
 window.addEventListener("load", initStatusUI);
@@ -1193,7 +1110,45 @@ function clearUnit(e, t, n, i) {
     }
   (e.clearRect(n, i, 80, 80), scheduleStatusRefresh());
 }
+// Units being animated, and the hexes they are heading to
+let unitsMoving = 0,
+  pendingDestinations = [],
+  queuedProgressClick = null;
+function isPendingDestination(e) {
+  return pendingDestinations.some(function (t) {
+    return t.x === e.x && t.y === e.y;
+  });
+}
+function finishUnitMove(e) {
+  ((unitsMoving = Math.max(0, unitsMoving - 1)),
+    e &&
+      (pendingDestinations = pendingDestinations.filter(function (t) {
+        return t !== e;
+      })));
+  if (0 === unitsMoving && queuedProgressClick) {
+    const e = queuedProgressClick;
+    ((queuedProgressClick = null), e.click());
+  }
+}
+// A button that moves the game on (next battle, next phase, undo) waits until every unit has stopped moving:
+// clicked too early, it is held and clicked again as soon as the last unit arrives
+document.addEventListener(
+  "click",
+  function (e) {
+    if (0 === unitsMoving || !e.target || !e.target.closest) return;
+    const t = e.target.closest(".next, .next_battle_button");
+    t && (e.preventDefault(), e.stopImmediatePropagation(), (queuedProgressClick = t));
+  },
+  !0,
+);
 function moveUnit(e, t, n) {
+  // Copy the route now: a caller may later change the objects it passed (resolveNextBattle reuses
+  // initialDefendingUnitPosition), which used to send an advancing unit onto the next defender
+  t = t.map(function (e) {
+    return { x: e.x, y: e.y };
+  });
+  const s = t.length > 0 ? t[t.length - 1] : null;
+  (unitsMoving++, s && pendingDestinations.push(s));
   let i = { x: e.position.x, y: e.position.y },
     o = Hex(i).center().add(Hex(i).toPoint()),
     r = null;
@@ -1209,7 +1164,8 @@ function moveUnit(e, t, n) {
               80,
             ),
           "german" === e.army && removePartisanAt(e.position),
-          clearInterval(a))
+          clearInterval(a),
+          finishUnitMove(s))
         : (clearUnit(board, e, o.x - 40, o.y - 40),
           r && r.id !== e.id && drawUnit(board, r, o.x - 30, o.y - 30),
           (i = t.shift()),
@@ -1541,7 +1497,7 @@ function setTurnInfo() {
 function turn1GermanSetupPhase() {
   ((currentTurn = { turn: 1, army: "german", phase: "setup", subphase: "" }),
     (document.getElementById("turn_info").style.display = "block"),
-    (document.getElementById("supply_view_button").style.display = "block"),
+    (document.getElementById("layer_toolbar").style.display = "block"),
     setTurnInfo(),
     (document.getElementById("step_0_tip").innerText =
       "german" !== playAIAs
@@ -2613,6 +2569,7 @@ function handleMovement(e, t) {
     for (let e = 0; e < r.length; e++) {
       let t = lookupUnit(grid.get(r[e]));
       (t && t.army === currentTurn.army) ||
+        isPendingDestination(r[e]) ||
         (available.push(r[e]), highlightHex(hexHighlights, r[e], "rgba(255, 255, 255, 0.35)"));
     }
   }
@@ -4074,7 +4031,7 @@ function continueFromSave() {
     (followingReinforcement = b4mSave.followingReinforcement),
     (playAIAs = b4mSave.play_ai_as),
     (document.getElementById("turn_info").style.display = "block"),
-    (document.getElementById("supply_view_button").style.display = "block"),
+    (document.getElementById("layer_toolbar").style.display = "block"),
     setTurnInfo(),
     drawPositionedUnits(),
     window[b4mSave.function_name]());

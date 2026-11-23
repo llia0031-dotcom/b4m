@@ -85,8 +85,7 @@ input[type=checkbox] {
     font-size: 0.8em;
 }
 
-#supply_view_button {
-    cursor: pointer;
+#layer_toolbar {
     position: fixed;
     z-index: 100;
     top: 0px;
@@ -95,60 +94,24 @@ input[type=checkbox] {
     background-color: rgb(0, 0, 0, 0.4);
     border: 1px solid black;
     color: white;
-    padding: 5px 12px;
+    padding: 4px 12px;
     font-size: 0.8em;
     user-select: none;
 }
 
-#supply_view_button.active {
-    background-color: rgb(226, 75, 74, 0.8);
+#layer_toolbar .layer_title {
+    color: #cccccc;
+    margin-right: 8px;
 }
 
-#unit_card {
-    position: fixed;
-    z-index: 105;
-    left: 8px;
-    bottom: 8px;
-    width: 280px;
-    max-width: calc(100vw - 40px);
-    padding: 8px 12px;
-    background-color: rgb(0, 0, 0, 0.7);
-    border: 2px solid black;
-    border-radius: 10px;
-    color: white;
-    font-size: 0.85em;
-    line-height: 1.35;
-}
-
-#unit_card .unit_card_title {
-    font-weight: bold;
-    font-size: 1.1em;
-    padding-right: 18px;
-}
-
-#unit_card .unit_card_sub {
-    color: #dddddd;
-    margin-bottom: 4px;
-}
-
-#unit_card .unit_card_row {
-    margin-top: 4px;
-}
-
-#unit_card .unit_card_row.cut {
-    color: #ff8a80;
-}
-
-#unit_card .unit_card_row.ok {
-    color: #b9f6ca;
-}
-
-#unit_card_close {
-    position: absolute;
-    top: 2px;
-    right: 9px;
+#layer_toolbar label {
     cursor: pointer;
-    font-size: 1.3em;
+}
+
+#layer_toolbar input {
+    vertical-align: middle;
+    margin: 0 3px 0 0;
+    cursor: pointer;
 }
 
 #turn_report img {
