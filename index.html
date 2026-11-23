@@ -304,13 +304,15 @@
       <div id="help_fatigue" class="help_section_title">Fatigue and Supply</div>
       <p>Units get tired when they fight, and even more when they are cut off from their map edge. Fatigue is counted in points; every 4 points is one level (at most level 3). A turn is one to two weeks: a unit that attacks every turn is tired after 4 turns and exhausted after 8, like the German divisions of Operation Typhoon by December.</p>
       <ul>
-        <li><strong>Gaining fatigue</strong>: +1 for each attack, +1 for being attacked (unless the result is NE), +3 at the start of each turn spent cut off from the map edge, +1 for a German unit within 2 hexes of a railway cut by the partisans, and in winter +1 per turn for a German unit outside a city.</li>
+        <li><strong>Gaining fatigue</strong>: +1 for each attack, +1 for being attacked (unless the result is NE), +3 at the start of each turn spent cut off from the map edge (+2 more if it is completely surrounded: every hex around it is an enemy unit or in an enemy ZOC), +1 for a German unit within 2 hexes of a railway cut by the partisans, and in winter +1 per turn for a German unit outside a city.</li>
         <li><strong>Recovering</strong> (at the start of the unit's turn, only if it is in communication and not near a cut railway): -1 if it neither attacked nor was attacked since its previous turn, -2 instead if it also did not move (rest), and -1 more in a city controlled by its side. A replacement that brings it back to full strength removes all its fatigue.</li>
         <li><strong>Level 1, tired</strong>: the unit fights at 3/4 of its strength.</li>
         <li><strong>Level 2, exhausted</strong>: the unit fights at half its strength; when a battle with exhausted attackers ends in DE or DRL, the most exhausted attacker loses 1 step as well.</li>
         <li><strong>Level 3, broken</strong>: it cannot attack; it defends at half its strength, and a DR result against it becomes DRL.</li>
       </ul>
       <p>The battle table shows the strengths after fatigue, with the strength lost to fatigue in the modifiers.</p>
+      <h4>Stocks of the major cities</h4>
+      <p>Moscow (up to 4 stock points) and Tula (up to 3) stockpile supplies for their garrison: at the start of the owner's turn the city gains 1 stock point if it is in communication and no enemy unit is within 2 hexes. Both start the game full. A garrison cut off in such a city lives on the stocks: as long as they last, it gains only +1 fatigue per turn (+2 if completely surrounded) and uses 1 stock point per turn (2 if completely surrounded). A city that changes hands loses its stocks. The Supply layer shows the stocks next to the city, a completely surrounded unit with a solid red frame, and a garrison living on its stocks with an orange frame.</p>
       <h4>Liberated cities</h4>
       <p>When a Russian unit enters a German-held city during the Russian turn, the city is liberated: the Russians get 1 extra replacement step in their next Replacement Phase and the liberating unit loses one level of fatigue.</p>
       <div id="help_winter" class="help_section_title">Winter Counteroffensive</div>

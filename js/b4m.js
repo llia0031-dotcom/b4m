@@ -932,25 +932,35 @@ function supplyContext() {
   };
 }
 // Supply status of a unit on the map, based on the "in communication" rule
+// Supply status of a unit on the map, based on the "in communication" rule
 function unitSupplyStatus(e, t) {
   if (!e || !e.position) return null;
   t = t || supplyContext();
   const n = grid.get(e.position),
     i = "soviet" === e.army ? "the red-bordered east map edge" : "the west map edge";
-  return "soviet" === e.army && "moscow" === n.city
-    ? { ok: !0, text: "Supplied: Moscow (Russian units there can always be restored)" }
-    : t[e.army](n)
-      ? "soviet" === e.army && inPartisanZOC(n) && !t.sovietNoPartisans(n)
-        ? { ok: !0, text: "Supplied by the partisans" }
-        : { ok: !0, text: "In communication with " + i }
-      : {
-          ok: !1,
-          text:
-            "Cut off from " +
-            i +
-            ("german" === e.army && t.germanNoPartisans(n) ? " (partisans block the way)" : ""),
-          effect: "While cut off it cannot be restored to full strength.",
-        };
+  if (t[e.army](n))
+    return "soviet" === e.army && inPartisanZOC(n) && !t.sovietNoPartisans(n)
+      ? { ok: !0, text: "Supplied by the partisans" }
+      : { ok: !0, text: "In communication with " + i };
+  const o = cityStock(n, e.army),
+    r = isFullyRinged(n, e.army);
+  return o && o.value > 0
+    ? {
+        ok: !1,
+        siege: !0,
+        ringed: r,
+        text: "Besieged: living on the city's stocks (" + o.value + "/" + CITY_STOCK_CAP[n.x + "," + n.y] + ")",
+      }
+    : {
+        ok: !1,
+        ringed: r,
+        text:
+          "Cut off from " +
+          i +
+          (r ? ", completely surrounded" : "") +
+          ("german" === e.army && t.germanNoPartisans(n) ? " (partisans block the way)" : ""),
+        effect: "While cut off it cannot be restored to full strength.",
+      };
 }
 function strokeRoundRect(e, t, n, i, o, r) {
   (e.beginPath(),
@@ -983,12 +993,30 @@ function refreshStatusMarkers() {
       e[t.army]++;
       const r = grid.get(t.position),
         a = r.center().add(r.toPoint());
-      (highlightHex(n, r, "rgba(226, 75, 74, 0.35)"),
+      (highlightHex(n, r, o.siege ? "rgba(239, 159, 39, 0.3)" : "rgba(226, 75, 74, 0.35)"),
         n.save(),
-        n.setLineDash([7, 4]),
-        (n.lineWidth = 3),
-        (n.strokeStyle = "#e24b4a"),
+        n.setLineDash(o.ringed && !o.siege ? [] : [7, 4]),
+        (n.lineWidth = o.ringed && !o.siege ? 4 : 3),
+        (n.strokeStyle = o.siege ? "#ef9f27" : "#e24b4a"),
         strokeRoundRect(n, a.x - 36, a.y - 36, 72, 72, 9),
+        n.restore());
+    }
+    // stocks of the major cities
+    for (const e in CITY_STOCK_CAP) {
+      const [t, i] = e.split(",").map(Number),
+        o = grid.get({ x: t, y: i }),
+        r = o.center().add(o.toPoint()),
+        a = cityStocks[e] && cityStocks[e].owner === o.control ? cityStocks[e].value : 0,
+        l = "Stocks " + a + "/" + CITY_STOCK_CAP[e];
+      (n.save(),
+        (n.font = "bold 11px Arial, sans-serif"),
+        (n.textAlign = "center"),
+        (n.textBaseline = "middle"));
+      const s = n.measureText(l).width + 10;
+      ((n.fillStyle = "rgba(0, 0, 0, 0.7)"),
+        n.fillRect(r.x - s / 2, r.y - 45, s, 14),
+        (n.fillStyle = a > 0 ? "#ffd08a" : "#ff8a80"),
+        n.fillText(l, r.x, r.y - 38),
         n.restore());
     }
     t && (t.innerText = ": " + e.german + " German, " + e.soviet + " Russian cut off");
@@ -1075,6 +1103,9 @@ const FATIGUE = {
     attack: 1,
     defend: 1,
     cutOff: 3,
+    ringed: 2,
+    siegeCutOff: 1,
+    siegeRinged: 1,
     railCut: 1,
     winterOutsideCity: 1,
     idle: 1,
@@ -1148,6 +1179,7 @@ function processTurnFatigue(e) {
       return (e.strength || 1) > 0;
     })),
     drawPartisans());
+  buildCityStocks(e, t);
   for (const n of b4mUnits) {
     if (n.army !== e) continue;
     // a unit off the map (eliminated) starts afresh when it comes back
@@ -1156,10 +1188,16 @@ function processTurnFatigue(e) {
       continue;
     }
     const i = grid.get(n.position),
-      o = !unitSupplyStatus(n, t).ok,
-      s = "german" === e && railCutNear(i, 2);
+      o = !t[e](i),
+      s = "german" === e && railCutNear(i, 2),
+      c = o && isFullyRinged(i, e),
+      l = o ? cityStock(i, e) : null;
     let r = 0;
-    (o && (r += FATIGUE.cutOff),
+    (o &&
+      (l && l.value > 0
+        ? // a besieged garrison lives on the city's stocks: fatigue builds slowly while they last
+          ((r += FATIGUE.siegeCutOff + (c ? FATIGUE.siegeRinged : 0)), (l.value = Math.max(0, l.value - (c ? 2 : 1))))
+        : (r += FATIGUE.cutOff + (c ? FATIGUE.ringed : 0))),
       s && (r += FATIGUE.railCut),
       isWinterTurn() && "german" === e && "none" === i.city && (r += FATIGUE.winterOutsideCity),
       o ||
@@ -1417,6 +1455,45 @@ function railCutNear(e, t) {
     return e.distance(Hex(n)) <= t;
   });
 }
+// ---------------------------------------------------------------- Encirclement and city stocks
+// Major cities stockpile supplies for their garrison: a stock point is added at the start of the
+// owner's turn while the city is in communication and no enemy unit is within 2 hexes (time and
+// distance from the front). A city that changes hands loses its stocks.
+const CITY_STOCK_CAP = { "10,2": 4, "10,6": 3 };
+let cityStocks = { "10,2": { owner: "soviet", value: 4 }, "10,6": { owner: "soviet", value: 3 } };
+// Every hex around the unit is an enemy unit or in an enemy ZOC: it cannot break out even one hex
+function isFullyRinged(e, t) {
+  const n = "german" === t ? "soviet" : "german";
+  return grid
+    .neighborsOf(e)
+    .filter(function (e) {
+      return e && "off" !== e.terrain;
+    })
+    .every(function (e) {
+      const i = lookupUnit(e);
+      return (i && i.army === n) || isEZOC(e, t);
+    });
+}
+// The stocks a unit of army t can draw on in hex e (null if none)
+function cityStock(e, t) {
+  const n = e.x + "," + e.y,
+    i = cityStocks[n];
+  return CITY_STOCK_CAP[n] && i && i.owner === t && e.control === t ? i : null;
+}
+function buildCityStocks(e, t) {
+  for (const n in CITY_STOCK_CAP) {
+    const [i, o] = n.split(",").map(Number),
+      r = grid.get({ x: i, y: o });
+    if (!r || r.control !== e) continue;
+    const a = cityStocks[n] || (cityStocks[n] = { owner: e, value: 0 });
+    (a.owner !== e && ((a.owner = e), (a.value = 0)),
+      t[e](r) &&
+        !b4mUnits.some(function (t) {
+          return t.army !== e && t.position && r.distance(Hex(t.position)) <= 2;
+        }) &&
+        (a.value = Math.min(CITY_STOCK_CAP[n], a.value + 1)));
+  }
+}
 function b4mUnitsIndex(e) {
   for (let t = 0; t < b4mUnits.length; t++) if (e.id === b4mUnits[t].id) return t;
   return -1;
@@ -1463,6 +1540,7 @@ function cleanAndSaveBeforeNewPhase(e) {
     (b4mSave.partisans = partisans.slice()),
     (b4mSave.liberationBonus = liberationBonus),
     (b4mSave.railCuts = railCuts.slice()),
+    (b4mSave.cityStocks = JSON.parse(JSON.stringify(cityStocks))),
     (b4mSave.partisanGuides = partisanGuides.slice()),
     window.localStorage.setItem("b4mSave", JSON.stringify(b4mSave))),
     hexHighlights.clearRect(0, 0, canvasHexHighlights.width, canvasHexHighlights.height),
@@ -4641,6 +4719,7 @@ function continueFromSave() {
     return { x: e.x, y: e.y, strength: e.strength || 1, acted: !!e.acted };
   });
   ((railCuts = (b4mSave.railCuts || []).slice()), (partisanGuides = (b4mSave.partisanGuides || []).slice()));
+  b4mSave.cityStocks && (cityStocks = JSON.parse(JSON.stringify(b4mSave.cityStocks)));
   liberationBonus = b4mSave.liberationBonus || 0;
   for (const e of b4mSave.cities) {
     let t = grid.get(e.position);
