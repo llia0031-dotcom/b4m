@@ -64,7 +64,7 @@
       <span id="turn_info_title"></span>
       <div id="turn_report" style="display: none;"></div>
     </div>
-    <div id="layer_toolbar" style="display: none;"><span class="layer_title">Layers</span><label title="Show the units cut off from their map edge (key S)"><input type="checkbox" id="layer_supply"> Supply<span id="supply_view_count"></span></label></div>
+    <div id="layer_toolbar" style="display: none;"><span class="layer_title">Layers</span><label title="Show the units cut off from their map edge (key S)"><input type="checkbox" id="layer_supply"> Supply<span id="supply_view_count"></span></label><label title="Show unit fatigue (key F)"><input type="checkbox" id="layer_fatigue"> Fatigue</label></div>
     <!-- HUDs -->
     <div class="hud_content">
       <div class="hud_container">
@@ -260,6 +260,7 @@
       <div id="help_toc">
         <a href="#help_sequence">Sequence of Play</a> | 
         <a href="#help_howto">How To...</a> | 
+        <a href="#help_fatigue">Fatigue and Supply</a> | 
         <a href="#help_winter">Winter Counteroffensive</a> | 
         <a href="#help_terrain">Terrain Effects Chart</a> | 
         <a href="#help_crt">Combat Results Table</a> | 
@@ -298,7 +299,18 @@
         <p>In order to assess which city is under which army's control at any point throughout the game, simply click on the <strong>turn information</strong> bar to open a summary and highlight the cities' current status on the map. Then, click again on the turn information to close the view.</p>
       </div>
       <h4>... Show unit status on the map</h4>
-      <p>Tick a box in the <strong>Layers</strong> bar at the top left to show a status on the map; nothing is shown while the boxes are unticked. <strong>Supply</strong>: every unit cut off from its map edge (not in communication) gets a red dashed frame and its hex is shaded, and the bar counts them for both sides. Press <strong>S</strong> to switch the supply layer on or off.</p>
+      <p>Tick a box in the <strong>Layers</strong> bar at the top left to show a status on the map; nothing is shown while the boxes are unticked. <strong>Supply</strong>: every unit cut off from its map edge (not in communication) gets a red dashed frame and its hex is shaded, and the bar counts them for both sides. <strong>Fatigue</strong>: a tired unit gets a bar of three segments under it, one filled segment per fatigue level. Press <strong>S</strong> or <strong>F</strong> to switch these layers on or off.</p>
+      <div id="help_fatigue" class="help_section_title">Fatigue and Supply</div>
+      <p>Units get tired when they fight, and even more when they are cut off from their map edge. Fatigue is counted in points; every 2 points is one level (at most level 3).</p>
+      <ul>
+        <li><strong>Gaining fatigue</strong>: +1 for each attack, +1 for being attacked (unless the result is NE), +2 at the start of each turn spent cut off from the map edge, and in winter +1 per turn for a German unit outside a city.</li>
+        <li><strong>Recovering</strong> (at the start of the unit's turn, only if it is in communication): -1 if it neither attacked nor was attacked since its previous turn, -2 instead if it also did not move (rest), and -1 more in a city controlled by its side. A replacement that brings it back to full strength removes all its fatigue.</li>
+        <li><strong>Level 1, tired</strong>: a battle with any tired attacker loses one odds column.</li>
+        <li><strong>Level 2, exhausted</strong>: as level 1; when its battle ends in DE or DRL, the most exhausted attacker loses 1 step as well; when it defends, the attacker gains one odds column.</li>
+        <li><strong>Level 3, broken</strong>: it cannot attack; when it defends, the attacker gains one odds column and a DR result becomes DRL.</li>
+      </ul>
+      <h4>Liberated cities</h4>
+      <p>When a Russian unit enters a German-held city during the Russian turn, the city is liberated: the Russians get 1 extra replacement step in their next Replacement Phase and the liberating unit loses one level of fatigue.</p>
       <div id="help_winter" class="help_section_title">Winter Counteroffensive</div>
       <p>The game continues into the Russian winter counteroffensive and ends after <strong>Game Turn 9</strong> (December 15th, 1941). Turns 8 and 9 are winter turns. The victory conditions are checked at the end of Game Turn 9.</p>
       <h4>Turn 8: the Stavka reserves are committed</h4>

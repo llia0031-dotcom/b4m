@@ -106,6 +106,60 @@ input[type=checkbox] {
 
 #layer_toolbar label {
     cursor: pointer;
+    margin-right: 10px;
+}
+
+.modifier_badge {
+    display: inline-block;
+    padding: 0 4px;
+    border-radius: 4px;
+    background-color: #ef9f27;
+    color: #412402;
+    font-size: 0.85em;
+    white-space: nowrap;
+}
+
+.modifier_badge.bonus {
+    background-color: #b5d4f4;
+    color: #042c53;
+}
+
+.battle_fatigue_note {
+    color: #ffd08a;
+    font-size: 0.9em;
+    margin-top: 3px;
+}
+
+#event_banner {
+    display: none;
+    position: fixed;
+    z-index: 120;
+    top: 34px;
+    left: 0;
+    right: 0;
+    margin: auto;
+    width: fit-content;
+    max-width: calc(100vw - 40px);
+    padding: 6px 18px;
+    background-color: rgb(140, 25, 30, 0.88);
+    border: 1px solid black;
+    border-radius: 8px;
+    color: white;
+    font-weight: bold;
+    text-align: center;
+    pointer-events: none;
+}
+
+#event_banner img {
+    height: 18px;
+    vertical-align: middle;
+    margin-right: 8px;
+}
+
+#event_banner span {
+    display: block;
+    font-weight: normal;
+    font-size: 0.85em;
 }
 
 #layer_toolbar input {

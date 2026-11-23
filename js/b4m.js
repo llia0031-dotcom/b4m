@@ -803,6 +803,7 @@ function drawReinforcementTokens(e, t, n) {
 }
 // ---------------------------------------------------------------- Unit status display (supply markers, unit card, supply view)
 let supplyView = !1,
+  fatigueView = !1,
   statusRefreshTimer = null;
 // Same rule as isInCommunication, computed for the whole map at once: a single search outward from the map edge
 // gives, for every hex, the shortest open path to the edge; a unit is in communication if a neighbouring hex
@@ -921,71 +922,270 @@ function strokeRoundRect(e, t, n, i, o, r) {
     e.closePath(),
     e.stroke());
 }
-// Status layers: a status is drawn only while its box in the layer bar is ticked
+// Status layers: a status is drawn only while its box in the layer bar is ticked; several can be ticked together
 function refreshStatusMarkers() {
   statusRefreshTimer = null;
   const e = document.getElementById("status_markers"),
     t = document.getElementById("supply_view_count");
   if (!e || !e.width) return;
   const n = e.getContext("2d");
-  if ((n.clearRect(0, 0, e.width, e.height), t && (t.innerText = ""), !supplyView)) return;
-  const i = { german: 0, soviet: 0 },
-    o = supplyContext();
-  for (const e of b4mUnits) {
-    if (!e.position) continue;
-    const t = unitSupplyStatus(e, o);
-    if (!t || t.ok) continue;
-    i[e.army]++;
-    const r = grid.get(e.position),
-      a = r.center().add(r.toPoint());
-    (highlightHex(n, r, "rgba(226, 75, 74, 0.35)"),
-      n.save(),
-      n.setLineDash([7, 4]),
-      (n.lineWidth = 3),
-      (n.strokeStyle = "#e24b4a"),
-      strokeRoundRect(n, a.x - 36, a.y - 36, 72, 72, 9),
-      n.restore());
+  if ((n.clearRect(0, 0, e.width, e.height), t && (t.innerText = ""), supplyView)) {
+    const e = { german: 0, soviet: 0 },
+      i = supplyContext();
+    for (const t of b4mUnits) {
+      if (!t.position) continue;
+      const o = unitSupplyStatus(t, i);
+      if (!o || o.ok) continue;
+      e[t.army]++;
+      const r = grid.get(t.position),
+        a = r.center().add(r.toPoint());
+      (highlightHex(n, r, "rgba(226, 75, 74, 0.35)"),
+        n.save(),
+        n.setLineDash([7, 4]),
+        (n.lineWidth = 3),
+        (n.strokeStyle = "#e24b4a"),
+        strokeRoundRect(n, a.x - 36, a.y - 36, 72, 72, 9),
+        n.restore());
+    }
+    t && (t.innerText = ": " + e.german + " German, " + e.soviet + " Russian cut off");
   }
-  t && (t.innerText = ": " + i.german + " German, " + i.soviet + " Russian cut off");
+  // Fatigue: a three-segment bar under the counter, one segment per level (only for tired units)
+  if (fatigueView)
+    for (const e of b4mUnits) {
+      const t = fatigueLevel(e);
+      if (!e.position || t < 1) continue;
+      const i = grid.get(e.position),
+        o = i.center().add(i.toPoint()),
+        r = ["", "#fac775", "#ef9f27", "#e24b4a"][t];
+      for (let e = 0; e < 3; e++) {
+        const i = o.x - 29 + 20 * e;
+        ((n.fillStyle = e < t ? r : "rgba(0, 0, 0, 0.35)"),
+          n.fillRect(i, o.y + 40, 18, 6),
+          (n.lineWidth = 1),
+          (n.strokeStyle = "#211c21"),
+          n.strokeRect(i + 0.5, o.y + 40.5, 17, 5));
+      }
+    }
 }
 function scheduleStatusRefresh() {
-  supplyView &&
+  (supplyView || fatigueView) &&
     (clearTimeout(statusRefreshTimer), (statusRefreshTimer = setTimeout(refreshStatusMarkers, 400)));
 }
-function setSupplyLayer(e) {
-  supplyView = !!e;
-  const t = document.getElementById("layer_supply");
-  t && (t.checked = supplyView);
+function setLayer(e, t) {
+  ("supply" === e ? (supplyView = !!t) : (fatigueView = !!t));
+  const n = document.getElementById("layer_" + e);
+  n && (n.checked = !!t);
   try {
-    window.localStorage.setItem("b4mLayerSupply", supplyView ? "1" : "0");
+    window.localStorage.setItem("supply" === e ? "b4mLayerSupply" : "b4mLayerFatigue", t ? "1" : "0");
   } catch (e) {}
   refreshStatusMarkers();
 }
+function setSupplyLayer(e) {
+  setLayer("supply", e);
+}
 function initStatusUI() {
-  const e = document.getElementById("layer_supply");
-  if (!e) return;
-  let t = !1;
-  try {
-    t = "1" === window.localStorage.getItem("b4mLayerSupply");
-  } catch (e) {}
-  (setSupplyLayer(t),
-    e.addEventListener("change", function () {
-      setSupplyLayer(e.checked);
-    }),
-    // "S" switches the supply layer on and off, like the supply view of computer wargames
-    document.addEventListener("keydown", function (e) {
-      ("s" !== e.key && "S" !== e.key) ||
-        e.ctrlKey ||
-        e.metaKey ||
-        e.altKey ||
-        // ignore keys typed into a text field (a ticked checkbox keeps the focus, so it must not count)
-        e.target.isContentEditable ||
-        /^(textarea|select)$/i.test(e.target.tagName) ||
-        (/^input$/i.test(e.target.tagName) && !/^(checkbox|radio|button|submit|reset|range)$/i.test(e.target.type)) ||
-        setSupplyLayer(!supplyView);
-    }));
+  for (const e of ["supply", "fatigue"]) {
+    const t = document.getElementById("layer_" + e);
+    if (!t) continue;
+    let n = !1;
+    try {
+      n = "1" === window.localStorage.getItem("supply" === e ? "b4mLayerSupply" : "b4mLayerFatigue");
+    } catch (e) {}
+    (setLayer(e, n),
+      t.addEventListener("change", function () {
+        setLayer(e, t.checked);
+      }));
+  }
+  // "S" and "F" switch the supply and fatigue layers on and off
+  document.addEventListener("keydown", function (e) {
+    if (
+      e.ctrlKey ||
+      e.metaKey ||
+      e.altKey ||
+      e.target.isContentEditable ||
+      /^(textarea|select)$/i.test(e.target.tagName) ||
+      (/^input$/i.test(e.target.tagName) && !/^(checkbox|radio|button|submit|reset|range)$/i.test(e.target.type))
+    )
+      return;
+    const t = e.key.toLowerCase();
+    "s" === t ? setLayer("supply", !supplyView) : "f" === t && setLayer("fatigue", !fatigueView);
+  });
 }
 window.addEventListener("load", initStatusUI);
+// ---------------------------------------------------------------- Fatigue and liberated cities
+// Fatigue is counted in points; every FATIGUE.perLevel points is one level:
+// 0 fresh, 1 tired, 2 exhausted, 3 broken. All the numbers of the system are here.
+const FATIGUE = {
+    perLevel: 2,
+    max: 6,
+    attack: 1,
+    defend: 1,
+    cutOff: 2,
+    winterOutsideCity: 1,
+    idle: 1,
+    rest: 2,
+    city: 1,
+    liberation: 2,
+  },
+  CITY_NAMES = {
+    "1,4": "Smolensk",
+    "2,6": "Roslavl",
+    "4,8": "Bryansk",
+    "5,1": "Rzhev",
+    "5,3": "Vyazma",
+    "7,3": "Mozhaisk",
+    "7,5": "Kaluga",
+    "7,9": "Orel",
+    "10,2": "Moscow",
+    "10,6": "Tula",
+    "13,5": "Ryazan",
+  };
+let liberationBonus = 0;
+function fatigueLevel(e) {
+  return e ? Math.min(3, Math.floor((e.fatigue || 0) / FATIGUE.perLevel)) : 0;
+}
+function addFatigue(e, t) {
+  const n = e && b4mUnits[b4mUnitsIndex(e)];
+  n && (n.fatigue = Math.max(0, Math.min(FATIGUE.max, (n.fatigue || 0) + t)));
+}
+function markFought(e) {
+  const t = e && b4mUnits[b4mUnitsIndex(e)];
+  t && (t.fought = !0);
+}
+function unitName(e) {
+  const t = parseInt(e.id.replace(/\D/g, ""), 10),
+    n = t % 100,
+    i = t + (n >= 11 && n <= 13 ? "th" : ["th", "st", "nd", "rd"][t % 10] || "th");
+  if ("soviet" === e.army)
+    return "shock" === e.type
+      ? i + " Shock Army"
+      : "cavalry" === e.type
+        ? i + " Guards Cavalry Corps"
+        : i + " Army";
+  let o = "",
+    r = t;
+  for (const [e, t] of [
+    [50, "L"],
+    [40, "XL"],
+    [10, "X"],
+    [9, "IX"],
+    [5, "V"],
+    [4, "IV"],
+    [1, "I"],
+  ])
+    for (; r >= e; ) ((o += t), (r -= e));
+  return o + ("tank" === e.type ? " Panzer Corps" : " Corps");
+}
+// Start of a side's turn: supply, winter and rest change the fatigue of its units
+// (the "fought" and "moved" marks cover the side's previous turn and the enemy turn that followed)
+function processTurnFatigue(e) {
+  const t = supplyContext();
+  for (const n of b4mUnits) {
+    if (n.army !== e) continue;
+    // a unit off the map (eliminated) starts afresh when it comes back
+    if (!n.position) {
+      ((n.fought = !1), (n.moved = !1));
+      continue;
+    }
+    const i = grid.get(n.position),
+      o = !unitSupplyStatus(n, t).ok;
+    let r = 0;
+    (o && (r += FATIGUE.cutOff),
+      isWinterTurn() && "german" === e && "none" === i.city && (r += FATIGUE.winterOutsideCity),
+      o ||
+        (n.fought || (r -= n.moved ? FATIGUE.idle : FATIGUE.rest),
+        "none" !== i.city && i.control === e && (r -= FATIGUE.city)),
+      (n.fatigue = Math.max(0, Math.min(FATIGUE.max, (n.fatigue || 0) + r))),
+      (n.fought = !1),
+      (n.moved = !1));
+  }
+  scheduleStatusRefresh();
+}
+// Fatigue in a battle, just before its result is applied. Returns the result to apply
+// (a broken defender turns DR into DRL) and a note for the battle log.
+function applyBattleFatigue(e) {
+  let t = e,
+    n = "";
+  if ("DR" === t && 3 === fatigueLevel(b4mUnits[b4mUnitsIndex(currentBattle.defendingUnit)]))
+    ((t = "DRL"), (n += "The defender is broken by fatigue: its retreat costs it a step. "));
+  if ("DE" === t || "DRL" === t) {
+    const e = currentBattle.attackingUnits
+      .map(function (e) {
+        return b4mUnits[b4mUnitsIndex(e)];
+      })
+      .filter(function (e) {
+        return e && e.position && fatigueLevel(e) >= 2;
+      })
+      .sort(function (e, t) {
+        return (
+          fatigueLevel(t) - fatigueLevel(e) ||
+          ("full" === t.strength ? t.combatFull : t.combatReduced) -
+            ("full" === e.strength ? e.combatFull : e.combatReduced)
+        );
+      })[0];
+    if (e) {
+      const t = grid.get(e.position),
+        i = t.center().add(t.toPoint()),
+        o = lookupUnit(t);
+      ("full" === e.strength
+        ? ((e.strength = "reduced"),
+          (o.strength = "reduced"),
+          clearUnit(board, o, i.x - 40, i.y - 40),
+          drawUnit(board, o, i.x - 30, i.y - 30),
+          (n += "Exhausted attackers pay for the victory: the " + unitName(e) + " loses 1 step. "))
+        : (clearUnit(board, o, i.x - 40, i.y - 40),
+          (n += "Exhausted attackers pay for the victory: the " + unitName(e) + " is eliminated. ")),
+        currentBattle.attackingUnits.forEach(function (t) {
+          t.id === e.id && (t.strength = e.strength);
+        }));
+    }
+  }
+  for (const e of currentBattle.attackingUnits) (addFatigue(e, FATIGUE.attack), markFought(e));
+  return (
+    markFought(currentBattle.defendingUnit),
+    "NE" !== t && addFatigue(currentBattle.defendingUnit, FATIGUE.defend),
+    scheduleStatusRefresh(),
+    { result: t, note: n }
+  );
+}
+function modifiersHtml(e) {
+  let t = "";
+  for (const n of e.modifiers)
+    t +=
+      "fatigue" === n
+        ? '<span class="modifier_badge" title="Tired attackers: one column less">Tired -1</span> '
+        : '<img src="img/' + n + '_marker.png" /> ';
+  return (
+    e.defenderFatigueBonus &&
+      (t += '<span class="modifier_badge bonus" title="Exhausted defender: one column more">Exhausted +1</span> '),
+    t
+  );
+}
+function takeLiberationBonus() {
+  const e = liberationBonus;
+  return ((liberationBonus = 0), e);
+}
+function showEventBanner(e) {
+  let t = document.getElementById("event_banner");
+  (t || ((t = document.createElement("div")), (t.id = "event_banner"), document.body.appendChild(t)),
+    (t.innerHTML = e),
+    (t.style.display = "block"),
+    clearTimeout(t.hideTimer),
+    (t.hideTimer = setTimeout(function () {
+      t.style.display = "none";
+    }, 4500)));
+}
+// A Russian unit enters a German-held city during the Russian turn
+function cityLiberated(e, t) {
+  const n = CITY_NAMES[e.x + "," + e.y] || "A city";
+  (liberationBonus++,
+    t && addFatigue(t, -FATIGUE.liberation),
+    showEventBanner(
+      '<img src="img/soviet_marker.png" />' +
+        n +
+        " liberated!<span>+1 Russian replacement step next turn · the liberators shake off some fatigue</span>",
+    ));
+}
 function b4mUnitsIndex(e) {
   for (let t = 0; t < b4mUnits.length; t++) if (e.id === b4mUnits[t].id) return t;
   return -1;
@@ -1030,6 +1230,7 @@ function cleanAndSaveBeforeNewPhase(e) {
     (b4mSave.function_name = e),
     (b4mSave.play_ai_as = playAIAs),
     (b4mSave.partisans = partisans.slice()),
+    (b4mSave.liberationBonus = liberationBonus),
     window.localStorage.setItem("b4mSave", JSON.stringify(b4mSave))),
     hexHighlights.clearRect(0, 0, canvasHexHighlights.width, canvasHexHighlights.height),
     countersHighlights.clearRect(
@@ -1089,7 +1290,14 @@ function drawUnit(e, t, n, i) {
       if (t.id === b4mUnits[e].id) {
         b4mUnits[e].position = { x: t.position.x, y: t.position.y };
         let n = grid.get(t.position);
-        n && n.city && "none" !== n.city && (n.control = t.army);
+        n &&
+          n.city &&
+          "none" !== n.city &&
+          ("german" === n.control &&
+            "soviet" === t.army &&
+            "soviet" === currentTurn.army &&
+            cityLiberated(n, b4mUnits[e]),
+          (n.control = t.army));
         break;
       }
   const o = t.sheet
@@ -1149,6 +1357,8 @@ function moveUnit(e, t, n) {
   });
   const s = t.length > 0 ? t[t.length - 1] : null;
   (unitsMoving++, s && pendingDestinations.push(s));
+  const mv = b4mUnits[b4mUnitsIndex(e)];
+  mv && (mv.moved = !0);
   let i = { x: e.position.x, y: e.position.y },
     o = Hex(i).center().add(Hex(i).toPoint()),
     r = null;
@@ -1192,6 +1402,7 @@ function lookupUnit(e) {
           strength: t.strength,
           sheet: t.sheet,
           ski: t.ski,
+          fatigue: t.fatigue,
         };
         return (t.position && (e.position = { x: t.position.x, y: t.position.y }), e);
       }
@@ -1258,6 +1469,11 @@ function computeBattleOdds() {
         break;
       }
     n && t.push("river");
+    // Tired attackers lose a column; an exhausted or broken defender gives one
+    (battle.attackingUnits.some(function (e) {
+      return fatigueLevel(e) >= 1;
+    }) && t.push("fatigue"),
+      (battle.defenderFatigueBonus = fatigueLevel(battle.defendingUnit) >= 2 ? 1 : 0));
     let i = 0;
     for (const e of battle.attackingUnits) {
       let t = "full" === e.strength ? e.combatFull : e.combatReduced;
@@ -1273,7 +1489,7 @@ function computeBattleOdds() {
     (o > 6 && (o = 6),
       (battle.attackingStrength = i),
       (battle.modifiers = t),
-      (battle.battleOdds = o - t.length));
+      (battle.battleOdds = Math.min(6, o - t.length + battle.defenderFatigueBonus)));
   }
 }
 function refreshBattles() {
@@ -1352,7 +1568,7 @@ function updateDashboardCombat() {
             : battles[e].defendingUnit.combatReduced) +
           "</td>";
       let o = '<td class="cell_modifiers">';
-      for (const t of battles[e].modifiers) o += '<img src="img/' + t + '_marker.png" /> ';
+      o += modifiersHtml(battles[e]);
       ((o += "</td>"),
         (t.innerHTML = n + i + o + '<td class="cell_odds">' + battles[e].battleOdds + ":1</td>"));
       let r = document.createElement("td");
@@ -1418,7 +1634,7 @@ function updateDashboardCombat() {
             : battle.defendingUnit.combatReduced) +
           "</td>";
       let o = '<td class="cell_modifiers">';
-      for (const e of battle.modifiers) o += '<img src="img/' + e + '_marker.png" /> ';
+      o += modifiersHtml(battle);
       ((o += "</td>"),
         (t.innerHTML = n + i + o + '<td class="cell_odds">' + battle.battleOdds + ":1</td>"));
       let r = document.createElement("td");
@@ -1882,12 +2098,13 @@ function combatAnnouncePhase(e) {
             o &&
               o.army !== n &&
               !t(o, battles) &&
+              fatigueLevel(o) < 3 &&
               ((o.attackFrom = toNeighborsDirections[i]), e.push(o));
           }
           (e.length > 0 && (battle = { attackingUnits: e, defendingUnit: o }), refreshBattles());
         }
       } else {
-        if (o && o.army !== n && battle && !t(o, battles))
+        if (o && o.army !== n && battle && !t(o, battles) && fatigueLevel(o) < 3)
           if (battle.attackingUnits.filter((e) => e.id === o.id).length > 0)
             ((battle.attackingUnits = battle.attackingUnits.filter((e) => e.id !== o.id)),
               0 === battle.attackingUnits.length && (battle = null));
@@ -1921,7 +2138,7 @@ function combatAnnouncePhase(e) {
       let r = [];
       for (let i = 0; i < o.length; i++) {
         let a = lookupUnit(o[i]);
-        a && a.army !== e && !t(a, n) && ((a.attackFrom = toNeighborsDirections[i]), r.push(a));
+        a && a.army !== e && !t(a, n) && fatigueLevel(a) < 3 && ((a.attackFrom = toNeighborsDirections[i]), r.push(a));
       }
       (r.length > 0 &&
         ((battle = { attackingUnits: r, defendingUnit: i }),
@@ -2376,7 +2593,11 @@ function resolveNextBattle(e) {
           currentBattle.battleOdds +
           ")",
       ).innerText));
+    const fatigueOutcome = applyBattleFatigue(battleResult);
+    battleResult = fatigueOutcome.result;
     let d = document.querySelector(".table_battle div.battle_result");
+    fatigueOutcome.note &&
+      d.insertAdjacentHTML("afterend", '<div class="battle_fatigue_note">' + fatigueOutcome.note + "</div>");
     switch (battleResult) {
       case "NE":
         ((d.innerText = "The battle has no effect."),
@@ -3262,6 +3483,7 @@ function replacementPhase(e) {
         (followingReinforcement = !1)),
     (currentTurn.phase = "replacement"),
     (currentTurn.subphase = "standard"),
+    processTurnFatigue(currentTurn.army),
     (document.getElementById("step_replacement").style.display = "block"),
     (document.getElementById("next_step_reinforcement").style.display = "none"),
     (document.querySelector("#step_replacement > div.hud_title > img").src =
@@ -3286,7 +3508,9 @@ function replacementPhase(e) {
     }));
   let t = 0;
   t =
-    "soviet" === currentTurn.army ? (3 === currentTurn.turn || 4 === currentTurn.turn ? 4 : 5) : 1;
+    "soviet" === currentTurn.army
+      ? (3 === currentTurn.turn || 4 === currentTurn.turn ? 4 : 5) + takeLiberationBonus()
+      : 1;
   const n = function () {
     t > 0
       ? "" === playAIAs || playAIAs !== currentTurn.army
@@ -3326,7 +3550,7 @@ function replacementPhase(e) {
             ? -1
             : t.combatFull - e.combatFull;
       });
-    return 0 === e.length ? null : ((e[0].strength = "reduced"), (e[0].ski = !1), e[0]);
+    return 0 === e.length ? null : ((e[0].strength = "reduced"), (e[0].ski = !1), (e[0].fatigue = 0), e[0]);
   };
   let o = [];
   i() &&
@@ -3424,7 +3648,7 @@ function replacementPhase(e) {
               break;
             }
           if (e > -1) {
-            ((r[e].strength = "full"), clearHex(hexHighlights, a));
+            ((r[e].strength = "full"), (b4mUnits[b4mUnitsIndex(r[e])].fatigue = 0), clearHex(hexHighlights, a));
             let i = a.center().add(a.toPoint());
             (drawUnit(board, r[e], i.x - 30, i.y - 30),
               countersHighlights.drawImage(
@@ -4019,6 +4243,7 @@ function continueFromSave() {
   partisans = (b4mSave.partisans || []).map(function (e) {
     return { x: e.x, y: e.y };
   });
+  liberationBonus = b4mSave.liberationBonus || 0;
   for (const e of b4mSave.cities) {
     let t = grid.get(e.position);
     t && t.city && "none" !== t.city && (t.control = e.control);
