@@ -64,7 +64,7 @@
       <span id="turn_info_title"></span>
       <div id="turn_report" style="display: none;"></div>
     </div>
-    <div id="layer_toolbar" style="display: none;"><span class="layer_title">Layers</span><label title="Show the units cut off from their map edge (key S)"><input type="checkbox" id="layer_supply"> Supply<span id="supply_view_count"></span></label><label title="Show unit fatigue (key F)"><input type="checkbox" id="layer_fatigue"> Fatigue</label></div>
+    <div id="layer_toolbar" style="display: none;"><span class="layer_title">Layers</span><label title="Show the units cut off from their map edge (key S)"><input type="checkbox" id="layer_supply"> Supply<span id="supply_view_count"></span></label><label title="Show unit fatigue (key F)"><input type="checkbox" id="layer_fatigue"> Fatigue</label><label title="Show the estimated manpower of each unit (key P)"><input type="checkbox" id="layer_men"> Men</label><label title="Sound effects on or off (key M)"><input type="checkbox" id="layer_sound" checked> Sound</label></div>
     <!-- HUDs -->
     <div class="hud_content">
       <div class="hud_container">
@@ -132,6 +132,7 @@
             <label for="skip_to_movement"> Go straight to movement phase</label>
           </p>
           <div id="dashboard_combat"></div>
+          <p id="combat_losses" class="combat_losses"></p>
           <p id="skip_announce" style="display: none;">
             <input type="checkbox" id="skip_to_resolution" name="skip_to_resolution" value="skip">
             <label for="skip_to_resolution"> No more battle to announce</label>
@@ -301,6 +302,9 @@
       </div>
       <h4>... Show unit status on the map</h4>
       <p>Tick a box in the <strong>Layers</strong> bar at the top left to show a status on the map; nothing is shown while the boxes are unticked. <strong>Supply</strong>: every unit cut off from its map edge (not in communication) gets a red dashed frame and its hex is shaded, and the bar counts them for both sides. <strong>Fatigue</strong>: a tired unit gets a bar of three segments under it, one filled segment per fatigue level. Press <strong>S</strong> or <strong>F</strong> to switch these layers on or off.</p>
+      <div id="help_men" class="help_section_title">Manpower, Losses and Sound</div>
+      <p>The rules give a German corps about 25,000 soldiers and a Russian army about 40,000; this version counts the 1st Shock Army as 50,000 and a Guards cavalry corps as 15,000. Every step lost costs half of a unit's men. The losses of both sides and their ratio are shown under the battle table, in the turn report (click the turn bar) and at the end of the game; tick <strong>Men</strong> in the Layers bar (key P) to see the estimated manpower of each unit on the map.</p>
+      <p>Sound effects (key M to switch them off) are synthesised in the browser: the German attacks open with a battery of 15 cm heavy howitzers, the Russian ones with 76 mm divisional guns, the 1st Shock Army with a Katyusha salvo, and in winter the Russian infantry charges with a "Ura!". Moving infantry marches (on snow in winter), panzers rumble and cavalry gallops.</p>
       <div id="help_fatigue" class="help_section_title">Fatigue and Supply</div>
       <p>Units get tired when they fight, and even more when they are cut off from their map edge. Fatigue is counted in points; every 4 points is one level (at most level 3). A turn is one to two weeks: a unit that attacks every turn is tired after 4 turns and exhausted after 8, like the German divisions of Operation Typhoon by December.</p>
       <ul>

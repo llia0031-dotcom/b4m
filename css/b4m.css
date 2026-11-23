@@ -152,6 +152,12 @@ input[type=checkbox] {
     color: #dddddd;
 }
 
+.combat_losses {
+    font-size: 0.9em;
+    color: #ffd08a;
+    margin: 4px 0 0 0;
+}
+
 .chronicle_note {
     text-align: left;
     font-style: italic;

@@ -848,6 +848,7 @@ function drawReinforcementTokens(e, t, n) {
 // ---------------------------------------------------------------- Unit status display (supply markers, unit card, supply view)
 let supplyView = !1,
   fatigueView = !1,
+  menView = !1,
   statusRefreshTimer = null;
 // Same rule as isInCommunication, computed for the whole map at once: a single search outward from the map edge
 // gives, for every hex, the shortest open path to the edge; a unit is in communication if a neighbouring hex
@@ -1014,9 +1015,9 @@ function refreshStatusMarkers() {
         (n.textBaseline = "middle"));
       const s = n.measureText(l).width + 10;
       ((n.fillStyle = "rgba(0, 0, 0, 0.7)"),
-        n.fillRect(r.x - s / 2, r.y - 45, s, 14),
+        n.fillRect(r.x - s / 2, r.y - 56, s, 14),
         (n.fillStyle = a > 0 ? "#ffd08a" : "#ff8a80"),
-        n.fillText(l, r.x, r.y - 38),
+        n.fillText(l, r.x, r.y - 49),
         n.restore());
     }
     t && (t.innerText = ": " + e.german + " German, " + e.soviet + " Russian cut off");
@@ -1038,37 +1039,76 @@ function refreshStatusMarkers() {
           n.strokeRect(i + 0.5, o.y + 40.5, 17, 5));
       }
     }
+  // Manpower: the estimated number of men of each unit, above its counter
+  if (menView)
+    for (const e of b4mUnits) {
+      if (!e.position) continue;
+      const t = grid.get(e.position),
+        i = t.center().add(t.toPoint()),
+        o = "\u2248" + fmtMen(currentMen(e));
+      (n.save(), (n.font = "bold 10px Arial, sans-serif"), (n.textAlign = "center"), (n.textBaseline = "middle"));
+      const r = n.measureText(o).width + 8;
+      ((n.fillStyle = "rgba(0, 0, 0, 0.72)"),
+        n.fillRect(i.x - r / 2, i.y - 42, r, 12),
+        (n.fillStyle = "#ffffff"),
+        n.fillText(o, i.x, i.y - 36),
+        n.restore());
+    }
 }
 function scheduleStatusRefresh() {
-  (supplyView || fatigueView) &&
-    (clearTimeout(statusRefreshTimer), (statusRefreshTimer = setTimeout(refreshStatusMarkers, 400)));
+  (clearTimeout(lossesTimer),
+    (lossesTimer = setTimeout(refreshLossesDisplay, 300)),
+    (supplyView || fatigueView || menView) &&
+      (clearTimeout(statusRefreshTimer), (statusRefreshTimer = setTimeout(refreshStatusMarkers, 400))));
 }
+const LAYER_KEYS = { supply: "b4mLayerSupply", fatigue: "b4mLayerFatigue", men: "b4mLayerMen" };
 function setLayer(e, t) {
-  ("supply" === e ? (supplyView = !!t) : (fatigueView = !!t));
+  ("supply" === e ? (supplyView = !!t) : "fatigue" === e ? (fatigueView = !!t) : (menView = !!t));
   const n = document.getElementById("layer_" + e);
   n && (n.checked = !!t);
   try {
-    window.localStorage.setItem("supply" === e ? "b4mLayerSupply" : "b4mLayerFatigue", t ? "1" : "0");
+    window.localStorage.setItem(LAYER_KEYS[e], t ? "1" : "0");
   } catch (e) {}
   refreshStatusMarkers();
+}
+function setSound(e) {
+  soundOn = !!e;
+  const t = document.getElementById("layer_sound");
+  t && (t.checked = soundOn);
+  try {
+    window.localStorage.setItem("b4mSound", soundOn ? "1" : "0");
+  } catch (e) {}
+  soundOn ? audioReady() : audioCtx && audioCtx.suspend();
 }
 function setSupplyLayer(e) {
   setLayer("supply", e);
 }
 function initStatusUI() {
-  for (const e of ["supply", "fatigue"]) {
+  for (const e of ["supply", "fatigue", "men"]) {
     const t = document.getElementById("layer_" + e);
     if (!t) continue;
     let n = !1;
     try {
-      n = "1" === window.localStorage.getItem("supply" === e ? "b4mLayerSupply" : "b4mLayerFatigue");
+      n = "1" === window.localStorage.getItem(LAYER_KEYS[e]);
     } catch (e) {}
     (setLayer(e, n),
       t.addEventListener("change", function () {
         setLayer(e, t.checked);
       }));
   }
-  // "S" and "F" switch the supply and fatigue layers on and off
+  const e = document.getElementById("layer_sound");
+  if (e) {
+    let t = !0;
+    try {
+      t = "0" !== window.localStorage.getItem("b4mSound");
+    } catch (e) {}
+    ((soundOn = t),
+      (e.checked = t),
+      e.addEventListener("change", function () {
+        setSound(e.checked);
+      }));
+  }
+  // Keys: S supply, F fatigue, P manpower, M sound on/off
   document.addEventListener("keydown", function (e) {
     if (
       e.ctrlKey ||
@@ -1080,7 +1120,13 @@ function initStatusUI() {
     )
       return;
     const t = e.key.toLowerCase();
-    "s" === t ? setLayer("supply", !supplyView) : "f" === t && setLayer("fatigue", !fatigueView);
+    "s" === t
+      ? setLayer("supply", !supplyView)
+      : "f" === t
+        ? setLayer("fatigue", !fatigueView)
+        : "p" === t
+          ? setLayer("men", !menView)
+          : "m" === t && setSound(!soundOn);
   });
 }
 window.addEventListener("load", initStatusUI);
@@ -1367,6 +1413,9 @@ function turnReportExtra() {
     e.german +
     (null !== t ? " (historically the Red Army held " + t + " at the end of the game)" : "") +
     "</div>" +
+    '<div style="text-align: left;">- ' +
+    lossesText() +
+    "</div>" +
     chronicleHtml(currentTurn.turn)
   );
 }
@@ -1494,6 +1543,309 @@ function buildCityStocks(e, t) {
         (a.value = Math.min(CITY_STOCK_CAP[n], a.value + 1)));
   }
 }
+// ---------------------------------------------------------------- Sound effects
+// Synthesised with the Web Audio API (no recordings): oscillators, filtered noise and envelopes.
+let soundOn = !0,
+  audioCtx = null,
+  audioOut = null,
+  noiseBuf = null,
+  lastMoveSound = 0;
+function audioReady() {
+  if (!soundOn) return null;
+  try {
+    if (!audioCtx) {
+      const e = window.AudioContext || window.webkitAudioContext;
+      if (!e) return null;
+      audioCtx = new e();
+      const t = audioCtx.createDynamicsCompressor();
+      ((audioOut = audioCtx.createGain()),
+        (audioOut.gain.value = 0.6),
+        audioOut.connect(t),
+        t.connect(audioCtx.destination),
+        (noiseBuf = audioCtx.createBuffer(1, 2 * audioCtx.sampleRate, audioCtx.sampleRate)));
+      const n = noiseBuf.getChannelData(0);
+      for (let e = 0; e < n.length; e++) n[e] = 2 * Math.random() - 1;
+    }
+    return ("suspended" === audioCtx.state && audioCtx.resume(), audioCtx);
+  } catch (e) {
+    return null;
+  }
+}
+// Browsers only allow sound after a click or a tap: wake the audio up on each one
+document.addEventListener(
+  "pointerdown",
+  function () {
+    soundOn && audioReady();
+  },
+  !0,
+);
+function sNoise(e, t, n) {
+  const i = e.createBufferSource();
+  return ((i.buffer = noiseBuf), i.start(t, 1.5 * Math.random()), i.stop(t + n), i);
+}
+function sEnv(e, t, n, i, o) {
+  (e.gain.setValueAtTime(1e-4, t),
+    e.gain.exponentialRampToValueAtTime(i, t + n),
+    e.gain.exponentialRampToValueAtTime(1e-4, t + n + o));
+}
+function sFilter(e, t, n, i) {
+  const o = e.createBiquadFilter();
+  return ((o.type = t), (o.frequency.value = n), (o.Q.value = i || 0.7), o);
+}
+// One gun firing: a low thump, the blast (noise closing down), an optional sharp crack, and an echo
+function sGun(e, t, n) {
+  const i = e.createOscillator(),
+    o = e.createGain();
+  ((i.type = "sine"),
+    i.frequency.setValueAtTime(n.f0, t),
+    i.frequency.exponentialRampToValueAtTime(n.f1, t + 0.35),
+    sEnv(o, t, 0.004, n.gain, 0.5),
+    i.connect(o).connect(audioOut),
+    i.start(t),
+    i.stop(t + 0.9));
+  const r = sNoise(e, t, n.dur + 0.2),
+    a = sFilter(e, "lowpass", n.cut0, 0.8),
+    l = e.createGain();
+  (a.frequency.setValueAtTime(n.cut0, t),
+    a.frequency.exponentialRampToValueAtTime(n.cut1, t + n.dur),
+    sEnv(l, t, 0.003, 0.9 * n.gain, n.dur),
+    r.connect(a).connect(l).connect(audioOut));
+  const s = e.createDelay(1),
+    c = e.createGain();
+  if (((s.delayTime.value = 0.28), (c.gain.value = 0.25), l.connect(s).connect(c).connect(audioOut), n.crack)) {
+    const i = sNoise(e, t, 0.08),
+      o = sFilter(e, "highpass", 1800),
+      r = e.createGain();
+    (sEnv(r, t, 0.001, 0.7 * n.gain, 0.06), i.connect(o).connect(r).connect(audioOut));
+  }
+}
+// German attack: a battery of 15 cm sFH 18 heavy howitzers, deep blasts and a long rumble
+function soundGermanArtillery() {
+  const e = audioReady();
+  if (!e) return;
+  const t = e.currentTime + 0.05;
+  for (let n = 0; n < 4; n++)
+    sGun(e, t + 0.5 * n + 0.08 * Math.random(), { f0: 85, f1: 32, cut0: 1400, cut1: 120, dur: 1.9, crack: !1, gain: 0.9 });
+}
+// Russian attack: 76 mm divisional guns ("Ratsch-Bumm": the crack of the shell comes first), sharp and quick
+function soundSovietGuns() {
+  const e = audioReady();
+  if (!e) return;
+  const t = e.currentTime + 0.05;
+  for (let n = 0; n < 5; n++)
+    sGun(e, t + 0.28 * n + 0.05 * Math.random(), { f0: 170, f1: 60, cut0: 3800, cut1: 260, dur: 0.85, crack: !0, gain: 0.75 });
+}
+// Shock army attack: a BM-13 "Katyusha" salvo, howling rockets one after another, then a ripple of explosions
+function soundKatyusha() {
+  const e = audioReady();
+  if (!e) return;
+  const t = e.currentTime + 0.05;
+  for (let n = 0; n < 10; n++) {
+    const i = t + 0.17 * n + 0.04 * Math.random(),
+      o = sNoise(e, i, 1.3),
+      r = sFilter(e, "bandpass", 700, 3),
+      a = e.createGain();
+    (r.frequency.setValueAtTime(600, i),
+      r.frequency.exponentialRampToValueAtTime(2600, i + 1.1),
+      sEnv(a, i, 0.04, 1.6, 1.1),
+      o.connect(r).connect(a).connect(audioOut));
+    const l = e.createOscillator(),
+      s = e.createGain();
+    ((l.type = "sawtooth"),
+      l.frequency.setValueAtTime(260, i),
+      l.frequency.exponentialRampToValueAtTime(900, i + 1.1),
+      sEnv(s, i, 0.05, 0.12, 1),
+      l.connect(sFilter(e, "lowpass", 1800)).connect(s).connect(audioOut),
+      l.start(i),
+      l.stop(i + 1.3));
+  }
+  for (let n = 0; n < 9; n++)
+    sGun(e, t + 2.1 + 0.14 * n + 0.06 * Math.random(), { f0: 110, f1: 40, cut0: 2200, cut1: 150, dur: 1.1, crack: !1, gain: 0.55 });
+}
+// Winter assault: a crowd of voices shouting "U-raaa!" (sawtooth voices through two vowel formants, u -> r -> a)
+function soundUra() {
+  const e = audioReady();
+  if (!e) return;
+  const t = e.currentTime + 0.05,
+    n = sFilter(e, "lowpass", 3800),
+    i = e.createGain();
+  ((i.gain.value = 3.2), n.connect(i).connect(audioOut));
+  for (let o = 0; o < 16; o++) {
+    const r = t + 0.35 * Math.random(),
+      a = 105 + 85 * Math.random(),
+      l = 1.7 + 0.4 * Math.random(),
+      s = e.createOscillator(),
+      c = e.createOscillator(),
+      d = e.createGain(),
+      u = e.createGain();
+    ((s.type = "sawtooth"),
+      s.frequency.setValueAtTime(a, r),
+      s.frequency.linearRampToValueAtTime(1.18 * a, r + 0.5),
+      s.frequency.linearRampToValueAtTime(1.12 * a, r + l),
+      (c.frequency.value = 5 + 2 * Math.random()),
+      (d.gain.value = 3 + 3 * Math.random()),
+      c.connect(d).connect(s.frequency),
+      u.gain.setValueAtTime(1e-4, r),
+      u.gain.exponentialRampToValueAtTime(0.12, r + 0.08),
+      u.gain.linearRampToValueAtTime(0.12, r + 0.22),
+      u.gain.linearRampToValueAtTime(0.04, r + 0.26),
+      u.gain.linearRampToValueAtTime(0.12, r + 0.3),
+      u.gain.linearRampToValueAtTime(0.05, r + 0.33),
+      u.gain.linearRampToValueAtTime(0.13, r + 0.38),
+      u.gain.setValueAtTime(0.13, r + l - 0.35),
+      u.gain.exponentialRampToValueAtTime(1e-4, r + l),
+      s.connect(u));
+    for (const [h, f, p] of [
+      [320, 760, 6],
+      [800, 1150, 7],
+    ]) {
+      const m = sFilter(e, "bandpass", h, p);
+      (m.frequency.setValueAtTime(h, r),
+        m.frequency.setValueAtTime(h, r + 0.22),
+        m.frequency.linearRampToValueAtTime(f, r + 0.38),
+        u.connect(m).connect(n));
+    }
+    (c.start(r), s.start(r), c.stop(r + l + 0.05), s.stop(r + l + 0.05));
+  }
+  const o = sNoise(e, t, 2.2),
+    r = sFilter(e, "bandpass", 1200, 1),
+    a = e.createGain();
+  (sEnv(a, t, 0.1, 0.08, 1.9), o.connect(r).connect(a).connect(n));
+}
+// Movement: marching boots (crunching snow in winter), tank engines and tracks, or galloping hooves
+function soundMove(e) {
+  const t = audioReady();
+  if (!t) return;
+  const n = performance.now();
+  if (n - lastMoveSound < 250) return;
+  lastMoveSound = n;
+  const i = t.currentTime + 0.05,
+    o = isWinterTurn();
+  if ("tank" === e.type) {
+    const n = t.createOscillator(),
+      r = t.createOscillator(),
+      a = sFilter(t, "lowpass", 260),
+      l = t.createGain();
+    ((n.type = "sawtooth"),
+      (n.frequency.value = 42),
+      (r.type = "sawtooth"),
+      (r.frequency.value = 63),
+      n.connect(a),
+      r.connect(a),
+      a.connect(l).connect(audioOut),
+      l.gain.setValueAtTime(1e-4, i),
+      l.gain.exponentialRampToValueAtTime(0.35, i + 0.25),
+      l.gain.setValueAtTime(0.35, i + 1.1),
+      l.gain.exponentialRampToValueAtTime(1e-4, i + 1.6),
+      n.start(i),
+      r.start(i),
+      n.stop(i + 1.7),
+      r.stop(i + 1.7));
+    for (let e = 0; e < 20; e++) {
+      const n = i + 0.075 * e,
+        o = sNoise(t, n, 0.03),
+        r = sFilter(t, "highpass", 1600),
+        a = t.createGain();
+      (sEnv(a, n, 0.002, 0.06, 0.025), o.connect(r).connect(a).connect(audioOut));
+    }
+  } else if ("cavalry" === e.type)
+    for (let e = 0; e < 4; e++)
+      for (const n of [0, 0.09, 0.19]) {
+        const r = i + 0.42 * e + n,
+          a = sNoise(t, r, 0.05),
+          l = sFilter(t, "bandpass", o ? 500 : 1100, 1.5),
+          s = t.createGain();
+        (sEnv(s, r, 0.002, o ? 1.2 : 1.8, 0.05), a.connect(l).connect(s).connect(audioOut));
+      }
+  else
+    for (let e = 0; e < 5; e++)
+      for (let n = 0; n < 6; n++) {
+        const r = i + 0.36 * n + 0.09 * Math.random() + 0.03 * e,
+          a = sNoise(t, r, o ? 0.12 : 0.06),
+          l = sFilter(t, o ? "highpass" : "lowpass", o ? 1500 : 650, 0.9),
+          s = t.createGain();
+        (sEnv(s, r, 0.004, o ? 0.7 : 1.1, o ? 0.11 : 0.06), a.connect(l).connect(s).connect(audioOut));
+      }
+}
+// The artillery of the attacking side opens each battle; in winter the Russian infantry charges with a "Ura!"
+function soundBattle(e) {
+  if (!e || !e.attackingUnits || !e.attackingUnits.length) return;
+  if ("german" === e.attackingUnits[0].army) return void soundGermanArtillery();
+  (e.attackingUnits.some(function (e) {
+    return "shock" === e.type;
+  })
+    ? soundKatyusha()
+    : soundSovietGuns(),
+    isWinterTurn() && setTimeout(soundUra, 900));
+}
+// ---------------------------------------------------------------- Manpower and losses
+// Rule 1.0: a German corps is about 25,000 soldiers, a Russian army about 40,000. The 1st Shock Army is
+// larger, a Guards cavalry corps smaller. A unit has two steps: each step lost is half of its men.
+const MEN = { german: 25e3, soviet: 4e4, shock: 5e4, cavalry: 15e3 };
+let casualties = { german: 0, soviet: 0 },
+  battleSnapshot = null,
+  lossesTimer = null;
+function unitMen(e) {
+  return "soviet" === e.army
+    ? "shock" === e.type
+      ? MEN.shock
+      : "cavalry" === e.type
+        ? MEN.cavalry
+        : MEN.soviet
+    : MEN.german;
+}
+function unitSteps(e) {
+  return e && e.position ? ("full" === e.strength ? 2 : 1) : 0;
+}
+function currentMen(e) {
+  return (unitSteps(e) * unitMen(e)) / 2;
+}
+function snapshotBattle(e) {
+  return e.attackingUnits
+    .concat([e.defendingUnit])
+    .map(function (e) {
+      const t = b4mUnits[b4mUnitsIndex(e)];
+      return t ? { id: t.id, steps: unitSteps(t) } : null;
+    })
+    .filter(Boolean);
+}
+function battleLossesSince(e) {
+  const t = { german: 0, soviet: 0 };
+  if (e)
+    for (const n of e) {
+      const i = b4mUnits[b4mUnitsIndex(n)];
+      i && (t[i.army] += (Math.max(0, n.steps - unitSteps(i)) * unitMen(i)) / 2);
+    }
+  return t;
+}
+function finalizeBattleLosses() {
+  if (!battleSnapshot) return;
+  const e = battleLossesSince(battleSnapshot);
+  ((casualties.german += e.german), (casualties.soviet += e.soviet), (battleSnapshot = null), refreshLossesDisplay());
+}
+function currentLosses() {
+  const e = battleLossesSince(battleSnapshot);
+  return { german: casualties.german + e.german, soviet: casualties.soviet + e.soviet };
+}
+function fmtMen(e) {
+  return Math.round(e).toLocaleString("en-US");
+}
+function lossesText() {
+  const e = currentLosses();
+  return (
+    "Losses: German " +
+    fmtMen(e.german) +
+    ", Russian " +
+    fmtMen(e.soviet) +
+    (e.german > 0 && e.soviet > 0
+      ? " · ratio German : Russian = 1 : " + (e.soviet / e.german).toFixed(1)
+      : "")
+  );
+}
+function refreshLossesDisplay() {
+  const e = document.getElementById("combat_losses");
+  e && (e.innerText = currentLosses().german + currentLosses().soviet > 0 ? lossesText() : "");
+}
 function b4mUnitsIndex(e) {
   for (let t = 0; t < b4mUnits.length; t++) if (e.id === b4mUnits[t].id) return t;
   return -1;
@@ -1518,6 +1870,7 @@ let canvasBoard,
   handleReplacementClick,
   handleSpecialMovementClick;
 function cleanAndSaveBeforeNewPhase(e) {
+  finalizeBattleLosses();
   (e &&
     ((b4mSave = {}),
     (b4mSave.units = b4mUnits),
@@ -1539,6 +1892,7 @@ function cleanAndSaveBeforeNewPhase(e) {
     (b4mSave.play_ai_as = playAIAs),
     (b4mSave.partisans = partisans.slice()),
     (b4mSave.liberationBonus = liberationBonus),
+    (b4mSave.casualties = { german: casualties.german, soviet: casualties.soviet }),
     (b4mSave.railCuts = railCuts.slice()),
     (b4mSave.cityStocks = JSON.parse(JSON.stringify(cityStocks))),
     (b4mSave.partisanGuides = partisanGuides.slice()),
@@ -1669,7 +2023,7 @@ function moveUnit(e, t, n) {
   const s = t.length > 0 ? t[t.length - 1] : null;
   (unitsMoving++, s && pendingDestinations.push(s));
   const mv = b4mUnits[b4mUnitsIndex(e)];
-  mv && (mv.moved = !0);
+  (mv && (mv.moved = !0), t.length > 0 && soundMove(e));
   let i = { x: e.position.x, y: e.position.y },
     o = Hex(i).center().add(Hex(i).toPoint()),
     r = null;
@@ -2842,7 +3196,8 @@ function handleAttackingUnitLossClick(e) {
   handleAttackingUnitLoss(Grid.pointToHex(e.offsetX, e.offsetY));
 }
 function resolveNextBattle(e) {
-  (e && e.stopPropagation(),
+  (finalizeBattleLosses(),
+    e && e.stopPropagation(),
     document.removeEventListener("click", handleAdvanceAfterCombatClick),
     document.removeEventListener("click", handleAttackingUnitLossClick),
     document.removeEventListener("click", handleMatchLossClick),
@@ -2863,7 +3218,8 @@ function resolveNextBattle(e) {
       highlightHex(hexHighlights, grid.get(t.position), e);
     ((currentDefendingUnit = currentBattle.defendingUnit),
       (initialDefendingUnitPosition.x = currentDefendingUnit.position.x),
-      (initialDefendingUnitPosition.y = currentDefendingUnit.position.y));
+      (initialDefendingUnitPosition.y = currentDefendingUnit.position.y),
+      (battleSnapshot = snapshotBattle(currentBattle)));
     const t = grid.get(currentDefendingUnit.position);
     highlightHex(hexHighlights, t, e);
     let i = t.center().add(t.toPoint());
@@ -2910,6 +3266,7 @@ function resolveNextBattle(e) {
           currentBattle.battleOdds +
           ")",
       ).innerText));
+    soundBattle(currentBattle);
     const fatigueOutcome = applyBattleFatigue(battleResult);
     battleResult = fatigueOutcome.result;
     let d = document.querySelector(".table_battle div.battle_result");
@@ -4695,7 +5052,7 @@ function finalResults(e) {
     ((t = e.title), (n = e.text));
   }
   ((document.querySelector("#final_results > div.hud_title").innerHTML = t),
-    (document.getElementById("final_results_tip").innerHTML = n));
+    (document.getElementById("final_results_tip").innerHTML = n + "<br /><br />" + lossesText() + "."));
 }
 function newGame() {
   (window.localStorage.removeItem("b4mSave"), window.location.reload(!0));
@@ -4721,6 +5078,7 @@ function continueFromSave() {
   ((railCuts = (b4mSave.railCuts || []).slice()), (partisanGuides = (b4mSave.partisanGuides || []).slice()));
   b4mSave.cityStocks && (cityStocks = JSON.parse(JSON.stringify(b4mSave.cityStocks)));
   liberationBonus = b4mSave.liberationBonus || 0;
+  casualties = b4mSave.casualties ? { german: b4mSave.casualties.german || 0, soviet: b4mSave.casualties.soviet || 0 } : { german: 0, soviet: 0 };
   for (const e of b4mSave.cities) {
     let t = grid.get(e.position);
     t && t.city && "none" !== t.city && (t.control = e.control);
