@@ -158,12 +158,6 @@ input[type=checkbox] {
     color: #d8e6f5;
 }
 
-.battle_forecast {
-    font-size: 0.9em;
-    color: #cfe3ff;
-    margin: 4px 0 0 0;
-}
-
 #event_banner {
     cursor: pointer;
 }
@@ -547,6 +541,21 @@ input[type=checkbox] {
     .dispatch_stamp {
         font-size: 0.7em;
     }
+}
+
+.table_battle .cell_attackers, .table_battle .cell_defender {
+    white-space: nowrap;
+}
+
+.strength_before {
+    opacity: 0.6;
+    font-size: 0.85em;
+}
+
+.tired_strength {
+    color: #ffb347;
+    font-weight: bold;
+    cursor: help;
 }
 
 .combat_losses {

@@ -1052,15 +1052,19 @@ function refreshStatusMarkers() {
   // Fatigue: a three-segment bar under the counter, one segment per level (only for tired units)
   if (fatigueView)
     for (const e of b4mUnits) {
-      const t = fatigueLevel(e);
-      if (!e.position || t < 1) continue;
+      const t = fatigueLevel(e),
+        p = Math.min(FATIGUE.max, e.fatigue || 0);
+      if (!e.position || p < 1) continue;
       const i = grid.get(e.position),
         o = i.center().add(i.toPoint()),
-        r = ["", "#fac775", "#ef9f27", "#e24b4a"][t];
+        r = ["#fac775", "#fac775", "#ef9f27", "#e24b4a"][t];
+      // one box per level; the points towards the next level fill the next box part of the way
       for (let e = 0; e < 3; e++) {
-        const i = o.x - 29 + 20 * e;
-        ((n.fillStyle = e < t ? r : "rgba(0, 0, 0, 0.35)"),
+        const i = o.x - 29 + 20 * e,
+          s = Math.max(0, Math.min(1, (p - FATIGUE.perLevel * e) / FATIGUE.perLevel));
+        ((n.fillStyle = "rgba(0, 0, 0, 0.35)"),
           n.fillRect(i, o.y + 40, 18, 6),
+          s > 0 && ((n.fillStyle = s >= 1 ? r : "rgba(250, 199, 117, 0.85)"), n.fillRect(i, o.y + 40, 18 * s, 6)),
           (n.lineWidth = 1),
           (n.strokeStyle = "#211c21"),
           n.strokeRect(i + 0.5, o.y + 40.5, 17, 5));
@@ -1298,6 +1302,7 @@ function processTurnFatigue(e) {
       "german" === e && (r += germanWinterFatigue(i)),
       o ||
         s ||
+        n.raided === currentTurn.turn ||
         (n.fought || (r -= n.moved ? FATIGUE.idle : FATIGUE.rest),
         "none" !== i.city && i.control === e && (r -= FATIGUE.city)),
       (n.fatigue = Math.max(0, Math.min(FATIGUE.max, (n.fatigue || 0) + r))),
@@ -1359,6 +1364,22 @@ function fatigueFactor(e) {
 function fmtStrength(e) {
   return String(Math.round(10 * e) / 10);
 }
+// A side's strength in the battle table: when fatigue weakens it, its full strength is struck through
+// and the strength it really fights with follows in orange (the tooltip explains why)
+function strengthHtml(army, strength, lost) {
+  return (
+    '<img src="img/' +
+    army +
+    '_marker.png" /> ' +
+    (lost > 0
+      ? '<s class="strength_before">' +
+        fmtStrength(strength + lost) +
+        '</s> <span class="tired_strength" title="Weakened by fatigue: tired units (level 1) fight at 3/4 of their strength, exhausted (2) and broken (3) ones at 1/2, and the odds are worked out with this reduced strength. An exhausted attacker also loses a step on a DE or DRL result, a broken unit cannot attack, and a broken defender turns a DR into a DRL.">' +
+        fmtStrength(strength) +
+        "</span>"
+      : fmtStrength(strength))
+  );
+}
 function defenderStrengthOf(e) {
   return void 0 !== e.defendingStrength
     ? e.defendingStrength
@@ -1370,16 +1391,6 @@ function modifiersHtml(e) {
   let t = "";
   for (const n of e.modifiers) "fatigue" !== n && (t += '<img src="img/' + n + '_marker.png" /> ');
   return (
-    e.attackFatigueLoss > 0 &&
-      (t +=
-        '<span class="modifier_badge" title="Tired attackers fight at part of their strength">Fatigue -' +
-        fmtStrength(e.attackFatigueLoss) +
-        "</span> "),
-    e.defendFatigueLoss > 0 &&
-      (t +=
-        '<span class="modifier_badge bonus" title="The tired defender fights at part of its strength">Tired defender -' +
-        fmtStrength(e.defendFatigueLoss) +
-        "</span> "),
     e.partisanBonus &&
       (t += '<span class="modifier_badge partisan" title="Partisans guide the attack">Partisans +1</span> '),
     t
@@ -1815,7 +1826,233 @@ function soundUra() {
     a = e.createGain();
   (sEnv(a, t, 0.1, 0.08, 1.9), o.connect(r).connect(a).connect(n));
 }
+// A panzer column on the move (Panzer III and IV): the Maybach petrol V12, firing six times a turn of
+// the crankshaft with small differences between cylinders, revving up and changing gear; the steel
+// track links clattering over the sprocket and the road wheels, the heavy slap of the track, the
+// squeal of the idlers and the rumble of the hull. The column comes closer, passes and goes away.
+let rollingUntil = 0;
+// The engine as one turn of the crankshaft: strong firing orders (6, 12, 18...), weaker orders in
+// between (uneven cylinders), falling off above about 1.5 kHz. Built once per audio context.
+function engineWave(ctx) {
+  if (ctx.engineWave) return ctx.engineWave;
+  const n = 64,
+    real = new Float32Array(n),
+    imag = new Float32Array(n);
+  let seed = 11;
+  const next = function () {
+    return ((seed = (seed * 16807) % 2147483647), seed / 2147483647);
+  };
+  for (let k = 1; k < n; k++) {
+    const amp = (k % 6 === 0 ? 1 : k % 3 === 0 ? 0.35 : 0.16 + 0.1 * next()) / (1 + Math.pow(k / 20, 2)),
+      phase = 2 * Math.PI * next();
+    ((real[k] = amp * Math.cos(phase)), (imag[k] = amp * Math.sin(phase)));
+  }
+  return (ctx.engineWave = ctx.createPeriodicWave(real, imag));
+}
+// One metallic hit: a short burst of noise and a few inharmonic rings, as of steel on steel
+function addPing(x, sr, start, amp, freqs, decay) {
+  const i0 = Math.floor(start * sr),
+    len = Math.min(Math.floor(5 * decay * sr), x.length - i0),
+    fall = Math.exp(-1 / (decay * sr)),
+    clickFall = Math.exp(-1 / (0.0012 * sr)),
+    rings = freqs.map(function (f, j) {
+      return { c: Math.cos((2 * Math.PI * f) / sr), s: Math.sin((2 * Math.PI * f) / sr), re: 1, im: 0, w: 1 / (j + 1.5) };
+    });
+  let env = amp,
+    click = 1;
+  for (let k = 0; k < len; k++) {
+    let s = click > 0.01 ? (2 * Math.random() - 1) * click : 0;
+    for (const r of rings) {
+      const re = r.re * r.c - r.im * r.s;
+      ((r.im = r.re * r.s + r.im * r.c), (r.re = re), (s += r.im * r.w));
+    }
+    ((x[i0 + k] += env * s), (env *= fall), (click *= clickFall));
+  }
+}
+// The tracks, written sample by sample: link clicks speeding up as the column gets under way, the slap
+// of the track every few links, two or three squeals of the idlers (more in the frost)
+function trackBuffer(ctx, duration, winter, mud) {
+  const sr = ctx.sampleRate,
+    buf = ctx.createBuffer(1, Math.floor(duration * sr), sr),
+    x = buf.getChannelData(0);
+  let t = 0.04,
+    link = 0;
+  for (; t < duration - 0.05; link++) {
+    const speed = Math.min(1, t / 0.9),
+      rate = (mud ? 11 : 16) + (mud ? 5 : 9) * speed;
+    (addPing(x, sr, t, (0.1 + 0.16 * Math.random()) * (0.55 + 0.45 * speed), [2100 + 500 * Math.random(), 3400 + 600 * Math.random(), 5200 + 800 * Math.random()], 0.004 + 0.004 * Math.random()),
+      link % 5 === 0 &&
+        addPing(x, sr, t + 0.004, 0.34 * (0.6 + 0.4 * speed), [650 + 250 * Math.random(), 1150 + 250 * Math.random(), 1900], mud ? 0.012 : 0.02),
+      (t += (1 / rate) * (0.8 + 0.4 * Math.random())));
+  }
+  for (let q = 0; q < (winter ? 3 : 2); q++) {
+    const start = 0.5 + Math.random() * (duration - 1.3),
+      length = 0.2 + 0.3 * Math.random(),
+      f0 = 1600 + 1000 * Math.random(),
+      i0 = Math.floor(start * sr);
+    let phase = 0;
+    for (let k = 0; k < length * sr && i0 + k < x.length; k++) {
+      const tt = k / sr,
+        f = f0 * (1 + 0.025 * Math.sin(2 * Math.PI * 9 * tt) + 0.06 * (tt / length));
+      phase += (2 * Math.PI * f) / sr;
+      x[i0 + k] += 0.05 * Math.pow(Math.sin((Math.PI * tt) / length), 2) * (Math.sin(phase) + 0.35 * Math.sin(2 * phase));
+    }
+  }
+  return buf;
+}
+function soundPanzer(ctx, t0, winter, mud) {
+  if (ctx.currentTime < rollingUntil) return;
+  const duration = 3;
+  rollingUntil = t0 + duration - 0.5;
+  // distance: the sound swells as the column comes closer, the high notes open up, then it goes away
+  const out = ctx.createGain(),
+    near = function (filter, far, close) {
+      (filter.frequency.setValueAtTime(far, t0),
+        filter.frequency.linearRampToValueAtTime(close, t0 + 1.1),
+        filter.frequency.setValueAtTime(close, t0 + 1.7),
+        filter.frequency.linearRampToValueAtTime(far, t0 + duration));
+    };
+  (out.gain.setValueAtTime(0.08, t0),
+    out.gain.exponentialRampToValueAtTime(1, t0 + 0.9),
+    out.gain.setValueAtTime(1, t0 + 1.6),
+    out.gain.exponentialRampToValueAtTime(0.06, t0 + duration - 0.15),
+    out.gain.linearRampToValueAtTime(0, t0 + duration),
+    out.connect(audioOut));
+  const engineTone = sFilter(ctx, "lowpass", 600, 0.6),
+    body = sFilter(ctx, "peaking", 140, 1.2);
+  ((body.gain.value = 6), near(engineTone, 450, 1500), engineTone.connect(body).connect(out));
+  // two engines a little apart in revs, so that they beat against each other
+  for (const [rpm, level] of [
+    [1800, 1],
+    [1950, 0.65],
+  ]) {
+    const turn = (rpm / 60) * (mud ? 1.12 : 1),
+      engine = ctx.createOscillator(),
+      wobble = ctx.createOscillator(),
+      wobbleDepth = ctx.createGain(),
+      gain = ctx.createGain();
+    (engine.setPeriodicWave(engineWave(ctx)),
+      engine.frequency.setValueAtTime(0.7 * turn, t0),
+      engine.frequency.linearRampToValueAtTime(turn, t0 + 0.8),
+      engine.frequency.setValueAtTime(turn, t0 + 1.35),
+      // a change of gear: the revs drop, then climb again
+      engine.frequency.linearRampToValueAtTime(0.74 * turn, t0 + 1.5),
+      engine.frequency.linearRampToValueAtTime(0.97 * turn, t0 + 2.3),
+      (wobble.frequency.value = 5 + 2 * Math.random()),
+      (wobbleDepth.gain.value = 0.012 * turn),
+      wobble.connect(wobbleDepth).connect(engine.frequency),
+      (gain.gain.value = 0.3 * level),
+      engine.connect(gain).connect(engineTone),
+      engine.start(t0),
+      wobble.start(t0),
+      engine.stop(t0 + duration),
+      wobble.stop(t0 + duration));
+    // the exhaust: noise beating at the engine's own rhythm
+    const exhaust = sNoise(ctx, t0, duration),
+      exhaustBand = sFilter(ctx, "bandpass", 380, 0.9),
+      pulse = ctx.createGain(),
+      pulseDepth = ctx.createGain();
+    ((exhaust.loop = !0),
+      (pulseDepth.gain.value = 0.5),
+      engine.connect(pulseDepth).connect(pulse.gain),
+      exhaust.connect(exhaustBand).connect(pulse),
+      (pulse.gain.value = 0.45 * level),
+      pulse.connect(engineTone));
+  }
+  // the hull and the ground: a deep uneven rumble
+  const rumble = sNoise(ctx, t0, duration),
+    rumbleTone = sFilter(ctx, "lowpass", 85, 0.7),
+    rumbleGain = ctx.createGain();
+  ((rumble.loop = !0), (rumbleGain.gain.value = 2.2), rumble.connect(rumbleTone).connect(rumbleGain).connect(out));
+  // the tracks
+  const tracks = ctx.createBufferSource(),
+    tracksLow = sFilter(ctx, "highpass", 250, 0.7),
+    tracksTone = sFilter(ctx, "lowpass", 3e3, 0.7),
+    tracksGain = ctx.createGain();
+  const season = winter ? "winter" : mud ? "mud" : "dry";
+  ctx.trackBuffers || (ctx.trackBuffers = {});
+  const pool = ctx.trackBuffers[season] || (ctx.trackBuffers[season] = []);
+  pool.length < 3 && pool.push(trackBuffer(ctx, duration + 0.3, winter, mud));
+  ((tracks.buffer = pool[Math.floor(Math.random() * pool.length)]),
+    (tracks.playbackRate.value = 0.94 + 0.12 * Math.random()),
+    near(tracksTone, winter ? 1800 : 2600, winter ? 5e3 : 7500),
+    (tracksGain.gain.value = 1.4),
+    tracks.connect(tracksLow).connect(tracksTone).connect(tracksGain).connect(out),
+    tracks.start(t0));
+}
+// Snow under the boots. A footstep on packed snow is a roll from heel to toe of about a third of a
+// second, in which the snow breaks in hundreds of tiny cracks (written here grain by grain, denser when
+// the weight comes down), over the soft thud of the boot. A few variants are written once per audio
+// context and played a little faster or slower, so that no two steps sound the same.
+function snowStepBuffer(ctx) {
+  const sr = ctx.sampleRate,
+    length = 0.4,
+    n = Math.floor(length * sr),
+    buf = ctx.createBuffer(1, n, sr),
+    x = buf.getChannelData(0),
+    // the weight on the snow: the heel strikes, the sole rolls, the toe pushes off
+    weight = function (t) {
+      return t < 0.012
+        ? t / 0.012
+        : t < 0.08
+          ? 1 - (0.4 * (t - 0.012)) / 0.068
+          : t < 0.2
+            ? 0.6 + 0.15 * Math.sin(((t - 0.08) / 0.12) * Math.PI)
+            : Math.max(0, 0.6 * (1 - (t - 0.2) / 0.16));
+    };
+  // the cracks: a random rain of grains, each a tiny burst of noise of 0.5 to 3 ms
+  for (let t = 0; t < 0.36; ) {
+    const w = weight(t);
+    if ((t += -Math.log(1 - Math.random()) / (250 + 2600 * w)) >= 0.36) break;
+    const amp = w * Math.pow(Math.random(), 2.2),
+      i0 = Math.floor(t * sr),
+      d = Math.floor((5e-4 + 0.0025 * Math.random()) * sr);
+    for (let k = 0; k < d && i0 + k < n; k++) x[i0 + k] += amp * (2 * Math.random() - 1) * (1 - k / d);
+  }
+  // soften it: no rumble under 350 Hz and no hiss over 3.5 kHz (one-pole filters, twice on the top)
+  const hp = Math.exp((-2 * Math.PI * 350) / sr),
+    lp = 1 - Math.exp((-2 * Math.PI * 3500) / sr);
+  let y = 0,
+    xp = 0,
+    l1 = 0,
+    l2 = 0;
+  for (let k = 0; k < n; k++) {
+    ((y = hp * (y + x[k] - xp)), (xp = x[k]), (l1 += lp * (y - l1)), (l2 += lp * (l1 - l2)), (x[k] = l2));
+  }
+  // the boot coming down: a short, deep and muffled thud
+  const thud = 1 - Math.exp((-2 * Math.PI * 140) / sr);
+  let a = 0,
+    b = 0;
+  for (let k = 0; k < Math.floor(0.12 * sr); k++) {
+    const t = k / sr,
+      v = (2 * Math.random() - 1) * Math.exp(-t / 0.035) * Math.min(1, t / 0.004);
+    ((a += thud * (v - a)), (b += thud * (a - b)), (x[k] += 6 * b));
+  }
+  return buf;
+}
+function soundSnowMarch(ctx, t0) {
+  ctx.snowSteps ||
+    (ctx.snowSteps = [0, 1, 2, 3].map(function () {
+      return snowStepBuffer(ctx);
+    }));
+  // deep snow: a slower pace, about 95 a minute, the column still in step
+  for (let n = 0; n < 6; n++) {
+    const start = t0 + 0.63 * n,
+      loud = n % 2 ? 0.75 : 1;
+    for (let e = 0; e < 3; e++) {
+      const step = ctx.createBufferSource(),
+        gain = ctx.createGain();
+      ((step.buffer = ctx.snowSteps[(n + e) % ctx.snowSteps.length]),
+        (step.playbackRate.value = 0.9 + 0.2 * Math.random()),
+        (gain.gain.value = (0 === e ? 1 : 0.55) * loud * SNOW_STEP_LEVEL),
+        step.connect(gain).connect(audioOut),
+        step.start(start + 0.014 * e + 0.008 * Math.random()));
+    }
+  }
+}
+const SNOW_STEP_LEVEL = 0.6;
 // Movement: marching boots (crunching snow in winter), tank engines and tracks, or galloping hooves
+let marchingUntil = 0;
 function soundMove(e) {
   const t = audioReady();
   if (!t) return;
@@ -1824,34 +2061,8 @@ function soundMove(e) {
   lastMoveSound = n;
   const i = t.currentTime + 0.05,
     o = isWinterTurn();
-  if ("tank" === e.type) {
-    const n = t.createOscillator(),
-      r = t.createOscillator(),
-      a = sFilter(t, "lowpass", 260),
-      l = t.createGain();
-    ((n.type = "sawtooth"),
-      (n.frequency.value = 42),
-      (r.type = "sawtooth"),
-      (r.frequency.value = 63),
-      n.connect(a),
-      r.connect(a),
-      a.connect(l).connect(audioOut),
-      l.gain.setValueAtTime(1e-4, i),
-      l.gain.exponentialRampToValueAtTime(0.35, i + 0.25),
-      l.gain.setValueAtTime(0.35, i + 1.1),
-      l.gain.exponentialRampToValueAtTime(1e-4, i + 1.6),
-      n.start(i),
-      r.start(i),
-      n.stop(i + 1.7),
-      r.stop(i + 1.7));
-    for (let e = 0; e < 20; e++) {
-      const n = i + 0.075 * e,
-        o = sNoise(t, n, 0.03),
-        r = sFilter(t, "highpass", 1600),
-        a = t.createGain();
-      (sEnv(a, n, 0.002, 0.06, 0.025), o.connect(r).connect(a).connect(audioOut));
-    }
-  } else if ("cavalry" === e.type)
+  if ("tank" === e.type) soundPanzer(t, i, o, 3 === currentTurn.turn || 4 === currentTurn.turn);
+  else if ("cavalry" === e.type)
     for (let e = 0; e < 4; e++)
       for (const n of [0, 0.09, 0.19]) {
         const r = i + 0.42 * e + n,
@@ -1860,15 +2071,34 @@ function soundMove(e) {
           s = t.createGain();
         (sEnv(s, r, 0.002, o ? 1.2 : 1.8, 0.05), a.connect(l).connect(s).connect(audioOut));
       }
-  else
-    for (let e = 0; e < 5; e++)
-      for (let n = 0; n < 6; n++) {
-        const r = i + 0.36 * n + 0.09 * Math.random() + 0.03 * e,
-          a = sNoise(t, r, o ? 0.12 : 0.06),
-          l = sFilter(t, o ? "highpass" : "lowpass", o ? 1500 : 650, 0.9),
-          s = t.createGain();
-        (sEnv(s, r, 0.004, o ? 0.7 : 1.1, o ? 0.11 : 0.06), a.connect(l).connect(s).connect(audioOut));
+  else {
+    // Infantry marching in step: the boots of the column land together, left-right at about 115 paces
+    // a minute (a spread of a few hundredths of a second would turn each pace into a gallop). A new
+    // column does not start while one is still marching, so that the paces never overlap.
+    if (t.currentTime < marchingUntil) return;
+    // in winter the column trudges through the snow
+    if (o) return ((marchingUntil = i + 0.63 * 6), void soundSnowMarch(t, i));
+    marchingUntil = i + 0.52 * 6;
+    for (let n = 0; n < 6; n++) {
+      const r = i + 0.52 * n,
+        loud = n % 2 ? 0.7 : 1;
+      for (let e = 0; e < 3; e++) {
+        const s = r + 0.008 * e + 0.004 * Math.random(),
+          // the heel: a dull thump
+          a = sNoise(t, s, 0.12),
+          l = sFilter(t, "lowpass", 340, 0.8),
+          g = t.createGain(),
+          // the sole: grit on the road
+          c = sNoise(t, s + 0.01, 0.07),
+          f = sFilter(t, "bandpass", 2300, 0.9),
+          h = t.createGain();
+        (sEnv(g, s, 0.004, 2.2 * loud, 0.1),
+          a.connect(l).connect(g).connect(audioOut),
+          sEnv(h, s + 0.01, 0.004, 0.3 * loud, 0.06),
+          c.connect(f).connect(h).connect(audioOut));
       }
+    }
+  }
 }
 // The artillery of the attacking side opens each battle; in winter the Russian infantry charges with a "Ura!"
 function soundBattle(e) {
@@ -1886,6 +2116,8 @@ function soundBattle(e) {
 // larger, a Guards cavalry corps smaller. A unit has two steps: each step lost is half of its men.
 const MEN = { german: 25e3, soviet: 4e4, shock: 5e4, cavalry: 15e3 };
 let casualties = { german: 0, soviet: 0 },
+  // the casualties when the current phase began: the battle table shows only what was lost since
+  phaseLossStart = { german: 0, soviet: 0 },
   battleSnapshot = null,
   lossesTimer = null;
 function unitMen(e) {
@@ -1947,7 +2179,11 @@ function lossesText() {
 }
 function refreshLossesDisplay() {
   const e = document.getElementById("combat_losses");
-  e && (e.innerText = currentLosses().german + currentLosses().soviet > 0 ? lossesText() : "");
+  if (!e) return;
+  const t = currentLosses(),
+    n = t.german - phaseLossStart.german,
+    i = t.soviet - phaseLossStart.soviet;
+  e.innerText = n + i > 0 ? "Lost in these battles: German " + fmtMen(n) + ", Russian " + fmtMen(i) : "";
 }
 // ---------------------------------------------------------------- Weather and seasons
 // Typical weather around Moscow at the date of each turn in 1941
@@ -1986,39 +2222,6 @@ function drawSeason() {
       ctx.fillRect(next() % canvas.width, next() % canvas.height, size, size);
     }
   }
-}
-// ---------------------------------------------------------------- Battle forecast
-// The Combat Results Table: rows are the die roll 1-6, columns the odds 1:1 to 6:1
-const CRT = [
-  ["DR", "DR", "DR", "DR", "DR", "DRL"],
-  ["EX", "DR", "DR", "DR", "DRL", "DRL"],
-  ["EX", "EX", "DR", "EX", "DRL", "DE"],
-  ["NE", "EX", "EX", "DRL", "DRL", "DE"],
-  ["NE", "NE", "EX", "DRL", "DE", "DE"],
-  ["AL", "NE", "DRL", "DE", "DE", "DE"],
-];
-function battleForecast(battleToShow) {
-  if (!battleToShow) return "";
-  const odds = battleToShow.battleOdds;
-  if (odds < 1) return "Forecast: below 1:1, the attack would have no effect.";
-  const counts = {};
-  for (let roll = 0; roll < 6; roll++) {
-    const result = CRT[roll][Math.min(6, odds) - 1];
-    counts[result] = (counts[result] || 0) + 1;
-  }
-  return (
-    "Forecast at " +
-    odds +
-    ":1 — " +
-    ["DE", "DRL", "DR", "EX", "NE", "AL"]
-      .filter(function (result) {
-        return counts[result];
-      })
-      .map(function (result) {
-        return result + " " + Math.round((100 * counts[result]) / 6) + "%";
-      })
-      .join(" · ")
-  );
 }
 // ---------------------------------------------------------------- Command decisions
 // At key moments of 1941 the player stands in for the Stavka, the General Staff or the OKH and settles
@@ -2733,7 +2936,9 @@ let canvasBoard,
   handleReplacementClick,
   handleSpecialMovementClick;
 function cleanAndSaveBeforeNewPhase(e) {
-  finalizeBattleLosses();
+  (finalizeBattleLosses(),
+    (phaseLossStart = { german: casualties.german, soviet: casualties.soviet }),
+    refreshLossesDisplay());
   (e &&
     ((b4mSave = {}),
     (b4mSave.units = b4mUnits),
@@ -2881,7 +3086,13 @@ document.addEventListener(
   },
   !0,
 );
-function moveUnit(e, t, n) {
+// A unit retreating through a city does not take it: only the hex where the retreat ends counts
+function keepCityControl(e, t) {
+  const n = grid.get(e),
+    i = n && n.control;
+  (t(), n && n.city && "none" !== n.city && (n.control = i));
+}
+function moveUnit(e, t, n, retreat) {
   // Copy the route now: a caller may later change the objects it passed (resolveNextBattle reuses
   // initialDefendingUnitPosition), which used to send an advancing unit onto the next defender
   t = t.map(function (e) {
@@ -2914,7 +3125,11 @@ function moveUnit(e, t, n) {
           (r = lookupUnit(Hex(i))),
           (o = Hex(i).center().add(Hex(i).toPoint())),
           (e.position = { x: i.x, y: i.y }),
-          drawUnit(board, e, o.x - 30, o.y - 30));
+          retreat && t.length > 0
+            ? keepCityControl(i, function () {
+                drawUnit(board, e, o.x - 30, o.y - 30);
+              })
+            : drawUnit(board, e, o.x - 30, o.y - 30));
     }, 300);
   }, 100);
 }
@@ -3075,8 +3290,6 @@ function refreshBattles() {
     }
   }
   updateDashboardCombat();
-  const f = document.getElementById("battle_forecast");
-  f && (f.innerText = battle ? battleForecast(battle) : "");
 }
 function updateDashboardCombat() {
   if (
@@ -3099,16 +3312,12 @@ function updateDashboardCombat() {
       let t = document.createElement("tr");
       t.setAttribute("id", "row" + new Date().getTime() + "_" + e);
       const n =
-          '<td class="cell_attackers"><img src="img/' +
-          battles[e].attackingUnits[0].army +
-          '_marker.png" /> ' +
-          fmtStrength(battles[e].attackingStrength) +
+          '<td class="cell_attackers">' +
+          strengthHtml(battles[e].attackingUnits[0].army, battles[e].attackingStrength, battles[e].attackFatigueLoss) +
           "</td>",
         i =
-          '<td class="cell_defender"><img src="img/' +
-          battles[e].defendingUnit.army +
-          '_marker.png" /> ' +
-          fmtStrength(defenderStrengthOf(battles[e])) +
+          '<td class="cell_defender">' +
+          strengthHtml(battles[e].defendingUnit.army, defenderStrengthOf(battles[e]), battles[e].defendFatigueLoss) +
           "</td>";
       let o = '<td class="cell_modifiers">';
       o += modifiersHtml(battles[e]);
@@ -3163,16 +3372,12 @@ function updateDashboardCombat() {
         e.setAttribute("style", "background-color: rgba(255, 255, 255, 0.2)"));
       let t = document.createElement("tr");
       const n =
-          '<td class="cell_attackers"><img src="img/' +
-          battle.attackingUnits[0].army +
-          '_marker.png" /> ' +
-          fmtStrength(battle.attackingStrength) +
+          '<td class="cell_attackers">' +
+          strengthHtml(battle.attackingUnits[0].army, battle.attackingStrength, battle.attackFatigueLoss) +
           "</td>",
         i =
-          '<td class="cell_defender"><img src="img/' +
-          battle.defendingUnit.army +
-          '_marker.png" /> ' +
-          fmtStrength(defenderStrengthOf(battle)) +
+          '<td class="cell_defender">' +
+          strengthHtml(battle.defendingUnit.army, defenderStrengthOf(battle), battle.defendFatigueLoss) +
           "</td>";
       let o = '<td class="cell_modifiers">';
       o += modifiersHtml(battle);
@@ -3769,7 +3974,21 @@ function combatAnnouncePhase(e) {
 let validRetreat = [],
   singleValidRetreat = [],
   currentDefendingUnit = null,
-  initialDefendingUnitPosition = { x: -1, y: -1 };
+  initialDefendingUnitPosition = { x: -1, y: -1 },
+  // the battle whose defender is retreating (its hex is being vacated)
+  defenderRetreating = null;
+// German control of a Russian city lasts only while the Germans hold it: once a Russian attack has
+// eliminated or driven out the German garrison, the city is Russian again at once, even if no Russian
+// unit advances into it, and the Germans can no longer bring replacements into it. The Germans, as the
+// occupiers, still have to enter a city to take it.
+function takeVacatedCity() {
+  const e = grid.get(initialDefendingUnitPosition),
+    t = currentBattle.attackingUnits.length > 0 ? currentBattle.attackingUnits[0].army : null;
+  if (!e || "soviet" !== t || !e.city || "none" === e.city || "german" !== e.control) return;
+  const n = b4mUnits[b4mUnitsIndex(currentBattle.defendingUnit)];
+  if (n && n.position && n.position.x === e.x && n.position.y === e.y && defenderRetreating !== currentBattle) return;
+  ((e.control = "soviet"), cityLiberated(e, null));
+}
 function handleRetreatSelection(e) {
   let t = grid.get(e);
   if (!t) return;
@@ -3778,7 +3997,7 @@ function handleRetreatSelection(e) {
   });
   if (n.length > 0) {
     let e = n[0].from.slice();
-    (e.push({ x: n[0].x, y: n[0].y }), moveUnit(currentDefendingUnit, e));
+    (e.push({ x: n[0].x, y: n[0].y }), (defenderRetreating = currentBattle), moveUnit(currentDefendingUnit, e, void 0, !0));
     for (const e of singleValidRetreat) {
       for (const t of e.from)
         (clearHex(hexHighlights, Hex(t)),
@@ -3872,7 +4091,8 @@ function findRetreat(e) {
     } else {
       let n = validRetreat[0].from.slice();
       (n.push({ x: validRetreat[0].x, y: validRetreat[0].y }),
-        moveUnit(currentDefendingUnit, n),
+        (defenderRetreating = currentBattle),
+        moveUnit(currentDefendingUnit, n, void 0, !0),
         clearHex(hexHighlights, t),
         e());
     }
@@ -3918,6 +4138,7 @@ function handleAdvanceAfterCombatClick(e) {
   handleAdvanceAfterCombat(Grid.pointToHex(e.offsetX, e.offsetY));
 }
 function advanceAfterCombat() {
+  takeVacatedCity();
   if ("" === playAIAs || playAIAs !== currentTurn.army)
     ((document.querySelector(".table_battle div.battle_result_action").innerHTML =
       "<strong>Use the option to advance</strong> into the vacated hex by clicking on the attacking unit, <strong>or continue without</strong>..."),
@@ -4769,8 +4990,8 @@ function movementPhase(e) {
 let followingReinforcement = !1;
 // Russian reinforcements, new partisan bands and partisan operations (one action per band and turn)
 const PARTISAN_ACTIONS = [
-  { id: "raid", label: "Raid", tip: "Ambush the supply columns of a German unit within 2 hexes: it gains as many fatigue points as the band's strength." },
-  { id: "sabotage", label: "Sabotage rail", tip: "Blow up a rail hex within 1 hex: for two German turns, German units within 2 hexes of it gain +1 fatigue and cannot recover." },
+  { id: "raid", label: "Raid", tip: "Ambush the supply columns of a German unit within 2 hexes: it gains 2 fatigue points for each strength point of the band, and cannot recover any fatigue at the start of the next German turn." },
+  { id: "sabotage", label: "Sabotage rail", tip: "Cut the German supply line: blow up the railway in a hex within 1 hex. Only the Russians move by rail in this game, but the German armies lived on the railways for their ammunition, fuel and food. For the next two German turns, German units within 2 hexes of the cut gain +1 fatigue at the start of their turn and cannot recover." },
   { id: "guide", label: "Guide the army", tip: "This turn, Russian attacks on German units within 1 hex of the band gain one odds column." },
   { id: "seize", label: "Rise in a town", tip: "A German-held town within 2 hexes with no German unit in or next to it, if the bands within 2 hexes of it total 3 strength or more: roll a die; up to their total strength (at most 5) the town becomes Russian, otherwise every band taking part loses 1 strength." },
   { id: "move", label: "Move", tip: "Slip through the forests to an empty forest hex within 2 hexes." },
@@ -4945,9 +5166,22 @@ function reinforcementPhase(e) {
     },
     doAction = function (e, t, n) {
       if ("raid" === t) {
-        const t = lookupUnit(n);
-        (addFatigue(t, e.strength),
-          (actionNote = "Partisans ambush the supply columns of the " + unitName(t) + " (+" + e.strength + " fatigue)."));
+        const t = lookupUnit(n),
+          i = b4mUnits[b4mUnitsIndex(t)],
+          o = i.fatigue || 0;
+        (addFatigue(t, 2 * e.strength),
+          // the supply columns are lost: no rest at the start of the next German turn
+          (i.raided = currentTurn.turn + 1),
+          (actionNote =
+            "Partisans ambush the supply columns of the " +
+            unitName(t) +
+            ": fatigue " +
+            o +
+            " \u2192 " +
+            (i.fatigue || 0) +
+            " (" +
+            ["fresh", "tired", "exhausted", "broken"][fatigueLevel(i)] +
+            "), and it cannot rest next turn."));
       } else
         "sabotage" === t
           ? (railCuts.push({ x: n.x, y: n.y, until: currentTurn.turn + 2 }),
@@ -5389,6 +5623,23 @@ function replacementPhase(e) {
         }
         return i - n || e.y - t.y;
       }));
+  // a step can also rest a full-strength unit in communication: it loses one fatigue level
+  const restable = function (e) {
+    return (
+      e.army === currentTurn.army &&
+      "full" === e.strength &&
+      e.position &&
+      (e.fatigue || 0) > 0 &&
+      (("soviet" === currentTurn.army && "moscow" === grid.get(e.position).city) ||
+        isInCommunication(Hex(e.position), currentTurn.army))
+    );
+  };
+  for (const e of b4mUnits) restable(e) && highlightHex(hexHighlights, Hex(e.position), "rgba(255, 196, 90, 0.35)");
+  ("" === playAIAs || playAIAs !== currentTurn.army) &&
+    (document.getElementById("step_replacement_tip").innerText +=
+      (0 === o.length
+        ? " No unit of yours is off the map to be rebuilt now, so a step can only restore a half-strength unit in communication or rest a tired full-strength one."
+        : "") + " A step spent on a full-strength unit in communication (orange) takes one fatigue level off it.");
   let r = b4mUnits.filter(function (e) {
     return (
       !(
@@ -5452,6 +5703,16 @@ function replacementPhase(e) {
               r.splice(e, 1),
               t--,
               n());
+          } else {
+            const e = b4mUnits[b4mUnitsIndex(l)];
+            if (e && restable(e)) {
+              ((e.fatigue = Math.max(0, e.fatigue - FATIGUE.perLevel)), clearHex(hexHighlights, a));
+              const i = a.center().add(a.toPoint());
+              (countersHighlights.drawImage(document.getElementById("check_counter"), i.x - 40, i.y - 40, 80, 80),
+                scheduleStatusRefresh(),
+                t--,
+                n());
+            }
           }
         }
       }
