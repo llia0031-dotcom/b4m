@@ -999,6 +999,20 @@ input[type=checkbox] {
     font-size: 0.85em;
 }
 
+/* the heading of a Soviet bulletin or the partisan oath, in Russian, above the banner */
+#event_banner .banner_kicker {
+    display: block;
+    font-family: "Arial Narrow", "Arial", sans-serif;
+    font-size: 0.72em;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: #ffe08a;
+}
+
+#final_results .soviet_slogan {
+    margin-top: 14px;
+}
+
 #layer_toolbar input {
     vertical-align: middle;
     margin: 0 3px 0 0;

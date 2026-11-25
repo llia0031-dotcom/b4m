@@ -707,7 +707,7 @@ const b4mDefaultUnits = JSON.parse(JSON.stringify(b4mUnits));
 // ---------------------------------------------------------------- Winter counteroffensive
 const LAST_TURN = 9,
   WINTER_START = 8,
-  MAX_PARTISANS = 4,
+  MAX_PARTISANS = 6,
   SPECIAL_ARRIVALS = {
     // turn 3: the NKVD brigade (a command decision)
     3: {},
@@ -726,8 +726,78 @@ function arrivalTurnOf(e) {
     if ((SPECIAL_ARRIVALS[t].units || []).indexOf(e) > -1) return Number(t);
   return 0;
 }
+// Soviet party-history collections of the 1960s record detachments fighting behind the German lines since
+// the summer of 1941, among them the Klintsy detachment west of Bryansk (fighting since 20 August) and the
+// «Alexei» detachment on the border of the Smolensk and Kalinin regions. Others were left behind in advance
+// and went into the forests when their town fell: in Bryansk the city detachment of I. Kravtsov (150 men in
+// five groups, with its bases chosen in the forests beforehand), in Rzhev, Vyazma and the Mozhaisk district.
+const INITIAL_PARTISANS = [
+    { x: 0, y: 8, strength: 2 },
+    { x: 0, y: 0, strength: 2 },
+  ],
+  STAY_BEHIND = {
+    "4,8": { strength: 2, en: "The Bryansk city detachment of I. Kravtsov, 150 men in five groups", zh: "克拉夫佐夫的布良斯克市游击队，150 人，分 5 个组" },
+    "5,1": { strength: 1, en: "The Rzhev detachment, into the Opekalovskaya forest", zh: "勒热夫游击队，进入奥佩卡洛夫斯卡亚林地" },
+    "5,3": { strength: 1, en: "The Vyazma district detachment, formed from the destroyer battalion", zh: "由歼击营改编的维亚济马区游击队" },
+    "7,3": { strength: 1, en: "The Mozhaisk district detachment", zh: "莫扎伊斯克区游击队" },
+  };
+let stayBehindPending = [],
+  stayBehindDone = [];
+// A town of the list falls: its group will go into the forests (if the Red Army retakes the town first, it stays)
+function stayBehindTownChanged(hex, to) {
+  const key = hex.x + "," + hex.y,
+    k = stayBehindPending.indexOf(key);
+  if (!STAY_BEHIND[key]) return;
+  "german" === to
+    ? stayBehindDone.indexOf(key) < 0 && k < 0 && stayBehindPending.push(key)
+    : k > -1 && stayBehindPending.splice(k, 1);
+}
+// The nearest empty forest hex within 2 hexes of the town, not next to German units
+function stayBehindHex(key) {
+  const c = key.split(","),
+    town = grid.get({ x: +c[0], y: +c[1] });
+  return (
+    b4mGrid
+      .map(function (e) {
+        return grid.get({ x: e.x, y: e.y });
+      })
+      .filter(function (e) {
+        return "forest" === e.terrain && !lookupUnit(e) && !partisanAt(e) && !isEZOC(e, "soviet") && town.distance(e) <= 2;
+      })
+      .sort(function (e, t) {
+        return town.distance(e) - town.distance(t);
+      })[0] || null
+  );
+}
+// At the start of the Russian reinforcement step the groups of the fallen towns go into the forests; they act
+// from the next turn. A group with no free forest near its town waits for one.
+function raiseStayBehind() {
+  const notes = [];
+  for (const key of stayBehindPending.slice()) {
+    if (partisans.length >= MAX_PARTISANS) break;
+    const h = stayBehindHex(key);
+    if (!h) continue;
+    const g = STAY_BEHIND[key];
+    (partisans.push({ x: h.x, y: h.y, strength: g.strength, acted: !0 }),
+      stayBehindPending.splice(stayBehindPending.indexOf(key), 1),
+      stayBehindDone.push(key),
+      notes.push(L(g.en, g.zh)));
+  }
+  notes.length &&
+    (drawPartisans(),
+    showEventBanner(
+      '<small class="banner_kicker">Все, как один, на защиту Отчизны!</small><img src="img/soviet_marker.png" />' +
+        L("The stay-behind groups go into the forests", "留守的游击队进入森林") +
+        "<span>" +
+        notes.join(L("; ", "；")) +
+        L(". They act from the next turn.", "。它们从下回合起行动。") +
+        "</span>",
+      8e3,
+    ));
+  return notes;
+}
 function hasReinforcementStep(e) {
-  return !!SPECIAL_ARRIVALS[e] || partisans.length > 0;
+  return !!SPECIAL_ARRIVALS[e] || partisans.length > 0 || stayBehindPending.length > 0;
 }
 function hasPartisan(e) {
   return (
@@ -757,22 +827,76 @@ function drawSkiPair(e, t, n, i) {
 function drawSkiBadge(e, t, n) {
   drawSkiPair(e, t, n, 1);
 }
-// A partisan band. The icon follows a photograph of the partisans of the Borovsk district by V. Zunin
-// (Moscow region, November-December 1941): a partisan in white winter camouflage, kneeling in the snow and
-// aiming his rifle with the bayonet fixed, with the red ribbon the partisans wore across their caps.
-function partisanSilhouette(e) {
-  const t = function (t) {
-    e.moveTo(t[0][0], t[0][1]);
-    for (let n = 1; n < t.length; n++) e.lineTo(t[n][0], t[n][1]);
-    e.closePath();
-  };
+// A partisan band. The badge has the colours of the flag of the USSR, red with the gold hammer and sickle.
+// On it a partisan kneels and aims his rifle, bayonet fixed, after the photograph of the partisans of the
+// Borovsk district by V. Zunin (Moscow region, 1941), in the fur cap with ear flaps and the red star, and boots.
+function piPoly(e, p) {
+  e.moveTo(p[0][0], p[0][1]);
+  for (let n = 1; n < p.length; n++) e.lineTo(p[n][0], p[n][1]);
+  e.closePath();
+}
+function piBody(e) {
   (e.beginPath(),
-    e.ellipse(46, 27, 8.5, 9.5, -0.35, 0, 2 * Math.PI),
-    t([[38, 24], [52, 30], [60, 42], [58, 56], [44, 64], [30, 62], [22, 50], [26, 34]]),
-    t([[50, 36], [70, 38], [72, 43], [52, 46]]),
-    t([[44, 44], [56, 46], [58, 52], [46, 54]]),
-    t([[40, 58], [60, 64], [64, 70], [60, 74], [56, 88], [48, 88], [50, 72], [38, 68]]),
-    t([[28, 58], [40, 64], [36, 84], [34, 90], [10, 90], [10, 84], [26, 82]]));
+    e.ellipse(46, 29, 8.3, 9, -0.35, 0, 2 * Math.PI),
+    piPoly(e, [[50, 24], [55.5, 27.5], [54.5, 29.5], [56, 31], [53.5, 35], [50, 36]]),
+    piPoly(e, [[38, 25], [52, 31], [60, 42], [58, 56], [44, 64], [30, 62], [22, 50], [26, 35]]),
+    piPoly(e, [[50, 36], [70, 38], [72, 43], [52, 46]]),
+    piPoly(e, [[44, 44], [56, 46], [58, 52], [46, 54]]),
+    piPoly(e, [[40, 58], [60, 64], [64, 70], [62, 74], [50, 74], [38, 68]]),
+    piPoly(e, [[28, 58], [40, 64], [36, 82], [33, 84], [28, 82], [26, 80]]));
+}
+// the boots: the front one upright, toe forward; the back one lying on its instep, toe pointing back
+function piBoots(e) {
+  (e.beginPath(),
+    piPoly(e, [[49.5, 71.5], [62.5, 71.5], [60.5, 84], [63.5, 86.5], [65, 89], [65, 91.5], [48.5, 91.5], [48.5, 87.5], [50.5, 84]]),
+    piPoly(e, [[35.5, 85], [34, 80], [22, 80.5], [15, 82.5], [9, 85], [5.5, 88], [6, 91.5], [35, 91.5]]));
+}
+function piCuffs(e) {
+  (e.beginPath(), e.moveTo(49.8, 74.3), e.lineTo(62.2, 74.3), e.moveTo(31.2, 80.3), e.lineTo(32, 91));
+}
+// the cap: the cloth crown, the fur of the turned-up flaps and the ear flap hanging down
+function piCrown(e) {
+  (e.beginPath(), e.roundRect(37.5, 8.5, 18, 7, 3));
+}
+function piFur(e) {
+  (e.beginPath(), e.roundRect(33, 12.5, 27.5, 12.5, 4.5), e.roundRect(34.5, 21, 8.5, 15, 4));
+}
+function piStar(e, cx, cy, R) {
+  e.beginPath();
+  for (let k = 0; k < 10; k++) {
+    const a = -Math.PI / 2 + (k * Math.PI) / 5,
+      q = k % 2 ? 0.42 * R : R;
+    e.lineTo(cx + q * Math.cos(a), cy + q * Math.sin(a));
+  }
+  e.closePath();
+}
+function piSeg(e, w, a, b, c, d) {
+  ((e.lineWidth = w), e.beginPath(), e.moveTo(a, b), e.lineTo(c, d), e.stroke());
+}
+function piRifle(e, k) {
+  (piSeg(e, 3.6 + k, 40, 47, 90, 28), piSeg(e, 1.8 + 0.6 * k, 90, 28, 98, 25), piSeg(e, 5.5 + k, 37, 48.5, 50, 43.5));
+}
+// The hammer and sickle of the Soviet flag, drawn in a box of size s at (x, y)
+function hammerAndSickle(e, x, y, s, col) {
+  const d = Math.PI / 180;
+  (e.save(),
+    e.translate(x, y),
+    e.scale(s / 100, s / 100),
+    (e.fillStyle = col),
+    (e.strokeStyle = col),
+    e.beginPath(),
+    e.arc(52, 48, 30, 135 * d, -125 * d, !0),
+    e.arc(49, 45, 23, -125 * d, 135 * d, !1),
+    e.closePath(),
+    e.fill(),
+    (e.lineCap = "round"),
+    piSeg(e, 9, 17, 83, 30, 70),
+    (e.lineCap = "butt"),
+    piSeg(e, 8, 34, 34, 80, 80),
+    e.translate(32, 32),
+    e.rotate(-Math.PI / 4),
+    e.fillRect(-17, -7, 34, 13),
+    e.restore());
 }
 function drawPartisanMarker(e, t, n, i, s) {
   const o = 1.6 * i,
@@ -781,61 +905,56 @@ function drawPartisanMarker(e, t, n, i, s) {
   (e.save(),
     e.translate(r, a),
     e.scale(o / 100, o / 100),
-    // the badge: forest green with a dark frame
+    // the badge: the red of the Soviet flag with the gold hammer and sickle
     e.beginPath(),
-    e.roundRect(2, 2, 96, 96, 12),
-    (e.fillStyle = "#2f3d24"),
+    e.roundRect(2, 2, 96, 96, 10),
+    (e.fillStyle = "#c8102e"),
     e.fill(),
     (e.lineWidth = 4),
-    (e.strokeStyle = "#141a10"),
+    (e.strokeStyle = "#3a0a0c"),
     e.stroke(),
-    // the snow he kneels in
-    (e.fillStyle = "rgba(235, 238, 230, 0.35)"),
-    e.fillRect(6, 86, 88, 8),
-    // the partisan in white camouflage
-    partisanSilhouette(e),
-    (e.fillStyle = "#f2f1ea"),
-    e.fill(),
-    (e.lineWidth = 2.2),
-    (e.strokeStyle = "#141a10"),
-    e.stroke(),
-    // the rifle and its bayonet
+    hammerAndSickle(e, 5, 6, 24, "#f2c230"),
+    // the partisan in black: the outline first, then the fill, so that only the outer edge shows
     (e.lineCap = "round"),
-    (e.strokeStyle = "#141a10"),
-    (e.lineWidth = 3.6),
-    e.beginPath(),
-    e.moveTo(40, 47),
-    e.lineTo(90, 28),
+    (e.lineJoin = "round"),
+    (e.strokeStyle = "#161010"));
+  for (const f of [piBody, piBoots, piCrown, piFur]) (f(e), (e.lineWidth = 4.4), e.stroke());
+  (piRifle(e, 2.8),
+    piBody(e),
+    (e.fillStyle = "#161010"),
+    e.fill(),
+    piBoots(e),
+    e.fill(),
+    piCuffs(e),
+    (e.strokeStyle = "#5a4e48"),
+    (e.lineWidth = 1.3),
     e.stroke(),
-    (e.lineWidth = 1.8),
-    e.beginPath(),
-    e.moveTo(90, 28),
-    e.lineTo(98, 25),
-    e.stroke(),
-    (e.lineWidth = 5.5),
-    e.beginPath(),
-    e.moveTo(37, 48.5),
-    e.lineTo(50, 43.5),
-    e.stroke(),
-    // the red ribbon across the hood
-    e.save(),
-    e.beginPath(),
-    e.ellipse(46, 27, 8.5, 9.5, -0.35, 0, 2 * Math.PI),
-    e.clip(),
-    e.translate(46, 25),
-    e.rotate(-0.6),
-    (e.fillStyle = "#d21f26"),
-    e.fillRect(-12, -2.6, 24, 5.2),
-    e.restore());
-  if (s) {
-    ((e.fillStyle = "#141a10"),
-      e.fillRect(68, 66, 26, 28),
-      (e.fillStyle = "#ffffff"),
-      (e.font = "bold 24px Arial, sans-serif"),
-      (e.textAlign = "center"),
-      (e.textBaseline = "middle"),
-      e.fillText(String(s), 81, 81));
-  }
+    (e.strokeStyle = "#161010"),
+    piRifle(e, 0),
+    piCrown(e),
+    e.fill(),
+    piFur(e),
+    (e.fillStyle = "#5a4e48"),
+    e.fill(),
+    (e.strokeStyle = "#3a322e"));
+  for (const x of [37, 41, 45, 49]) piSeg(e, 0.9, x, 14.5, x - 1.5, 23);
+  (piStar(e, 56.5, 18.5, 4.2),
+    (e.fillStyle = "#ff2a35"),
+    e.fill(),
+    (e.strokeStyle = "#7a0008"),
+    (e.lineWidth = 0.8),
+    e.stroke());
+  s &&
+    ((e.fillStyle = "#f2c230"),
+    e.fillRect(68, 66, 26, 28),
+    (e.strokeStyle = "#3a0a0c"),
+    (e.lineWidth = 2),
+    e.strokeRect(68, 66, 26, 28),
+    (e.fillStyle = "#3a0a0c"),
+    (e.font = "bold 24px Arial, sans-serif"),
+    (e.textAlign = "center"),
+    (e.textBaseline = "middle"),
+    e.fillText(String(s), 81, 81));
   e.restore();
 }
 function drawPartisans() {
@@ -1504,9 +1623,15 @@ function cityLiberated(e, t) {
   (liberationBonus++,
     t && addFatigue(t, -FATIGUE.liberation),
     showEventBanner(
-      '<img src="img/soviet_marker.png" />' +
-        n +
-        " liberated!<span>+1 Russian replacement step next turn · the liberators shake off some fatigue</span>",
+      '<small class="banner_kicker">В последний час</small><img src="img/soviet_marker.png" />' +
+        L("Our troops have liberated " + n + "!", "我军解放了" + n + "！") +
+        "<span>" +
+        L(
+          "After fierce fighting the Red Army has driven the German-fascist invaders out of " + n + ". +1 replacement step next turn · the liberators shake off some fatigue.",
+          "经过激烈战斗，红军把德国法西斯侵略者赶出了" + n + "。下回合 +1 个补充兵步数 · 解放者的疲劳减轻。",
+        ) +
+        "</span>",
+      6e3,
     ));
 }
 // ---------------------------------------------------------------- Morale
@@ -1547,6 +1672,7 @@ function changeMorale(army, delta, en, zh) {
 }
 function cityChangedHands(hex, from, to) {
   if (cityMoraleQuiet || !from || !to || from === to) return;
+  stayBehindTownChanged(hex, to);
   const key = hex.x + "," + hex.y,
     v = CITY_MORALE[key] || 1,
     name = cityNameOf(key, "a city", "一座城市");
@@ -1886,22 +2012,31 @@ function standardResult() {
     i = null === t ? 0 : e.soviet - t;
   let o, r;
   "german" === n.control
-    ? ((o = '<img src="img/german_marker.png" /><span>German Decisive Victory!</span>'),
-      (r = "The German Army took Moscow and held it to the end of the game."))
+    ? ((o = '<img src="img/german_marker.png" /><span>' + L("German Decisive Victory!", "德军决定性胜利！") + "</span>"),
+      (r = L("The German Army took Moscow and held it to the end of the game.", "德军攻占莫斯科，并一直守到游戏结束。")))
     : i >= 3
-      ? ((o = '<img src="img/soviet_marker.png" /><span>Russian Decisive Victory!</span>'),
-        (r = "The counteroffensive went far beyond what the Red Army achieved in 1941."))
+      ? ((o = '<img src="img/soviet_marker.png" /><span>' + L("Decisive Victory of the Red Army!", "红军的决定性胜利！") + "</span>"),
+        (r = L(
+          "The German-fascist hordes have been routed far beyond what the Red Army achieved in December 1941. The rout that began at Moscow rolls on to the west.",
+          "德国法西斯匪帮被击溃的程度，远远超过 1941 年 12 月红军的实际战果。从莫斯科城下开始的粉碎，正滚滚向西推进。",
+        )))
       : i >= 1
-        ? ((o = '<img src="img/soviet_marker.png" /><span>Russian Victory!</span>'),
-          (r = "The Red Army did better than in 1941."))
+        ? ((o = '<img src="img/soviet_marker.png" /><span>' + L("Victory of the Red Army!", "红军的胜利！") + "</span>"),
+          (r = L(
+            "The Red Army has done better than in December 1941: more Soviet towns are freed from the fascist yoke.",
+            "红军打得比 1941 年 12 月还要好：更多的苏联城镇摆脱了法西斯的枷锁。",
+          )))
         : 0 === i
-          ? ((o = "<span>The Historical Result</span>"),
-            (r = "The front stands where it stood in December 1941: Moscow is saved, but the Germans still hold most of the cities."))
+          ? ((o = "<span>" + L("The Historical Result", "历史结果") + "</span>"),
+            (r = L(
+              "The front stands where it stood in December 1941: Moscow is saved and the German plan to take it has failed with a crash, but the enemy still holds most of the towns.",
+              "战线停在 1941 年 12 月的位置：莫斯科得救了，德军夺取莫斯科的计划彻底破产，但敌人仍占着大部分城镇。",
+            )))
           : i >= -2
-            ? ((o = '<img src="img/german_marker.png" /><span>German Victory!</span>'),
-              (r = "The Wehrmacht held more than it did in 1941."))
-            : ((o = '<img src="img/german_marker.png" /><span>German Major Victory!</span>'),
-              (r = "The Wehrmacht held far more than it did in 1941."));
+            ? ((o = '<img src="img/german_marker.png" /><span>' + L("German Victory!", "德军胜利！") + "</span>"),
+              (r = L("The Wehrmacht held more than it did in 1941.", "国防军守住的地方比 1941 年还多。")))
+            : ((o = '<img src="img/german_marker.png" /><span>' + L("German Major Victory!", "德军重大胜利！") + "</span>"),
+              (r = L("The Wehrmacht held far more than it did in 1941.", "国防军守住的地方比 1941 年多得多。")));
   let a = "";
   for (const e of b4mGrid) {
     if (!e.city || "none" === e.city) continue;
@@ -1919,19 +2054,26 @@ function standardResult() {
     title: o,
     text:
       r +
-      "<br /><br />Victory points at the end of Game Turn " +
-      LAST_TURN +
-      ": <strong>Russians " +
-      e.soviet +
-      ", Germans " +
-      e.german +
+      "<br /><br />" +
+      L("Victory points at the end of Game Turn " + LAST_TURN + ": ", "第 " + LAST_TURN + " 回合结束时的胜利点：") +
+      "<strong>" +
+      L("Red Army " + e.soviet + ", Germans " + e.german, "红军 " + e.soviet + "，德军 " + e.german) +
       "</strong>" +
       (null !== t
-        ? ". In 1941 the Red Army held Moscow, Tula and Ryazan at this date (" + t + " points)."
-        : ".") +
+        ? L(". In 1941 the Red Army held Moscow, Tula and Ryazan at this date (" + t + " points).", "。1941 年的这个时候，红军控制着莫斯科、图拉和梁赞（" + t + " 点）。")
+        : L(".", "。")) +
       '<table class="vp_table">' +
       a +
-      '</table><div class="chronicle_note">The battle of Moscow destroyed the myth of the Wehrmacht\'s invincibility. Yet, as Marshal Vasilevsky wrote, the general offensive of the winter of 1942 did not completely destroy any of the main German groupings.</div>',
+      '</table><div class="chronicle_note">' +
+      L(
+        "The battle of Moscow destroyed the myth of the invincibility of the Hitlerite army. Yet, as Marshal Vasilevsky wrote, the general offensive of the winter of 1942 did not completely destroy any of the main German groupings.",
+        "莫斯科会战打破了希特勒军队不可战胜的神话。但正如华西列夫斯基元帅所写，1942 年冬季的总攻没有彻底歼灭德军的任何一个主要集团。",
+      ) +
+      "</div>" +
+      // when Moscow stands: the masthead slogan of the newspapers of 13 December 1941
+      (i >= 0 && "german" !== n.control
+        ? sloganHtml({ original: "Наше дело правое — победа будет за нами!", en: "Our cause is just: victory will be ours! (J. V. Stalin)", zh: "我们的事业是正义的——胜利必将属于我们！（И. В. 斯大林）" })
+        : ""),
   };
 }
 // ---------------------------------------------------------------- Partisan operations
@@ -1987,20 +2129,22 @@ function partisanRising(hex) {
   return { success: success, roll: roll, need: need, name: name };
 }
 function announceRising(result) {
-  const note =
-    "Die roll " +
-    result.roll +
-    " (" +
-    result.need +
-    " or less needed): " +
-    (result.success
-      ? "the partisans rise and take " + result.name + "! +1 Russian replacement step."
-      : "the rising in " + result.name + " is crushed; every band taking part loses 1 strength.");
+  const note = result.success
+    ? L(
+        "Die roll " + result.roll + " (" + result.need + " or less needed): the glorious Soviet patriots fall upon the unsuspecting enemy and take " + result.name + "! +1 Russian replacement step.",
+        "掷骰 " + result.roll + "（需要 " + result.need + " 或更小）：光荣的苏维埃爱国者突袭了毫无防备的敌人，夺取了" + result.name + "！苏军 +1 个补充兵步数。",
+      )
+    : L(
+        "Die roll " + result.roll + " (" + result.need + " or less needed): the fascist punitive troops crush the rising in " + result.name + "; every band taking part loses 1 strength.",
+        "掷骰 " + result.roll + "（需要 " + result.need + " 或更小）：法西斯讨伐队镇压了" + result.name + "的起义，参加起义的每支游击队损失 1 点力量。",
+      );
   showEventBanner(
-    '<img class="banner_photo" src="img/partisans_borovsk_1941.jpg" /><img src="img/' +
+    '<img class="banner_photo" src="img/partisans_borovsk_1941.jpg" /><small class="banner_kicker">Кровь за кровь, смерть за смерть!</small><img src="img/' +
       result.roll +
       '.png" />' +
-      (result.success ? result.name + " taken by the partisans!" : "The rising in " + result.name + " is crushed") +
+      (result.success
+        ? L("The partisans have taken " + result.name + "!", "游击队夺取了" + result.name + "！")
+        : L("The rising in " + result.name + " is crushed", result.name + "的起义被镇压")) +
       "<span>" +
       note +
       "</span>",
@@ -2772,26 +2916,37 @@ const HISTORY_EVENTS = [
     office: "Народный комиссариат внутренних дел СССР",
     officeEn: "People's Commissariat for Internal Affairs of the USSR (NKVD)",
     stamp: "Совершенно секретно",
+    slogan: {
+      "original": "Все, как один, на защиту Отчизны!",
+      "en": "All as one to the defence of the Fatherland!",
+      "zh": "全体一致，保卫祖国！"
+    },
     to: "P. A. Sudoplatov, head of the Special Group of the NKVD",
     place: "Moscow, Lubyanka",
     date: "17 October 1941",
-    title: "The special brigade of the NKVD",
+    title: "The special-purpose brigade of the NKVD",
     text: [
-      "The Independent Motorised Rifle Brigade of Special Purpose of the NKVD (OMSBON) was raised in the summer at the Dynamo stadium from athletes, Chekists and foreign Communists, and trained to fight [[behind the enemy lines]].",
-      "Now the front before Moscow is breaking, and the capital is put under a [[state of siege]]. Commit the brigade's picked men to the line, or drop its detachments into the forests behind Army Group Centre?",
+      "Comrade Sudoplatov! The German-fascist hordes are tearing towards our red capital. On the night of 14 to 15 October the enemy threw masses of tanks and motorised infantry against our units and [[broke through our defences]] on the Western direction. Our troops are offering him heroic resistance, but in one sector they were forced to fall back.",
+      "The Independent Motorised Rifle Brigade of Special Purpose of the NKVD (OMSBON), athletes, Chekists and Communists of the fraternal parties raised this summer at the Dynamo stadium, has been trained to fight [[behind the enemy lines]]. Comrade Stalin has called for partisan war to be kindled everywhere in the occupied regions. But the front before Moscow needs every bayonet.",
+      "Throw the brigade's picked men into the line, or [[drop its detachments into the forests]] in the enemy's rear?"
     ],
     quotes: [
       {
-        original: "Ввести с 20 октября 1941 года в городе Москве и прилегающих к городу районах осадное положение.",
-        translation: "A [[state of siege]] is to be introduced in the city of Moscow and the districts adjacent to it from 20 October 1941.",
-        source: "Decree of the State Defence Committee, 19 October 1941",
+        "original": "Над Москвой нависла угроза. Но за Москву будем драться упорно, ожесточенно, до последней капли крови.",
+        "translation": "A threat hangs over Moscow. But we will fight for Moscow stubbornly, fiercely, [[to the last drop of blood]].",
+        "source": "A. S. Shcherbakov, secretary of the Moscow Committee of the VKP(b), radio address to the working people of Moscow, 17 October 1941"
       },
+      {
+        "original": "В занятых врагом районах нужно создавать партизанские отряды, конные и пешие, создавать диверсионные группы для борьбы с частями вражеской армии, для разжигания партизанской войны всюду и везде…",
+        "translation": "In the areas occupied by the enemy, partisan detachments, mounted and on foot, must be formed, and sabotage groups created to fight the units of the enemy army, [[to kindle partisan war everywhere]]…",
+        "source": "J. V. Stalin, radio address of 3 July 1941"
+      }
     ],
     options: [
       {
         id: "infantry",
         label: "Send it into the line as infantry",
-        order: "Stiffen a battered army with the brigade's picked men.",
+        order: "Every Chekist into the line: the red capital must be held.",
         available: function () {
           return nkvdCandidates().length > 0;
         },
@@ -2806,7 +2961,7 @@ const HISTORY_EVENTS = [
       {
         id: "drop",
         label: "Drop it behind the German lines",
-        order: "Parachute the detachments into the forests as partisan bands.",
+        order: "Parachute the detachments into the forests: make conditions intolerable for the enemy at every step.",
         effects: function () {
           return [
             "2 partisan bands of strength 2 form now on forest hexes behind the German lines (you place them). They act from your next turn.",
@@ -2819,12 +2974,11 @@ const HISTORY_EVENTS = [
     ai: function () {
       return nkvdCandidates().length ? "infantry" : "drop";
     },
-    history:
-      "Both, in fact. In October and November 1941 the brigade prepared the demolition of key objects in Moscow and held sectors of the city's defences, while [[detachments of it were sent behind the German lines]].",
+    history: "Both, in fact. In October and November 1941 the fighters of the brigade mined the key objects of the capital and held sectors of its defences, while [[its detachments went behind the enemy lines]] to wage partisan war.",
     historyQuote: {
-      original: "...предоставить войска внутренней охраны НКВД, милицию и добровольческие рабочие отряды.",
-      translation: "...the internal troops of the NKVD, the militia and the volunteer workers' detachments are placed at the disposal [of the commandant of Moscow].",
-      source: "Decree of the State Defence Committee, 19 October 1941, article 3",
+      "original": "Государственный Комитет Обороны призывает всех трудящихся столицы соблюдать порядок и спокойствие и оказывать Красной Армии, обороняющей Москву, всяческое содействие.",
+      "translation": "The State Defence Committee calls on all the working people of the capital to keep order and calm and to give the Red Army defending Moscow [[every assistance]].",
+      "source": "Decree of the State Defence Committee on the state of siege in Moscow, 19 October 1941, signed by its chairman J. Stalin"
     },
   },
   {
@@ -2834,19 +2988,31 @@ const HISTORY_EVENTS = [
     office: "Государственный Комитет Обороны",
     officeEn: "State Defence Committee",
     stamp: "Совершенно секретно",
+    slogan: {
+      "original": "Отстоим родную Москву!",
+      "en": "We will defend our native Moscow!",
+      "zh": "保卫我们亲爱的莫斯科！"
+    },
     to: "The members of the State Defence Committee",
     place: "Moscow, the Kremlin",
-    date: "Early November 1941",
-    title: "A parade on Red Square?",
+    date: "6 November 1941",
+    title: "The 24th anniversary of October: a parade on Red Square?",
     text: [
-      "The anniversary of the Revolution falls on 7 November. Stalin wants the traditional parade held on Red Square with the front [[less than 100 km away]]: the troops would march past the Mausoleum and [[straight on to the front]].",
-      "The Luftwaffe can reach Moscow in minutes. Only low clouds and snow would keep it on the ground.",
+      "On 7 November the peoples of the Soviet Union celebrate the [[24th anniversary of the Great October Socialist Revolution]]. Comrade Stalin proposes to hold the traditional parade on Red Square with the front [[less than 100 km away]]: the units will march past the Mausoleum of V. I. Lenin and [[straight on to the front]].",
+      "Tonight the ceremonial session of the Moscow Soviet meets deep underground, in the Mayakovskaya station of the metro. The fascist aircraft can reach Moscow in minutes: only low clouds and snow will keep them on the ground."
+    ],
+    quotes: [
+      {
+        "original": "Немецкие захватчики хотят иметь истребительную войну с народами СССР. Что же, если немцы хотят иметь истребительную войну, они ее получат […] Никакой пощады немецким оккупантам! Смерть немецким оккупантам!",
+        "translation": "The German invaders want a war of extermination against the peoples of the USSR. Well, if the Germans want a war of extermination, they shall have it […] [[No mercy for the German occupiers! Death to the German occupiers!]]",
+        "source": "J. V. Stalin, report at the ceremonial session of the Moscow Soviet, 6 November 1941 (Pravda, 7 November)"
+      }
     ],
     options: [
       {
         id: "hold",
         label: "Hold the parade",
-        order: "The troops march from Red Square straight to the front.",
+        order: "From Red Square straight to the front, under the banner of Lenin.",
         effects: function () {
           const moscow = grid.get({ x: 10, y: 2 }),
             near = unitsOf("soviet").filter(function (unit) {
@@ -2881,14 +3047,11 @@ const HISTORY_EVENTS = [
       { id: "cancel", label: "Cancel the parade", order: "Take no risk with the garrison.", effects: ["No effect."] },
     ],
     ai: "hold",
-    history:
-      "The parade was held on 7 November in a [[snowstorm]] that kept the Luftwaffe away. The troops marched past the Mausoleum and on to the front, and the newsreel of the parade was shown across the country.",
+    history: "The parade was held on 7 November in a [[snowstorm]] that kept the fascist aircraft on the ground. The units marched past the Mausoleum and straight on to the front, and the newsreel of the parade, shown across the whole country, told the Soviet people that [[Moscow stands]].",
     historyQuote: {
-      original:
-        "Пусть вдохновляет вас в этой войне мужественный образ наших великих предков – Александра Невского, Димитрия Донского, Кузьмы Минина, Димитрия Пожарского, Александра Суворова, Михаила Кутузова!",
-      translation:
-        "Let the manly image of our great ancestors, Alexander Nevsky, Dmitry Donskoy, Kuzma Minin, Dmitry Pozharsky, Alexander Suvorov and Mikhail Kutuzov, inspire you in this war!",
-      source: "Stalin's speech on Red Square, 7 November 1941 (Pravda, 8 November)",
+      "original": "На вас смотрит весь мир как на силу, способную уничтожить грабительские полчища немецких захватчиков. … Под знаменем Ленина – вперед, к победе!",
+      "translation": "The whole world looks upon you as the force capable of destroying the plundering hordes of the German invaders. … [[Under the banner of Lenin, forward to victory!]]",
+      "source": "J. V. Stalin, speech at the parade on Red Square, 7 November 1941 (Pravda, 8 November)"
     },
   },
   {
@@ -2956,40 +3119,47 @@ const HISTORY_EVENTS = [
     office: "Ставка Верховного Главнокомандования",
     officeEn: "Stavka of the Supreme High Command",
     stamp: "Совершенно секретно",
+    slogan: {
+      "original": "Усилить отпор врагу, задержать его, выпустить из него кровь!",
+      "en": "Stiffen the resistance to the enemy, hold him, bleed him white!",
+      "zh": "加强对敌人的抵抗，挡住他，让他流尽鲜血！"
+    },
     to: "Marshal B. M. Shaposhnikov, Chief of the General Staff",
     place: "Moscow, the General Staff",
     date: "1 December 1941",
     title: "The Stavka reserves",
     text: [
-      "New armies have assembled behind the front in secret, the 10th south-east of Moscow and the 20th to the north. The German pincers stand [[some 30 km from the Kremlin]] at Krasnaya Polyana, and before Tula.",
-      "Feed the reserves into the battle now, where the line is breaking, or [[hold them back]] for the blow that is being prepared?",
+      "Comrade Shaposhnikov! Regardless of his enormous losses, the enemy keeps throwing new forces at Moscow. His pincers stand at Krasnaya Polyana, [[some 30 km from the Kremlin]], and before Tula. The heroic defenders of the capital are bleeding the Hitlerite hordes white.",
+      "Behind the front the new armies of the Stavka reserve have assembled in secret, the 10th south-east of Moscow and the 20th to the north. Feed them into the battle now, where the line is breaking, or [[hold them back]] for the blow that will rout the enemy?"
     ],
     quotes: [
       {
-        original:
-          "– Вы уверены, что мы удержим Москву? Я спрашиваю это с болью в душе. Говорите честно, как коммунист.\n– Москву удержим.",
-        translation:
-          "\"Are you sure that we will hold Moscow? I ask this with pain in my heart. Speak honestly, as a Communist.\" \"We will hold Moscow.\"",
-        source: "Stalin and Zhukov on the telephone, November 1941, as Zhukov recalled it in 1966",
+        "original": "Обстановка чрезвычайно напряжена и трудна для нас, но мы можем — и должны — выдержать это напряжение, мы можем — и должны — преодолеть эти трудности.",
+        "translation": "The situation is extremely tense and hard for us, but [[we can, and must, withstand this strain]]; we can, and must, overcome these difficulties.",
+        "source": "Krasnaya Zvezda, editorial «The rout of the enemy must begin at Moscow», 27 November 1941"
       },
+      {
+        "original": "– Вы уверены, что мы удержим Москву? Я спрашиваю это с болью в душе. Говорите честно, как коммунист.\n– Москву удержим.",
+        "translation": "\"Are you sure that we will hold Moscow? I ask this with pain in my heart. Speak honestly, as a Communist.\" \"[[We will hold Moscow.]]\"",
+        "source": "J. V. Stalin and G. K. Zhukov on the telephone, November 1941, as Zhukov recalled it in 1966"
+      }
     ],
     options: [
       {
         id: "commit",
         label: "Commit them now",
-        order: "Throw the new divisions in where the line is breaking.",
+        order: "Throw the new divisions in where the line is breaking: the capital must not fall.",
         effects: ["+2 Russian replacement steps this turn."],
       },
       {
         id: "keep",
         label: "Keep them for the counteroffensive",
-        order: "The front must hold with what it has.",
+        order: "The front must hold with what it has, to the last man.",
         effects: ["+2 Russian replacement steps on turn 8, when the counteroffensive begins."],
       },
     ],
     ai: "keep",
-    history:
-      "The Stavka gave the fronts only what was needed to stop the pincers and [[kept its new armies for the counteroffensive]] of 5 and 6 December.",
+    history: "The Stavka of the Supreme High Command gave the fronts only what was needed to stop the enemy pincers, and [[kept its new armies for the decisive blow]] of 5 and 6 December.",
     historyQuote: {
       original: "Нам важно было выстоять до подхода резервов.",
       translation: "What mattered to us was [[to hold out until the reserves arrived]].",
@@ -3004,26 +3174,36 @@ const HISTORY_EVENTS = [
     office: "Ставка Верховного Главнокомандования",
     officeEn: "Stavka of the Supreme High Command, to the Western Front",
     stamp: "Совершенно секретно",
+    slogan: {
+      "original": "Смерть немецким оккупантам!",
+      "en": "Death to the German occupiers!",
+      "zh": "消灭德国占领者！"
+    },
     to: "The armies of the Kalinin, Western and South-Western Fronts",
     place: "Perkhushkovo, headquarters of the Western Front",
     date: "5 and 6 December 1941",
     title: "The counteroffensive",
     text: [
-      "The German offensive [[has spent itself]]. Guderian's panzers are stuck before Tula and Kashira; in the north the enemy stands at Krasnaya Polyana and on the Moscow-Volga canal, some 25 to 30 km from the Kremlin. The frost has fallen to [[-25 and -35 °C]], and the German divisions, exhausted and short of fuel, dig in where they stopped.",
-      "Behind our front the Stavka reserves have reached their start lines, moving only by night and without fires. At dawn the whole front from Kalinin to Yelets [[goes over to the attack]].",
+      "The second general offensive of the Hitlerite hordes on Moscow [[has spent itself]]. Guderian's panzers are stuck before Tula and Kashira; in the north the enemy stands at Krasnaya Polyana and on the Moscow-Volga canal, 25 to 30 km from the Kremlin. The frost has fallen to [[-25 and -35 °C]], and the German-fascist divisions, exhausted and short of fuel, dig in where they stopped.",
+      "Behind our front the reserves of the Stavka have reached their start lines, moving only by night and without fires. At dawn the whole front from Kalinin to Yelets [[goes over to the counteroffensive]]. Comrades! The hour of reckoning has come: [[the rout of the enemy begins at Moscow]]."
     ],
     quotes: [
       {
-        original: "Наше дело правое. Враг будет разбит. Победа будет за нами.",
-        translation: "Our cause is just. The enemy will be beaten. Victory will be ours.",
-        source: "V. M. Molotov, radio address of 22 June 1941",
+        "original": "Многомиллионный советский народ и его Красная армия закончат войну только полным разгромом врага. Этот разгром врага должен начаться под Москвой.",
+        "translation": "The many-millioned Soviet people and its Red Army will end the war only with the complete rout of the enemy. [[That rout must begin at Moscow.]]",
+        "source": "Krasnaya Zvezda, slogan of the issue of 27 November 1941"
       },
+      {
+        "original": "Наше дело правое. Враг будет разбит. Победа будет за нами.",
+        "translation": "Our cause is just. The enemy will be beaten. [[Victory will be ours.]]",
+        "source": "V. M. Molotov, radio address of 22 June 1941"
+      }
     ],
     options: [
       {
         id: "attack",
         label: "Вперёд! Attack",
-        order: "The counteroffensive begins.",
+        order: "The counteroffensive begins: forward, to the rout of the enemy!",
         morale: [["soviet", 1, "the counteroffensive", "大反攻"]],
         effects: function () {
           const plan = SPECIAL_ARRIVALS[WINTER_START];
@@ -3043,8 +3223,12 @@ const HISTORY_EVENTS = [
       },
     ],
     ai: "attack",
-    history:
-      "The Kalinin Front attacked on 5 December, the Western Front on 6 December. [[Within ten days]] the Red Army retook Yakhroma, Istra, Solnechnogorsk and Klin; Kalinin was freed on 16 December.",
+    history: "The Kalinin Front attacked on 5 December, the Western Front on 6 December. [[Within ten days]] the Red Army freed Yakhroma, Istra, Solnechnogorsk and Klin, and on 16 December the troops of the Kalinin Front captured the city of Kalinin.",
+    historyQuote: {
+      "original": "6 декабря 1941 г. войска нашего Западного фронта, измотав противника в предшествующих боях, перешли в контрнаступление против его ударных фланговых группировок. В результате начатого наступления обе эти группировки разбиты и поспешно отходят, бросая технику, вооружение и неся огромные потери.",
+      "translation": "On 6 December 1941 the troops of our Western Front, having worn the enemy down in the preceding battles, went over to the counteroffensive against his flank strike groups. As a result [[both these groups have been smashed]] and are hastily withdrawing, abandoning their equipment and arms and suffering enormous losses.",
+      "source": "Soviet Information Bureau, «In the last hour», 12 December 1941"
+    },
   },
   {
     id: "haltOrder",
@@ -3113,31 +3297,41 @@ const HISTORY_EVENTS = [
     office: "Советское Информбюро",
     officeEn: "Soviet Information Bureau, Moscow radio",
     stamp: "В эфире",
+    slogan: {
+      "original": "Честь и слава доблестным защитникам Москвы!",
+      "en": "Honour and glory to the valiant defenders of Moscow!",
+      "zh": "光荣归于英勇的莫斯科保卫者！"
+    },
     place: "Moscow radio",
     date: "13 December 1941",
     title: "Attention, this is Moscow speaking!",
     text: [
-      "At the microphone Yuri Levitan reads a special bulletin. For the first time since June the radio announces [[a great German defeat]]: the plan to encircle and take Moscow has failed, the German flank groups are beaten and falling back, leaving their equipment behind, and town after town is freed.",
+      "Attention, this is Moscow speaking! At the microphone Yuri Levitan reads a special bulletin, «In the last hour». For the first time since 22 June the radio announces [[a great defeat of the German-fascist troops]]: the boastful plan to encircle and take Moscow has failed with a crash, the enemy's flank groups are smashed and falling back, abandoning their equipment, and town after town is freed.",
+      "In the factories, in the dugouts and in the partisan forests, [[the whole Soviet people is listening]]."
     ],
     quotes: [
       {
-        original: "Внимание, говорит Москва!\nВ последний час. Провал немецкого плана окружения и взятия Москвы.",
-        translation: "Attention, this is Moscow speaking! In the last hour: the failure of the German plan to encircle and take Moscow.",
-        source: "Bulletin of the Soviet Information Bureau, 13 December 1941",
-      },
+        "original": "В последний час. Провал немецкого плана окружения и взятия Москвы. Поражение немецких войск на подступах Москвы.\n…Теперь уже несомненно, что этот хвастливый план окружения и взятия Москвы провалился с треском.",
+        "translation": "In the last hour. The failure of the German plan to encircle and take Moscow. The defeat of the German troops on the approaches to Moscow. … It is now beyond doubt that this boastful plan to encircle and take Moscow [[has failed with a crash]].",
+        "source": "Bulletin of the Soviet Information Bureau, issued on 12 December and printed on 13 December 1941"
+      }
     ],
     options: [
       {
         id: "press",
         label: "За Родину! Press on",
-        order: "The offensive goes on.",
+        order: "Pursue the enemy relentlessly, give him no respite!",
         effects: ["The whole country hears of the victory."],
         morale: [["soviet", 2, "the bulletin of 13 December", "12 月 13 日的公报"]],
       },
     ],
     ai: "press",
-    history:
-      "The bulletin was read on the radio and printed in the newspapers with the portraits of the generals of the Western Front. It announced [[the first great victory of the Red Army]] in the war.",
+    history: "The bulletin was printed in all the newspapers with the portraits of the commanders of the Western Front. It announced [[the first great victory of the Red Army]] in the Patriotic War.",
+    historyQuote: {
+      "original": "Немецкий план окружения и взятия Москвы провалился с треском. Немецкие войска понесли поражение на подступах к Москве. Не было еще за все время Отечественной войны вести, радостней для нас, не было вести и значительней.",
+      "translation": "The German plan to encircle and take Moscow has failed with a crash. The German troops have suffered defeat on the approaches to Moscow. [[In the whole course of the Patriotic War there has been no news more joyful for us]], and none more significant.",
+      "source": "Krasnaya Zvezda, editorial «Our victory in the battles for Moscow», 13 December 1941"
+    },
   },
 ];
 function textOf(value) {
@@ -3405,16 +3599,26 @@ const DISPATCH_ZH = {
     to: "NKVD 特别组组长 P. A. 苏多普拉托夫",
     place: "莫斯科，卢比扬卡",
     date: "1941 年 10 月 17 日",
-    title: "NKVD 特种旅",
+    title: "内务人民委员部特种旅",
     text: [
-      "NKVD 独立特种摩托化步兵旅（OMSBON）今年夏天在迪纳摩体育场组建，成员是运动员、契卡人员和外国共产党员，受训的任务是[[在敌人后方作战]]。",
-      "现在莫斯科前方的战线正在崩溃，首都已经宣布[[戒严]]。是把这个旅的精兵投入防线，还是把它的分队空投到中央集团军群背后的森林里？",
+      "苏多普拉托夫同志！德国法西斯匪帮正向我们的红色首都扑来。10 月 14 日夜至 15 日，敌人以大批坦克和摩托化步兵攻击我军部队，在西方向[[突破了我军防线]]。我军正给敌人以英勇抵抗，但在一个地段被迫后撤。",
+      "内务人民委员部独立特种摩托化步兵旅（OMSBON）由运动员、契卡工作人员和各兄弟党的共产党员组成，今年夏天在迪纳摩体育场组建，受训的任务是[[在敌人后方作战]]。斯大林同志号召在敌占区到处燃起游击战争。但莫斯科前方的战线需要每一把刺刀。",
+      "是把这个旅的精兵投入防线，还是把它的分队[[空投到敌人后方的森林里]]？"
     ],
-    quotes: [{ translation: "自 1941 年 10 月 20 日起，在莫斯科市及其毗邻地区[[实行戒严]]。", source: "国防委员会决定，1941 年 10 月 19 日" }],
+    quotes: [
+      {
+        "translation": "莫斯科面临着威胁。但我们将为莫斯科顽强地、殊死地战斗，[[直到流尽最后一滴血]]。",
+        "source": "A. S. 谢尔巴科夫（联共（布）莫斯科委员会书记）对莫斯科劳动人民的广播讲话，1941 年 10 月 17 日"
+      },
+      {
+        "translation": "在敌人占领的地区，必须组织骑兵和步兵游击队，组织破坏小组去同敌军部队作斗争，[[到处燃起游击战争]]……",
+        "source": "И. В. 斯大林，1941 年 7 月 3 日广播演说"
+      }
+    ],
     options: {
       infantry: {
         label: "作为步兵投入防线",
-        order: "用这个旅的精兵加强一个残破的集团军。",
+        order: "每一个契卡战士都上防线：红色首都必须守住。",
         effects: function () {
           const candidates = nkvdCandidates();
           return [
@@ -3425,7 +3629,7 @@ const DISPATCH_ZH = {
       },
       drop: {
         label: "空投到德军后方",
-        order: "把各分队作为游击队伞降到森林里。",
+        order: "把各分队伞降到森林里：让敌人处处陷入不堪忍受的境地。",
         effects: function () {
           return [
             "立即在德军后方的森林格里组建 [[2 支力量为 2 的游击队]]（由你放置），从你的下一回合起行动。",
@@ -3435,23 +3639,32 @@ const DISPATCH_ZH = {
         },
       },
     },
-    history: "两样都做了。1941 年 10 月至 11 月，这个旅为炸毁莫斯科的要害目标做好了准备，并防守城市防线的一些地段，同时[[派出分队深入德军后方]]。",
-    historyQuote: { translation: "……把内务人民委员部内卫部队、民警和工人志愿队交由（莫斯科卫戍司令）指挥。", source: "国防委员会决定，1941 年 10 月 19 日，第 3 条" },
+    history: "两样都做了。1941 年 10 月至 11 月，旅的战士们在首都的要害目标埋设炸药，防守城市防线的一些地段，同时[[派出分队深入敌后]]开展游击战争。",
+    historyQuote: {
+      "translation": "国防委员会号召首都全体劳动人民遵守秩序、保持镇静，[[全力协助]]保卫莫斯科的红军。",
+      "source": "国防委员会关于莫斯科戒严的决定，1941 年 10 月 19 日，国防委员会主席 И. 斯大林签署"
+    },
   },
   parade: {
     officeEn: "国防委员会",
     to: "国防委员会全体委员",
     place: "莫斯科，克里姆林宫",
-    date: "1941 年 11 月初",
-    title: "在红场阅兵？",
+    date: "1941 年 11 月 6 日",
+    title: "十月革命 24 周年：在红场阅兵？",
     text: [
-      "11 月 7 日是十月革命纪念日。斯大林希望照常在红场举行阅兵，而前线离这里[[不到 100 公里]]：部队将走过列宁墓，[[直接开赴前线]]。",
-      "德国空军几分钟就能飞到莫斯科上空，只有低云和大雪能让它们飞不起来。",
+      "11 月 7 日，苏联各族人民庆祝[[伟大十月社会主义革命 24 周年]]。斯大林同志提议照常在红场举行阅兵，而前线离这里[[不到 100 公里]]：部队将走过列宁墓，[[直接开赴前线]]。",
+      "今晚，莫斯科苏维埃庆祝大会在地下深处的马雅可夫斯基地铁站举行。法西斯飞机几分钟就能飞到莫斯科上空，只有低云和大雪能让它们飞不起来。"
+    ],
+    quotes: [
+      {
+        "translation": "德国侵略者想要对苏联各族人民进行歼灭战。好吧，如果德国人想要进行歼灭战，他们就会得到歼灭战……[[决不饶恕德国占领者！消灭德国占领者！]]",
+        "source": "И. В. 斯大林在莫斯科苏维埃庆祝大会上的报告，1941 年 11 月 6 日（《真理报》11 月 7 日）"
+      }
     ],
     options: {
       hold: {
         label: "举行阅兵",
-        order: "部队从红场直接开赴前线。",
+        order: "在列宁的旗帜下，从红场直接开赴前线。",
         effects: function () {
           const moscow = grid.get({ x: 10, y: 2 }),
             near = unitsOf("soviet").filter(function (unit) {
@@ -3466,10 +3679,10 @@ const DISPATCH_ZH = {
       },
       cancel: { label: "取消阅兵", order: "不拿卫戍部队冒险。", effects: ["没有效果。"] },
     },
-    history: "11 月 7 日的阅兵在[[暴风雪]]中照常举行，德国空军没能起飞。部队走过列宁墓，直接开往前线；阅兵的新闻纪录片传遍了全国。",
+    history: "11 月 7 日的阅兵在[[暴风雪]]中照常举行，法西斯飞机没能起飞。部队走过列宁墓，直接开赴前线；阅兵的新闻纪录片在全国放映，告诉苏联人民：[[莫斯科屹立不倒]]。",
     historyQuote: {
-      translation: "让我们伟大祖先——亚历山大·涅夫斯基、德米特里·顿斯科伊、库兹马·米宁、德米特里·波扎尔斯基、亚历山大·苏沃洛夫、米哈伊尔·库图佐夫——的英勇形象，在这场战争中[[鼓舞你们]]！",
-      source: "斯大林在红场的讲话，1941 年 11 月 7 日（《真理报》11 月 8 日）",
+      "translation": "全世界都把你们看作能够消灭德国侵略者强盗匪帮的力量。……[[在列宁的旗帜下，前进，夺取胜利！]]",
+      "source": "И. В. 斯大林在红场阅兵式上的讲话，1941 年 11 月 7 日（《真理报》11 月 8 日）"
     },
   },
   trains: {
@@ -3519,20 +3732,24 @@ const DISPATCH_ZH = {
     date: "1941 年 12 月 1 日",
     title: "大本营预备队",
     text: [
-      "新的集团军已经秘密集结在前线后方：第 10 集团军在莫斯科东南，第 20 集团军在北面。德军的钳形攻势已推进到克拉斯纳亚波利亚纳，[[离克里姆林宫只有约 30 公里]]，南面已到图拉城下。",
-      "是现在就把预备队投入战线崩溃的地方，还是[[留着]]准备那场正在酝酿的反击？",
+      "沙波什尼科夫同志！敌人不顾惨重损失，继续向莫斯科投入新的兵力。它的钳形攻势已推进到克拉斯纳亚波利亚纳，[[离克里姆林宫只有约 30 公里]]，南面已到图拉城下。首都的英勇保卫者们正在让希特勒匪帮流尽鲜血。",
+      "在前线后方，大本营预备队的新集团军已经秘密集结：第 10 集团军在莫斯科东南，第 20 集团军在北面。是现在就把它们投入战线崩溃的地方，还是[[留着]]给敌人以歼灭性的打击？"
     ],
     quotes: [
       {
-        translation: "“您有把握守住莫斯科吗？我是怀着痛苦的心情问您的。请您像一个共产党员那样诚实地回答。”“[[莫斯科我们守得住。]]”",
-        source: "1941 年 11 月斯大林与朱可夫的电话，据朱可夫 1966 年的回忆",
+        "translation": "形势对我们来说极其紧张、极其困难，但是我们能够而且必须[[经受住这种紧张]]，我们能够而且必须克服这些困难。",
+        "source": "《红星报》社论《对敌人的粉碎必须从莫斯科城下开始》，1941 年 11 月 27 日"
       },
+      {
+        "translation": "“您有把握守住莫斯科吗？我是怀着痛苦的心情问您的。请您像一个共产党员那样诚实地回答。”“[[莫斯科我们守得住。]]”",
+        "source": "1941 年 11 月 И. В. 斯大林与 G. K. 朱可夫的电话，据朱可夫 1966 年的回忆"
+      }
     ],
     options: {
-      commit: { label: "现在投入", order: "把新组建的师投到战线崩溃的地方。", effects: ["本回合苏军 [[+2 个补充兵步数]]。"] },
-      keep: { label: "留给反攻", order: "前线必须用现有的兵力顶住。", effects: ["第 8 回合反攻开始时，苏军 [[+2 个补充兵步数]]。"] },
+      commit: { label: "现在投入", order: "把新组建的师投到战线崩溃的地方：首都决不能丢。", effects: ["本回合苏军 [[+2 个补充兵步数]]。"] },
+      keep: { label: "留给反攻", order: "前线必须用现有的兵力坚持到最后一人。", effects: ["第 8 回合反攻开始时，苏军 [[+2 个补充兵步数]]。"] },
     },
-    history: "大本营只给各方面军补充了挡住钳形攻势所必需的兵力，把新组建的集团军[[留到了 12 月 5 日和 6 日的反攻]]。",
+    history: "最高统帅部大本营只给各方面军补充了挡住敌人钳形攻势所必需的兵力，把新组建的集团军[[留给了 12 月 5 日和 6 日的决定性打击]]。",
     historyQuote: { translation: "对我们来说，重要的是[[坚持到预备队赶到]]。", source: "G. K. 朱可夫，1966 年" },
   },
   counteroffensive: {
@@ -3542,14 +3759,23 @@ const DISPATCH_ZH = {
     date: "1941 年 12 月 5 日和 6 日",
     title: "反攻",
     text: [
-      "德军的攻势[[已经耗尽]]。古德里安的坦克被挡在图拉和卡希拉城下；北面的敌人停在克拉斯纳亚波利亚纳和莫斯科—伏尔加运河一线，离克里姆林宫 25 到 30 公里。气温已降到[[零下 25 到 35 度]]，筋疲力尽、缺少燃料的德军各师就地挖壕。",
-      "在我们的战线后方，大本营预备队已经进入出发阵地，只在夜间行军，不生火。拂晓时分，从加里宁到叶列茨的整条战线[[转入进攻]]。",
+      "希特勒匪帮对莫斯科的第二次总攻[[已经耗尽]]。古德里安的坦克被挡在图拉和卡希拉城下；北面的敌人停在克拉斯纳亚波利亚纳和莫斯科—伏尔加运河一线，离克里姆林宫 25 到 30 公里。气温已降到[[零下 25 到 35 度]]，筋疲力尽、缺少燃料的德国法西斯各师就地挖壕。",
+      "在我们的战线后方，大本营预备队已经进入出发阵地，只在夜间行军，不生火。拂晓时分，从加里宁到叶列茨的整条战线[[转入反攻]]。同志们！清算的时刻到了：[[对敌人的粉碎就从莫斯科城下开始]]。"
     ],
-    quotes: [{ translation: "我们的事业是正义的。敌人必将被粉碎。[[胜利必将属于我们。]]", source: "V. M. 莫洛托夫，1941 年 6 月 22 日广播讲话" }],
+    quotes: [
+      {
+        "translation": "千百万苏联人民和他们的红军只有彻底粉碎敌人，才会结束这场战争。[[对敌人的粉碎必须从莫斯科城下开始。]]",
+        "source": "《红星报》，1941 年 11 月 27 日当期标语"
+      },
+      {
+        "translation": "我们的事业是正义的。敌人必将被粉碎。[[胜利必将属于我们。]]",
+        "source": "V. M. 莫洛托夫，1941 年 6 月 22 日广播讲话"
+      }
+    ],
     options: {
       attack: {
         label: "Вперёд！进攻",
-        order: "反攻开始。",
+        order: "反攻开始：前进，粉碎敌人！",
         effects: function () {
           const plan = SPECIAL_ARRIVALS[WINTER_START];
           return [
@@ -3561,7 +3787,11 @@ const DISPATCH_ZH = {
         },
       },
     },
-    history: "加里宁方面军 12 月 5 日发起进攻，西方面军 12 月 6 日跟进。[[十天之内]]，红军收复了亚赫罗马、伊斯特拉、索尔涅奇诺戈尔斯克和克林；12 月 16 日加里宁解放。",
+    history: "加里宁方面军 12 月 5 日发起进攻，西方面军 12 月 6 日跟进。[[十天之内]]，红军解放了亚赫罗马、伊斯特拉、索尔涅奇诺戈尔斯克和克林；12 月 16 日，加里宁方面军部队攻克加里宁城。",
+    historyQuote: {
+      "translation": "1941 年 12 月 6 日，我西方面军部队在此前的战斗中消耗了敌人之后，向敌人的两翼突击集团转入反攻。反攻的结果，[[这两个集团都被击溃]]，正丢下技术装备和武器仓皇后撤，伤亡惨重。",
+      "source": "苏联情报局《最后一小时》公报，1941 年 12 月 12 日"
+    },
   },
   haltOrder: {
     officeEn: "陆军总司令部，致中央集团军群电传",
@@ -3611,11 +3841,21 @@ const DISPATCH_ZH = {
     date: "1941 年 12 月 13 日",
     title: "注意，这里是莫斯科！",
     text: [
-      "列维坦在话筒前宣读一份特别公报。自 6 月以来，电台第一次宣布德军遭到[[一场大败]]：包围和夺取莫斯科的计划已经破产，德军的两翼集团被击溃，丢下装备后撤，城镇一个接一个获得解放。",
+      "注意，这里是莫斯科！列维坦在话筒前宣读一份特别公报《最后一小时》。自 6 月 22 日以来，电台第一次宣布[[德国法西斯军队遭到大败]]：敌人包围和夺取莫斯科的狂妄计划已经彻底破产，它的两翼集团被击溃，丢下装备后撤，城镇一个接一个获得解放。",
+      "在工厂里，在掩蔽部里，在游击队的森林里，[[全体苏联人民都在收听]]。"
     ],
-    quotes: [{ translation: "注意，这里是莫斯科！最新消息：[[德军包围和夺取莫斯科的计划破产。]]", source: "苏联情报局公报，1941 年 12 月 13 日" }],
-    options: { press: { label: "За Родину！继续进攻", order: "攻势继续。", effects: ["全国都听到了胜利的消息。"] } },
-    history: "这份公报在电台播出，并配上西方面军将领们的照片刊登在各家报纸上。它宣告了红军在这场战争中的[[第一次大胜利]]。",
+    quotes: [
+      {
+        "translation": "最后一小时。德军包围和夺取莫斯科的计划破产。德军在莫斯科近郊遭到失败。……现在已经毫无疑问，这个狂妄的包围和夺取莫斯科的计划[[已经彻底破产]]。",
+        "source": "苏联情报局公报，1941 年 12 月 12 日发布，13 日见报"
+      }
+    ],
+    options: { press: { label: "За Родину！继续进攻", order: "不停地追击敌人，不给他喘息之机！", effects: ["全国都听到了胜利的消息。"] } },
+    history: "这份公报配上西方面军将领们的照片，刊登在各家报纸上。它宣告了红军在卫国战争中的[[第一次伟大胜利]]。",
+    historyQuote: {
+      "translation": "德军包围和夺取莫斯科的计划彻底破产了。德军在莫斯科近郊遭到了失败。[[在整个卫国战争中，还没有比这更令我们欢欣的消息]]，也没有比这更重大的消息。",
+      "source": "《红星报》社论《我们在莫斯科城下战斗中的胜利》，1941 年 12 月 13 日"
+    },
   },
 };
 for (const event of HISTORY_EVENTS) event.zh = DISPATCH_ZH[event.id];
@@ -3727,6 +3967,8 @@ function cleanAndSaveBeforeNewPhase(e) {
     (b4mSave.cityStocks = JSON.parse(JSON.stringify(cityStocks))),
     (b4mSave.partisanGuides = partisanGuides.slice()),
     (b4mSave.partisanTowns = partisanTowns.slice()),
+    (b4mSave.stayBehindPending = stayBehindPending.slice()),
+    (b4mSave.stayBehindDone = stayBehindDone.slice()),
     (b4mSave.morale = { soviet: morale.soviet, german: morale.german }),
     (b4mSave.moraleLog = moraleLog.slice()),
     (b4mSave.moraleLosses = Object.assign({}, moraleLosses)),
@@ -4227,6 +4469,10 @@ function setTurnInfo() {
   (w && (w.innerText = L(WEATHER[currentTurn.turn], WEATHER_ZH[currentTurn.turn]) || ""), drawSeason(), refreshMoraleBar());
 }
 function turn1GermanSetupPhase() {
+  // the detachments fighting behind the German lines since the summer
+  partisans = INITIAL_PARTISANS.map(function (b) {
+    return { x: b.x, y: b.y, strength: b.strength, acted: !1 };
+  });
   ((currentTurn = { turn: 1, army: "german", phase: "setup", subphase: "" }),
     (document.getElementById("turn_info").style.display = "block"),
     (document.getElementById("layer_toolbar").style.display = "block"),
@@ -4235,7 +4481,8 @@ function turn1GermanSetupPhase() {
       "german" !== playAIAs
         ? "Set up one full-strength German unit on each hex containing a black cross."
         : "The German army sets up one full-strength unit on each hex containing a black cross."),
-    (document.getElementById("step_0").style.display = "block"));
+    (document.getElementById("step_0").style.display = "block"),
+    drawPartisans());
   let e = document.getElementById("canvas_step_0"),
     t = b4mUnits.filter(function (e) {
       return "german" === e.army;
@@ -5792,6 +6039,7 @@ function reinforcementPhase(e) {
   partisanGuides = partisanGuides.filter(function (e) {
     return e.turn === currentTurn.turn;
   });
+  raiseStayBehind();
   let units = b4mUnits.filter(function (e) {
       return (plan.units || []).indexOf(e.id) > -1 && !e.position;
     }),
@@ -6391,7 +6639,7 @@ function replacementPhase(e) {
         }
         return i - n || e.y - t.y;
       }));
-  // a step can also rest a full-strength unit in communication: it loses one fatigue level
+  // a step can also rest a full-strength unit in communication: it loses all its fatigue
   const restable = function (e) {
     return (
       e.army === currentTurn.army &&
@@ -6407,7 +6655,7 @@ function replacementPhase(e) {
     (document.getElementById("step_replacement_tip").innerText +=
       (0 === o.length
         ? " No unit of yours is off the map to be rebuilt now, so a step can only restore a half-strength unit in communication or rest a tired full-strength one."
-        : "") + " A step spent on a full-strength unit in communication (orange) takes one fatigue level off it.");
+        : "") + " A step spent on a full-strength unit in communication (orange) clears all its fatigue.");
   let r = b4mUnits.filter(function (e) {
     return (
       !(
@@ -6474,7 +6722,7 @@ function replacementPhase(e) {
           } else {
             const e = b4mUnits[b4mUnitsIndex(l)];
             if (e && restable(e)) {
-              ((e.fatigue = Math.max(0, e.fatigue - FATIGUE.perLevel)), clearHex(hexHighlights, a));
+              ((e.fatigue = 0), clearHex(hexHighlights, a));
               const i = a.center().add(a.toPoint());
               (countersHighlights.drawImage(document.getElementById("check_counter"), i.x - 40, i.y - 40, 80, 80),
                 scheduleStatusRefresh(),
@@ -7056,6 +7304,8 @@ function continueFromSave() {
   ((railCuts = (b4mSave.railCuts || []).slice()), (partisanGuides = (b4mSave.partisanGuides || []).slice()));
   b4mSave.cityStocks && (cityStocks = JSON.parse(JSON.stringify(b4mSave.cityStocks)));
   partisanTowns = (b4mSave.partisanTowns || []).slice();
+  stayBehindPending = (b4mSave.stayBehindPending || []).slice();
+  stayBehindDone = (b4mSave.stayBehindDone || []).slice();
   morale = b4mSave.morale ? { soviet: b4mSave.morale.soviet, german: b4mSave.morale.german } : { soviet: 4, german: 8 };
   moraleLog = (b4mSave.moraleLog || []).slice();
   moraleLosses = Object.assign({}, b4mSave.moraleLosses || {});
@@ -7492,7 +7742,7 @@ const ZH_PHRASES = [
   ["You have finished assigning your replacements.", "你已经分配完补充兵。"],
   ["The enemy has finished assigning replacements.", "敌方已经分配完补充兵。"],
   [" No unit of yours is off the map to be rebuilt now, so a step can only restore a half-strength unit in communication or rest a tired full-strength one.", "现在你没有被消灭、可以重建的部队，所以补充兵步数只能补满有补给的半血部队，或者让疲劳的满编部队休整。"],
-  [" A step spent on a full-strength unit in communication (orange) takes one fatigue level off it.", "一个步数用在有补给的满编部队上（橙色），可以让它的疲劳降一级。"],
+  [" A step spent on a full-strength unit in communication (orange) clears all its fatigue.", "一个步数用在有补给的满编部队上（橙色），可以清除它的全部疲劳。"],
   ["All units that begin this phase on a rail line may move along it.", "本阶段开始时位于铁路上的所有部队可以沿铁路移动。"],
   ["All armor/panzer units may move.", "所有装甲部队可以移动。"],
   [" Select the ones you choose to move and their destination.", "选择你要移动的部队和它们的目的地。"],
