@@ -2,7 +2,7 @@
 // Handles offline caching and resource serving
 
 // Cache version - increment this to force cache refresh
-const CACHE_VERSION = 'b4m-v1.9.7';
+const CACHE_VERSION = 'b4m-v1.10.0';
 const CACHE_NAME = `battle-for-moscow-${CACHE_VERSION}`;
 
 // All resources to precache for offline functionality
@@ -57,10 +57,27 @@ const PRECACHE_URLS = [
   'img/soviets.png',
   'img/soviets_cavalry.png',
   'img/partisans_borovsk_1941.jpg',
+  // the photographs of the splash screen (1941)
+  'img/splash_kremlin_1941.jpg',
+  'img/splash_moskva_hotel_1941.jpg',
+  'img/splash_kiev_tachanka_1941.jpg',
+  'img/splash_kiev_mortar_1941.jpg',
+  'img/splash_yelnya_1941.jpg',
+  'img/splash_yelnya_women_1941.jpg',
+  'img/splash_moats_1941.jpg',
+  'img/splash_digging_1941.jpg',
   'img/unit_type_symbols.png',
   'img/zoc.png',
-  'img/map.png',
-  'img/terrain.png',
+  // the map in three sets of art, each with its winter, and the terrain chart of each
+  'img/map_soviet_autumn.webp',
+  'img/map_soviet_winter.webp',
+  'img/map_german_autumn.webp',
+  'img/map_german_winter.webp',
+  'img/map_painted_autumn.webp',
+  'img/map_painted_winter.webp',
+  'img/terrain_soviet.png',
+  'img/terrain_german.png',
+  'img/terrain_painted.png',
   'img/crt.png',
   'img/thumbnail.png',
 
@@ -157,6 +174,11 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   // Skip non-GET requests
   if (event.request.method !== 'GET') {
+    return;
+  }
+
+  // The pieces of film on the title screen are fetched by the browser in byte ranges: leave them to it
+  if (event.request.headers.has('range') || new URL(event.request.url).pathname.includes('/video/')) {
     return;
   }
 

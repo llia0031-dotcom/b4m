@@ -2943,6 +2943,64 @@ const WEATHER = {
   8: "Severe frost and deep snow, -25 to -35 °C",
   9: "Deep snow, around -20 °C",
 };
+// ---------------------------------------------------------------- The map: three sets of art, each with a winter
+// The same hexes drawn three ways, from the game's own hex data (the rules are the same on all of them):
+//  soviet  - after the topographic maps of the Red Army General Staff, 1937-1941: layer tints and brown
+//            contours, the mixed-wood signs, the black-and-white railway, the Soviet lines in red
+//  german  - after the Deutsche Heereskarte, Osteuropa 1:300 000, of the Generalstab des Heeres: the German
+//            spellings (Wjasma, Moshaisk, Moskau), the Soviet positions in red as the enemy
+//  painted - the country as a reconnaissance aircraft saw it
+// Against the computer the map is the staff map of the side you play; two players at one screen get the painted
+// one. The choice in the Layers bar overrides it. From turn 6, when the snow lies, the winter map comes in.
+const MAP_ART_STYLES = ["soviet", "german", "painted"],
+  MAP_SNOW_FROM = 6;
+let mapArtChoice = "auto";
+try {
+  mapArtChoice = window.localStorage.getItem("b4mMapArt") || "auto";
+} catch (e) {}
+function mapArtStyle() {
+  if (MAP_ART_STYLES.indexOf(mapArtChoice) > -1) return mapArtChoice;
+  return "soviet" === playAIAs ? "german" : "german" === playAIAs ? "soviet" : "painted";
+}
+function mapArtSeason() {
+  return currentTurn && currentTurn.turn >= MAP_SNOW_FROM ? "winter" : "autumn";
+}
+function applyMapArt() {
+  const map = document.getElementById("map");
+  if (!map) return;
+  const style = mapArtStyle(),
+    src = "img/map_" + style + "_" + mapArtSeason() + ".webp",
+    chart = "img/terrain_" + style + ".png";
+  map.getAttribute("src") !== src && map.setAttribute("src", src);
+  for (const e of document.querySelectorAll(".terrain_chart")) e.getAttribute("src") !== chart && e.setAttribute("src", chart);
+  const select = document.getElementById("layer_map");
+  select && (select.value = mapArtChoice);
+  drawBoardCharts();
+}
+// the terrain chart and the combat results table, printed on the board to the right of the map
+function drawBoardCharts() {
+  if ("undefined" == typeof board || !board) return;
+  const terrain = document.getElementById("help_terrain_img"),
+    crt = document.getElementById("help_crt_img");
+  if (!terrain.complete || !terrain.naturalWidth) return void terrain.addEventListener("load", drawBoardCharts, { once: !0 });
+  board.clearRect(1285, 525, 703, 610);
+  board.drawImage(terrain, 1290, 530, 693, 600);
+  crt.complete && crt.naturalWidth
+    ? (board.clearRect(1995, 525, 390, 615), board.drawImage(crt, 0, 0, 600, 480, 2e3, 530, 381, 305), board.drawImage(crt, 601, 0, 534, 480, 2e3, 830, 339, 305))
+    : crt.addEventListener("load", drawBoardCharts, { once: !0 });
+}
+window.addEventListener("load", function () {
+  const select = document.getElementById("layer_map");
+  select &&
+    ((select.value = mapArtChoice),
+    select.addEventListener("change", function () {
+      mapArtChoice = select.value;
+      try {
+        window.localStorage.setItem("b4mMapArt", mapArtChoice);
+      } catch (e) {}
+      applyMapArt();
+    }));
+});
 // The map turns muddy on the mud turns
 function drawSeason() {
   const canvas = document.getElementById("season_overlay");
@@ -4602,7 +4660,7 @@ function setTurnInfo() {
   }
   document.getElementById("turn_info_title").innerText = L(e, turnTitleZh(currentTurn.turn));
   const w = document.getElementById("turn_info_weather");
-  (w && (w.innerText = L(WEATHER[currentTurn.turn], WEATHER_ZH[currentTurn.turn]) || ""), drawSeason(), refreshAirInfo());
+  (w && (w.innerText = L(WEATHER[currentTurn.turn], WEATHER_ZH[currentTurn.turn]) || ""), drawSeason(), applyMapArt(), refreshAirInfo());
 }
 function turn1GermanSetupPhase() {
   // the detachments fighting behind the German lines since the summer
@@ -7680,23 +7738,216 @@ function startGame() {
     (document.getElementById("status_markers").height = document.getElementById("map").height),
     (countersHighlights = canvasCountersHighlights.getContext("2d")),
     true)
-  ) {
-    const e = document.getElementById("help_terrain_img");
-    board.drawImage(e, 1290, 530, 693, 600);
-  }
-  if (true) {
-    const e = document.getElementById("help_crt_img");
-    (board.drawImage(e, 0, 0, 600, 480, 2e3, 530, 381, 305),
-      board.drawImage(e, 601, 0, 534, 480, 2e3, 830, 339, 305));
-  }
+  )
+    applyMapArt();
   ((arrows = document.getElementById("arrows_counter")),
     (document.getElementById("help_menu").style.display = "block"),
     b4mSave
       ? continueFromSave()
       : (drawPositionedUnits(), turn1GermanSetupPhase(board, hexHighlights, countersHighlights)));
 }
+// ---------------------------------------------------------------- Title screen: the autumn of 1941
+// Four steps before the battle, each told with the words of the time in the original language (a Sovinformburo
+// communiqué, Hitler's order of the day) and in A. M. Samsonov's history «Крах фашистской агрессии 1939–1945»
+// (Наука, 1980), with a translation and the source under each. Behind the panel: photographs of 1941 and two
+// pieces of the 1942 film «Разгром немецких войск под Москвой» (the defence lines; searchlights and guns over Moscow).
+const SAMSONOV_EN = "A. M. Samsonov, «Крах фашистской агрессии 1939–1945» (The Collapse of Fascist Aggression), Moscow: Nauka, 1980, ch. ",
+  SAMSONOV_ZH = "А. М. 萨姆索诺夫《法西斯侵略的破产（1939—1945）》，莫斯科：科学出版社，1980 年，第 ",
+  SPLASH_CHRONICLE = [
+    {
+      head: ["I · Kiev · September 1941", "一 · 基辅合围 · 1941 年 9 月"],
+      scenes: [{ img: "img/splash_kiev_tachanka_1941.jpg", dur: 8 }, { img: "img/splash_kiev_mortar_1941.jpg", dur: 8 }],
+      quotes: [
+        {
+          orig: "«После многодневных, ожесточенных боев наши войска оставили Киев.»",
+          en: "After many days of fierce fighting our troops have abandoned Kiev.",
+          zh: "经过多日激烈战斗，我军撤出了基辅。",
+          src: ["Sovinformburo, evening communiqué of 21 September 1941", "苏联情报局晚间公报，1941 年 9 月 21 日"],
+        },
+        {
+          orig: "«А когда ей в поддержку были повернуты 2-я полевая армия и 2-я танковая группа, то это более чем на месяц задержало наступление немецко-фашистских войск на Москву.»",
+          en: "And when the 2nd Army and the 2nd Panzer Group were turned south to support it, this held up the German-fascist offensive on Moscow for more than a month.",
+          zh: "而当第 2 野战集团军和第 2 坦克集群被调去支援它（南方集团军群）时，德国法西斯军队对莫斯科的进攻因此推迟了一个多月。",
+          src: [SAMSONOV_EN + "4", SAMSONOV_ZH + "4 章"],
+        },
+      ],
+    },
+    {
+      head: ["II · Yelnya · September 1941", "二 · 耶利尼亚反击 · 1941 年 9 月"],
+      scenes: [{ img: "img/splash_yelnya_1941.jpg", dur: 8 }, { img: "img/splash_yelnya_women_1941.jpg", dur: 8 }],
+      quotes: [
+        {
+          orig: "«Остатки дивизий противника поспешно отходят в западном направлении. Наши войска заняли город Ельня.»",
+          en: "The remnants of the enemy divisions are hastily withdrawing to the west. Our troops have taken the town of Yelnya.",
+          zh: "敌各师残部正仓皇向西撤退。我军占领了耶利尼亚城。",
+          src: ["Sovinformburo, evening communiqué of 8 September 1941", "苏联情报局晚间公报，1941 年 9 月 8 日"],
+        },
+        {
+          orig: "«В пламени борьбы родились первые гвардейские соединения Красной Армии.»",
+          en: "In the flame of battle the first Guards formations of the Red Army were born.",
+          zh: "在战斗的烈火中，红军第一批近卫兵团诞生了。",
+          src: [SAMSONOV_EN + "4", SAMSONOV_ZH + "4 章"],
+        },
+      ],
+    },
+    {
+      head: ["III · The defence lines · July–November 1941", "三 · 修筑防线 · 1941 年 7—11 月"],
+      scenes: [{ video: "video/splash_lines_1941.webm", dur: 21 }, { img: "img/splash_moats_1941.jpg", dur: 8 }, { img: "img/splash_digging_1941.jpg", dur: 8 }],
+      quotes: [
+        {
+          orig: "«…на строительстве ржевско-вяземской линии обороны ежедневно работало 300 — 400 тыс. человек. <…> За два месяца здесь было отрыто 2250 км противотанковых рвов и эскарпов…»",
+          en: "…300 to 400 thousand people worked every day on building the Rzhev–Vyazma defence line. <…> In two months 2,250 km of anti-tank ditches and escarpments were dug here…",
+          zh: "……每天有 30 万至 40 万人在修筑勒热夫—维亚济马防线。〈……〉两个月里，这里挖出了 2250 公里反坦克壕和削壁……",
+          src: [SAMSONOV_EN + "7", SAMSONOV_ZH + "7 章"],
+        },
+        {
+          orig: "«Трудящиеся Москвы проделали поистине гигантскую работу. Достаточно сказать, что объем выполненных земляных работ был в два раза больше, чем при строительстве Днепрогэса.»",
+          en: "The working people of Moscow did truly gigantic work. Suffice it to say that the volume of earth they moved was twice that of the building of the Dnieper hydroelectric station.",
+          zh: "莫斯科的劳动者完成了真正巨大的工作。只需指出一点：完成的土方量是修建第聂伯河水电站时的两倍。",
+          src: [
+            "Col.-Gen. P. A. Artemyev, commander of the Moscow Military District, in «Битва за Москву» (The Battle for Moscow), Moscow, 1966",
+            "П. А. 阿尔捷米耶夫上将（时任莫斯科军区司令），文集《莫斯科会战》，莫斯科工人出版社，1966 年",
+          ],
+        },
+      ],
+    },
+    {
+      head: ["IV · Typhoon · 2 October 1941", "四 · “台风”来临 · 1941 年 10 月 2 日"],
+      scenes: [{ video: "video/splash_pvo_1941.webm", dur: 20 }, { img: "img/splash_kremlin_1941.jpg", dur: 8 }, { img: "img/splash_moskva_hotel_1941.jpg", dur: 8 }],
+      quotes: [
+        {
+          orig: "„Heute ist nun der Beginn der letzten großen Entscheidungsschlacht dieses Jahres.“",
+          en: "Today, then, is the beginning of the last great decisive battle of this year.",
+          zh: "今天，今年最后一场伟大的决战就此开始。",
+          src: ["Hitler, order of the day to the soldiers of the Eastern Front, 2 October 1941", "希特勒《告东线士兵书》，1941 年 10 月 2 日"],
+        },
+        {
+          orig: "«Главные силы группы армий «Центр» перешли в наступление 2 октября, действуя против Западного и Резервного фронтов. Запланированное врагом наступление на Москву началось.»",
+          en: "The main forces of Army Group Centre went over to the offensive on 2 October, against the Western and Reserve Fronts. The offensive on Moscow that the enemy had planned had begun.",
+          zh: "10 月 2 日，中央集团军群主力转入进攻，矛头指向西方面军和预备队方面军。敌人计划好的对莫斯科的进攻开始了。",
+          src: [SAMSONOV_EN + "7", SAMSONOV_ZH + "7 章"],
+        },
+      ],
+    },
+  ];
+let splashChapter = 0,
+  splashSceneIndex = 0,
+  splashSceneTimer = null,
+  splashScenes = [];
+function splashText(s) {
+  return String(s).replace(/[&<>]/g, function (m) {
+    return { "&": "&amp;", "<": "&lt;", ">": "&gt;" }[m];
+  });
+}
+function renderSplashChronicle() {
+  const box = document.getElementById("splash_chronicle");
+  if (!box) return;
+  const ch = SPLASH_CHRONICLE[splashChapter];
+  let html = '<div class="chron_head">' + splashText(L(ch.head[0], ch.head[1])) + "</div>";
+  for (const q of ch.quotes)
+    html +=
+      '<div class="chron_quote"><div class="chron_orig">' + splashText(q.orig) + '</div><div class="chron_trans">' +
+      splashText(L(q.en, q.zh)) + '</div><div class="chron_src">— ' + splashText(L(q.src[0], q.src[1])) + "</div></div>";
+  html += '<div class="chron_dots">';
+  SPLASH_CHRONICLE.forEach(function (c, k) {
+    html += '<span class="chron_dot' + (k === splashChapter ? " on" : "") + '" data-chapter="' + k + '">' + ["I", "II", "III", "IV"][k] + "</span>";
+  });
+  box.innerHTML = html + "</div>";
+  fitSplashChronicle();
+}
+// a long step on a small screen: make the type smaller until the whole step fits in the panel
+function fitSplashChronicle() {
+  const box = document.getElementById("splash_chronicle");
+  if (!box) return;
+  let s = 1;
+  box.style.setProperty("--cs", s);
+  while (box.scrollHeight > box.clientHeight + 1 && s > 0.62) box.style.setProperty("--cs", (s -= 0.04));
+}
+window.addEventListener("resize", fitSplashChronicle);
+// a film paused while the page was hidden goes on when it is shown again
+document.addEventListener("visibilitychange", function () {
+  if ("visible" !== document.visibilityState) return;
+  for (const s of splashScenes)
+    if (s.video && s.el.classList.contains("on") && s.video.paused) {
+      const p = s.video.play();
+      p && p.catch && p.catch(function () {});
+    }
+});
+function splashGoTo(chapter, scene) {
+  if (!document.getElementById("splash_background")) return void clearTimeout(splashSceneTimer);
+  clearTimeout(splashSceneTimer);
+  const newChapter = chapter !== splashChapter || !document.getElementById("splash_chronicle").innerHTML;
+  splashChapter = chapter;
+  splashSceneIndex = scene;
+  const box = document.getElementById("splash_chronicle");
+  if (newChapter) {
+    box.classList.add("fade");
+    setTimeout(function () {
+      renderSplashChronicle();
+      box.classList.remove("fade");
+    }, box.innerHTML ? 800 : 0);
+  }
+  const want = SPLASH_CHRONICLE[chapter].scenes[scene];
+  let next = null;
+  for (const s of splashScenes) {
+    const on = s.def === want;
+    s.el.classList.toggle("on", on);
+    if (on && s.video) {
+      try {
+        s.video.currentTime = 0;
+      } catch (e) {}
+      const p = s.video.play();
+      p && p.catch && p.catch(function () {});
+    } else if (s.video && !on) setTimeout(function () { s.el.classList.contains("on") || s.video.pause(); }, 1700);
+    if (on) next = s;
+  }
+  // the photographs zoom slowly: restart the animation for this showing
+  if (next && !next.video) {
+    next.el.classList.remove("on");
+    void next.el.offsetWidth;
+    next.el.classList.add("on");
+  }
+  // load the film of the following scene in good time
+  const following = splashFollowing(chapter, scene);
+  const nextDef = SPLASH_CHRONICLE[following[0]].scenes[following[1]];
+  for (const s of splashScenes) if (s.def === nextDef && s.video && "auto" !== s.video.preload) (s.video.preload = "auto"), s.video.load();
+  splashSceneTimer = setTimeout(function () {
+    splashGoTo(following[0], following[1]);
+  }, 1e3 * want.dur);
+}
+function splashFollowing(chapter, scene) {
+  return scene + 1 < SPLASH_CHRONICLE[chapter].scenes.length ? [chapter, scene + 1] : [(chapter + 1) % SPLASH_CHRONICLE.length, 0];
+}
+function startSplashChronicle() {
+  const stage = document.getElementById("splash_scenes");
+  if (!stage) return;
+  for (const ch of SPLASH_CHRONICLE)
+    for (const def of ch.scenes) {
+      const el = document.createElement("div");
+      el.className = "splash_scene " + (def.video ? "film" : "photo");
+      let video = null;
+      if (def.video) {
+        video = document.createElement("video");
+        video.muted = true;
+        video.setAttribute("muted", "");
+        video.playsInline = true;
+        video.setAttribute("playsinline", "");
+        video.preload = "none";
+        video.src = def.video;
+        el.appendChild(video);
+      } else el.style.backgroundImage = "url(" + def.img + ")";
+      stage.appendChild(el);
+      splashScenes.push({ def: def, el: el, video: video });
+    }
+  document.getElementById("splash_chronicle").addEventListener("click", function (e) {
+    const dot = e.target.closest(".chron_dot");
+    dot && splashGoTo(+dot.dataset.chapter, 0);
+  });
+  splashGoTo(0, 0);
+}
 window.addEventListener("load", function () {
-  (setTimeout(function () {
+  (startSplashChronicle(),
+  setTimeout(function () {
     scrollTo(0, 0);
   }, 100),
     window.localStorage.getItem("b4mSave") &&
@@ -7791,6 +8042,15 @@ function unitNameZh(e) {
 const ZH_WORDS = {
   "Battle for Moscow": "莫斯科战役",
   "Continue Game": "继续游戏",
+  "The Battle of Moscow": "莫斯科会战",
+  "Play Germany": "扮演德军",
+  "Play the Soviet Union": "扮演苏军",
+  "against the computer": "对战电脑",
+  "Map": "地图",
+  "Your side's staff map": "随阵营（己方总参谋部地图）",
+  "Red Army General Staff": "苏军总参谋部地图",
+  "German General Staff": "德军总参谋部地图",
+  "Painted landscape": "写实地景",
   "Solitaire / Hotseat": "单人 / 双人轮流",
   "Play with": "使用",
   "Tournament Rules": "锦标赛规则",
@@ -7993,7 +8253,7 @@ function zhText(s) {
 let zhChanges = [];
 const ZH_INLINE = /^(STRONG|B|I|EM|SPAN|IMG|BR|S|SMALL|U)$/;
 function zhSkip(e) {
-  return !e || /^(SCRIPT|STYLE|CANVAS|TEXTAREA|INPUT)$/.test(e.nodeName) || (e.closest && e.closest("#decision_overlay, .help_zh, #help_body, #help_toc"));
+  return !e || /^(SCRIPT|STYLE|CANVAS|TEXTAREA|INPUT)$/.test(e.nodeName) || (e.closest && e.closest("#decision_overlay, .help_zh, #help_body, #help_toc, #splash_chronicle"));
 }
 function zhTranslate(root) {
   if (!isZh() || !root || zhSkip(root.nodeType === 3 ? root.parentNode : root)) return;
@@ -8044,6 +8304,7 @@ function applyLanguage() {
   isZh() ? zhTranslate(document.body) : zhRevert();
   currentTurn && currentTurn.turn && document.getElementById("turn_info_title") && setTurnInfo();
   "function" == typeof refreshStatusMarkers && refreshStatusMarkers();
+  renderSplashChronicle();
 }
 function setLanguage(value) {
   lang = value ? "zh" : "en";
