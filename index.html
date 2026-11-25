@@ -64,7 +64,6 @@
     <div id="turn_info" style="display: none;">
       <span id="turn_info_title"></span>
       <span id="turn_info_weather"></span>
-      <div id="turn_info_morale"></div>
       <div id="turn_report" style="display: none;"></div>
     </div>
     <div id="layer_toolbar" style="display: none;"><span class="layer_title">Layers</span><label title="Show the units cut off from their map edge (key S)"><input type="checkbox" id="layer_supply"> Supply<span id="supply_view_count"></span></label><label title="Show unit fatigue (key F)"><input type="checkbox" id="layer_fatigue"> Fatigue</label><label title="Show the estimated manpower of each unit (key P)"><input type="checkbox" id="layer_men"> Men</label><label title="Sound effects on or off (key M)"><input type="checkbox" id="layer_sound" checked> Sound</label><label class="lang_switch" title="中文 / English"><input type="checkbox" id="layer_zh"> 中文</label></div>
@@ -265,7 +264,6 @@
         <a href="#help_sequence">Sequence of Play</a> | 
         <a href="#help_howto">How To...</a> | 
         <a href="#help_fatigue">Fatigue and Supply</a> |
-        <a href="#help_morale">Morale</a> | 
         <a href="#help_winter">Winter Counteroffensive</a> | 
         <a href="#help_decisions">Command Decisions</a> | 
         <a href="#help_chronicle">Chronicle</a> | 
@@ -325,21 +323,6 @@
       <p>Moscow (up to 4 stock points) and Tula (up to 3) stockpile supplies for their garrison: at the start of the owner's turn the city gains 1 stock point if it is in communication and no enemy unit is within 2 hexes. Both start the game full. A garrison cut off in such a city lives on the stocks: as long as they last, it gains only +1 fatigue per turn (+2 if completely surrounded) and uses 1 stock point per turn (2 if completely surrounded). A city that changes hands loses its stocks. The Supply layer shows the stocks next to the city, a completely surrounded unit with a solid red frame, and a garrison living on its stocks with an orange frame.</p>
       <h4>Liberated cities</h4>
       <p>A city changes hands when an enemy unit enters it; a unit retreating through a city does not take it. German control lasts only while the Germans hold the city: as soon as a Russian attack eliminates or drives out its German garrison, the city is Russian again, even if no Russian unit advances into it, and the Germans can no longer bring replacements into it. When the Russians take a German-held city during the Russian turn, the city is liberated: the Russians get 1 extra replacement step in their next Replacement Phase and the liberating unit loses one level of fatigue.</p>
-      <div id="help_morale" class="help_section_title">Morale</div>
-      <p>Each army has a morale from 0 to 10, shown under the date in the turn bar (hover over it for the details; the turn report lists the latest changes). The Wehrmacht starts at 8, sure of victory after Vyazma and Bryansk; the Red Army starts at 4.</p>
-      <ul>
-        <li><strong>High (8-10)</strong>: the army's attacks gain one odds column.</li>
-        <li><strong>Steady (5-7)</strong>: no effect.</li>
-        <li><strong>Strained (3-4)</strong>: its attacks lose one odds column.</li>
-        <li><strong>Shaken (0-2)</strong>: its attacks lose one odds column, and its units defending in the open (not in a forest, a fortification or a city) rout: a DR result becomes a DRL.</li>
-      </ul>
-      <p>What moves it:</p>
-      <ul>
-        <li>Cities changing hands: Moscow &plusmn;3, Tula &plusmn;2, any other city &plusmn;1 (the side that takes it gains, the side that loses it loses). A town taken by a partisan rising counts too; a unit retreating through a city does not.</li>
-        <li>Each unit destroyed: -1 for its army, at most -2 a turn.</li>
-        <li>At the start of each side's turn: -1 if 2 or more of its units are cut off; for the Germans, -1 in the mud of turn 3 and -1 in each winter turn without winter clothing. Then an army below 5 rallies (+1), and one above 7 calms down (-1): high morale must be won again with every victory.</li>
-        <li>Command decisions: the parade on Red Square +2, the counteroffensive +1 and the bulletin of 13 December +2 for the Red Army; pulling back against Hitler's order -1 for the Wehrmacht. Hover over an option of the dispatch to see the change.</li>
-      </ul>
       <div id="help_winter" class="help_section_title">Winter Counteroffensive</div>
       <p>The game continues into the Russian winter counteroffensive and ends after <strong>Game Turn 9</strong> (December 15th, 1941). Turns 8 and 9 are winter turns.</p>
       <h4>Turn 8: the Stavka reserves are committed</h4>
@@ -384,7 +367,6 @@
         <a href="#zh_sequence">回合顺序</a> |
         <a href="#zh_howto">操作说明</a> |
         <a href="#zh_fatigue">疲劳与补给</a> |
-        <a href="#zh_morale">士气</a> |
         <a href="#zh_winter">冬季反攻</a> |
         <a href="#zh_decisions">指挥决策</a> |
         <a href="#zh_chronicle">编年史</a> |
@@ -444,21 +426,6 @@
       <p>莫斯科（最多 4 点储备）和图拉（最多 3 点）为守军囤积物资：在控制方回合开始时，如果城市在交通线上、且 2 格内没有敌军，就增加 1 点储备。游戏开始时两城都是满的。被切断在这类城市里的守军靠储备生活：只要储备还在，每回合只加 +1 疲劳（被完全包围时 +2），并消耗 1 点储备（被完全包围时 2 点）。城市易手时储备清零。补给图层会在城市旁显示储备，用红色实线框标出被完全包围的部队，用橙色框标出靠储备生活的守军。</p>
       <h4>解放城市</h4>
       <p>敌方部队进入一座城市，这座城市就易手；撤退时路过的城市不会因此易手。德军只有在守住城市时才控制它：一旦苏军的进攻消灭或赶走了德军守军，这座城市立即回到苏军手中，即使没有苏军部队推进进去，德军也不能再在那里补充兵力。在苏军回合中夺回德军占领的城市，就是解放：苏军在下一个补充阶段多得 1 个补充兵步数，解放它的部队疲劳降一级。</p>
-      <div id="zh_morale" class="help_section_title">士气</div>
-      <p>双方各有 0 到 10 的士气，显示在回合栏的日期下面（鼠标放上去看详情；回合报告里列出最近的变化）。德军在维亚济马和布良斯克大胜之后自信必胜，从 8 开始；红军从 4 开始。</p>
-      <ul>
-        <li><strong>高昂（8–10）</strong>：该方进攻时战斗比例 +1 栏。</li>
-        <li><strong>稳定（5–7）</strong>：没有影响。</li>
-        <li><strong>低落（3–4）</strong>：该方进攻时战斗比例 −1 栏。</li>
-        <li><strong>动摇（0–2）</strong>：进攻时 −1 栏；在开阔地（不在森林、筑垒地域或城市里）防守的部队会溃逃：DR 结果变成 DRL。</li>
-      </ul>
-      <p>士气怎么变化：</p>
-      <ul>
-        <li>城市易手：莫斯科 ±3，图拉 ±2，其他城市 ±1（夺取的一方加，失去的一方减）。游击队起义夺取的城镇也算；撤退时路过的城市不算。</li>
-        <li>每有一支部队被歼灭：该方 −1，每回合最多 −2。</li>
-        <li>每方回合开始时：有 2 支或以上部队被切断 −1；德军在第 3 回合泥泞时 −1，没有冬装时每个冬季回合 −1。然后，士气低于 5 的一方重新振作 +1，高于 7 的一方高涨的士气渐渐平复 −1：要保持高昂，就得不断打胜仗。</li>
-        <li>指挥决策：红场阅兵 +2、反攻 +1、12 月 13 日的苏联情报局公报 +2（红军）；违抗希特勒的命令后撤 −1（德军）。鼠标放在电报的选项上就能看到士气变化。</li>
-      </ul>
       <div id="zh_winter" class="help_section_title">冬季反攻</div>
       <p>游戏一直打到苏军冬季反攻，在<strong>第 9 回合</strong>（1941 年 12 月 15 日）后结束。第 8 和第 9 回合是冬季回合。</p>
       <h4>第 8 回合：大本营预备队投入战斗</h4>
