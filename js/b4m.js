@@ -6498,6 +6498,16 @@ function replacementPhase(e) {
               t--,
               n());
           }
+          // the last eliminated unit is back on the map: the placement hexes go out, and the tip says why
+          // (out here, i is the function that finds the next unit to rebuild, not the point of the hex)
+          if (r && t > 0 && o.length > 0 && !i()) {
+            for (const h of o) clearHex(hexHighlights, Hex(h));
+            ((o = []),
+              (document.getElementById("step_replacement_tip").innerText += L(
+                " All your eliminated units are back on the map, so no new unit can be placed: the remaining steps can only restore a half-strength unit in communication or rest a tired full-strength one (orange).",
+                "被消灭的部队已经全部重建，没有新部队可以放了：剩下的补充兵步数只能补满有补给的半血部队，或者让疲劳的满编部队（橙色）休整。",
+              )));
+          }
         } else if (l && l.army === currentTurn.army) {
           let e = -1;
           for (let t = 0; t < r.length; t++)
