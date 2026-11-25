@@ -1165,8 +1165,9 @@ function evacuationRailLimited() {
 // Moscow. Turns 6-7: the balance tips to the Soviets. Turns 8-9: the Soviet air force holds the sky (about 1,000
 // aircraft against some 600; Soviet accounts speak of operational air superiority from 5 December, and the
 // retreating German columns jammed on the roads are bombed day and night).
-// At the start of a side's turn, each of its units that moved since its previous turn (marching, by rail or in
-// retreat) is bombed on a die roll up to the enemy air strength less the cover it finds: 2 fatigue points.
+// In the movement phases (rail and panzer movement included) and in its retreats after combat, each unit that
+// moves is bombed on a die roll up to the enemy air strength less the cover of the most exposed hex of its march:
+// 2 fatigue points at once.
 const AIR_STRENGTH = {
     1: { german: 3, soviet: 1 },
     2: { german: 3, soviet: 1 },
@@ -1207,18 +1208,36 @@ function airCover(army, hex) {
 function airHitNumber(army, hex) {
   return Math.max(0, airStrength("soviet" === army ? "german" : "soviet") - airCover(army, hex));
 }
-// A unit that moved since its previous turn faces the enemy aircraft: the fatigue a hit costs it
-function airAttack(army, hex, unit) {
-  const need = unit.moved ? airHitNumber(army, hex) : 0;
-  if (need < 1 || Math.floor(6 * Math.random()) + 1 > need) return 0;
-  return ((unit.bombed = { turn: currentTurn.turn, by: "soviet" === army ? "german" : "soviet" }), airHits.push(unit), INTERDICTION_FATIGUE);
+// A unit that has just marched in a movement phase, or retreated after a battle, faces the enemy aircraft: on a
+// die roll up to the enemy air strength less the cover of the most exposed hex of its march, it is bombed and
+// gains 2 fatigue at once (an advance after combat is not exposed)
+function airInterdiction(unit, route, retreat) {
+  const marching = ("movement" === currentTurn.phase || "special movement" === currentTurn.phase) && unit.army === currentTurn.army;
+  if (!route.length || !(marching || retreat)) return;
+  const u = b4mUnits[b4mUnitsIndex(unit)];
+  if (!u || !u.position) return;
+  let need = 0;
+  for (const p of route) need = Math.max(need, airHitNumber(u.army, grid.get(p)));
+  if (need < 1 || Math.floor(6 * Math.random()) + 1 > need) return;
+  const by = "soviet" === u.army ? "german" : "soviet",
+    key = currentTurn.turn + u.army + currentTurn.phase;
+  (addFatigue(u, INTERDICTION_FATIGUE),
+    (u.bombed = { turn: currentTurn.turn, by: by }),
+    airHitsKey !== key && ((airHitsKey = key), (airHits = [])),
+    airHits.push(unitName(u) + (retreat ? L(" (in retreat)", "（撤退中）") : "")),
+    playAirAttack(by),
+    announceAirAttacks(by),
+    scheduleStatusRefresh());
 }
-// The sound of the air attack: the dive of the Ju 87 or the attack of the Il-2 (recordings, when present)
+let airHitsKey = "",
+  airSoundUntil = 0;
+// The sound of the air attack: the dive of the Ju 87 or the Il-2 flying over (one at a time)
 function playAirAttack(by) {
   const ctx = audioReady();
-  if (!ctx || !ctx.recordings) return;
+  if (!ctx || !ctx.recordings || ctx.currentTime < airSoundUntil) return;
   const b = ctx.recordings["german" === by ? "stuka" : "shturmovik"];
   if (!b) return;
+  airSoundUntil = ctx.currentTime + 4;
   if ("german" === by) return void playPass(ctx, b, ctx.currentTime + 0.05, Math.min(b.duration - 0.1, 7), 1, { offset: 0, fadeIn: 0.15, fadeOut: 1.5 });
   // the shturmovik flies over at low level: it comes, roars overhead and goes, its pitch falling as it passes
   const src = ctx.createBufferSource(),
@@ -1237,32 +1256,28 @@ function playAirAttack(by) {
     src.start(t0, 0.1),
     src.stop(t0 + len + 0.1));
 }
-function announceAirAttacks(army) {
-  if (!airHits.length) return;
-  const by = "soviet" === army ? "german" : "soviet",
-    n = airHits.length,
-    names = airHits.map(function (u) {
-      return unitName(u);
-    });
-  (playAirAttack(by),
-    showEventBanner(
-      '<small class="banner_kicker">' +
-        ("german" === by ? "Воздух!" : "Tiefflieger!") +
-        '</small><img src="img/' +
-        by +
-        '_marker.png" />' +
-        ("german" === by
-          ? L("Luftwaffe attack: " + n + " Russian column" + (n > 1 ? "s" : "") + " bombed", "德国空军空袭：" + n + " 支苏军纵队被炸")
-          : L("Soviet air attack: " + n + " German column" + (n > 1 ? "s" : "") + " bombed", "苏联空军空袭：" + n + " 支德军纵队被炸")) +
-        "<span>" +
-        names.join(L(", ", "、")) +
-        L(": +" + INTERDICTION_FATIGUE + " fatigue each.", "：各 +" + INTERDICTION_FATIGUE + " 疲劳。") +
-        "</span>",
-      6e3,
-    ),
-    (airHits = []));
+// The banner lists the columns bombed so far in this movement phase
+function announceAirAttacks(by) {
+  const n = airHits.length;
+  showEventBanner(
+    '<small class="banner_kicker">' +
+      ("german" === by ? "Воздух!" : "Tiefflieger!") +
+      '</small><img src="img/' +
+      by +
+      '_marker.png" />' +
+      ("german" === by
+        ? L("Luftwaffe attack: " + n + " Russian column" + (n > 1 ? "s" : "") + " bombed on the move", "德国空军空袭：" + n + " 支苏军纵队在运动中被炸")
+        : L("Soviet air attack: " + n + " German column" + (n > 1 ? "s" : "") + " bombed on the move", "苏联空军空袭：" + n + " 支德军纵队在运动中被炸")) +
+      "<span>" +
+      airHits.join(L(", ", "、")) +
+      (n > 1
+        ? L(": +" + INTERDICTION_FATIGUE + " fatigue each.", "：各 +" + INTERDICTION_FATIGUE + " 疲劳。")
+        : L(": +" + INTERDICTION_FATIGUE + " fatigue.", "：+" + INTERDICTION_FATIGUE + " 疲劳。")) +
+      "</span>",
+    6e3,
+  );
 }
-// The mark of a unit bombed at the start of this turn: a burst with the falling bomb, and the marking of the
+// The mark of a unit bombed in this turn: a burst with the falling bomb, and the marking of the
 // aircraft that dropped it (the black cross of the Luftwaffe or the red star of the Soviet air force)
 function drawBombedIcon(c, x, y, by) {
   (c.save(), c.translate(x, y), c.beginPath());
@@ -1311,8 +1326,8 @@ function refreshAirInfo() {
           ? L("Air: Soviet superiority", "制空权：苏军")
           : L("Air: contested", "制空权：双方争夺")) + L(" (" + g + " to " + s + ")", "（" + g + " 对 " + s + "）")),
     (e.title = L(
-      "Air strength: Luftwaffe " + g + ", Soviet air force " + s + ". At the start of a side's turn, each of its units that moved since its previous turn is bombed on a die roll up to the enemy strength less its cover, and gains 2 fatigue. Cover: forest, town and, for the Russians, a defence line 1; major city and, for the Russians, within 2 hexes of Moscow 2; the Russian garrison of Moscow is never bombed.",
-      "空中力量：德国空军 " + g + "，苏联空军 " + s + "。每方回合开始时，自上一回合以来移动过的部队，掷骰点数不超过“敌方空中力量减掩护”就被炸，+2 疲劳。掩护：森林、城镇、苏军在防线上为 1；大城市、苏军在莫斯科 2 格内为 2；莫斯科城里的苏军不会被炸。",
+      "Air strength: Luftwaffe " + g + ", Soviet air force " + s + ". In the movement phases (rail and panzer movement included) and in its retreats after combat, each unit that moves is bombed on a die roll up to the enemy strength less the cover of the most exposed hex of its march, and gains 2 fatigue at once. Cover: forest, town and, for the Russians, a defence line 1; major city and, for the Russians, within 2 hexes of Moscow 2; the Russian garrison of Moscow is never bombed.",
+      "空中力量：德国空军 " + g + "，苏联空军 " + s + "。在移动阶段（包括铁路机动和装甲部队特别移动）以及战斗后的撤退中，每支移动的部队按它这次行军中最暴露的一格计算：掷骰点数不超过“敌方空中力量减掩护”就被炸，当场 +2 疲劳。掩护：森林、城镇、苏军在防线上为 1；大城市、苏军在莫斯科 2 格内为 2；莫斯科城里的苏军不会被炸。",
     )));
 }
 // Moscow, Tula and Smolensk: the cities that defend as major cities
@@ -1520,7 +1535,7 @@ function refreshStatusMarkers() {
         n.fillText(o, i.x, i.y - 36),
         n.restore());
     }
-  // Units bombed from the air at the start of this turn
+  // Units bombed from the air in this turn
   for (const e of b4mUnits)
     if (e.position && e.bombed && e.bombed.turn === currentTurn.turn) {
       const t = grid.get(e.position),
@@ -1730,7 +1745,6 @@ function inTheRear(hex, army) {
 // (the "fought" and "moved" marks cover the side's previous turn and the enemy turn that followed)
 function processTurnFatigue(e) {
   const t = supplyContext();
-  airHits = [];
   // At the start of the German turn: old rail cuts are repaired, and security sweeps wear down
   // the partisan bands that are next to German units
   "german" === e &&
@@ -1779,13 +1793,11 @@ function processTurnFatigue(e) {
           !("moscow" === i.city && "german" === e) &&
           (r -= "moscow" === i.city ? FATIGUE.moscow : isMajorCity(i) ? FATIGUE.majorCity : FATIGUE.city),
         "soviet" === e && moscowDepotsReach(i, t) && (r -= FATIGUE.moscowDepots)),
-      // the enemy air force hunts the columns that moved
-      (r += airAttack(e, i, n)),
       (n.fatigue = Math.max(0, Math.min(FATIGUE.max, (n.fatigue || 0) + r))),
       (n.fought = !1),
       (n.moved = !1));
   }
-  (announceAirAttacks(e), scheduleStatusRefresh());
+  scheduleStatusRefresh();
 }
 // Fatigue in a battle, just before its result is applied. Returns the result to apply
 // (a broken defender turns DR into DRL) and a note for the battle log.
@@ -4227,7 +4239,8 @@ function moveUnit(e, t, n, retreat) {
   t = t.map(function (e) {
     return { x: e.x, y: e.y };
   });
-  const s = t.length > 0 ? t[t.length - 1] : null;
+  const s = t.length > 0 ? t[t.length - 1] : null,
+    route = t.slice();
   (unitsMoving++, s && pendingDestinations.push(s));
   const mv = b4mUnits[b4mUnitsIndex(e)];
   (mv && (mv.moved = !0), t.length > 0 && soundMove(e));
@@ -4246,6 +4259,7 @@ function moveUnit(e, t, n, retreat) {
               80,
             ),
           "german" === e.army && partisanSweep(e),
+          airInterdiction(e, route, retreat),
           clearInterval(a),
           finishUnitMove(s))
         : (clearUnit(board, e, o.x - 40, o.y - 40),
