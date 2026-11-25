@@ -43,7 +43,8 @@ const originalUnitSize = 120,
       x: 1,
       y: 4,
       terrain: "open",
-      city: "normal",
+      // the supply base of Army Group Centre: a class of its own (see "Smolensk, the supply base" below)
+      city: "base",
       river: ["S"],
       rail: ["SW", "S", "SE"],
       germanStart: !0,
@@ -1116,11 +1117,70 @@ function supplyContext() {
 }
 // Supply status of a unit on the map, based on the "in communication" rule
 // Supply status of a unit on the map, based on the "in communication" rule
+// ---------------------------------------------------------------- Smolensk, the supply base of Army Group Centre
+// The converted standard-gauge railway reached Smolensk on 16 August 1941, and Smolensk remained the only
+// standard-gauge forward base of Army Group Centre: the trains unloaded there and trucks carried everything on
+// to the front, 250 to 300 km by November. The army group needed 30 to 32 trains a day; some 16 to 20 reached
+// Smolensk. The converted line was used as far as Vyazma from 23 October 1941. A German unit too far from a
+// railhead cannot recover fatigue; while Smolensk is lost or cut off, no German unit recovers and the Germans
+// get no replacements.
+const SMOLENSK = { x: 1, y: 4 },
+  VYAZMA = { x: 5, y: 3 },
+  VYAZMA_RAILHEAD_TURN = 4,
+  RAILHEAD_RANGE = 6,
+  RAILHEAD_RANGE_MUD = 4;
+// Moscow, Tula and Smolensk: the cities that defend as major cities
+function isMajorCity(h) {
+  return !!h && ("major" === h.city || "moscow" === h.city || "base" === h.city);
+}
+function railheadRange() {
+  return 3 === currentTurn.turn || 4 === currentTurn.turn ? RAILHEAD_RANGE_MUD : RAILHEAD_RANGE;
+}
+function smolenskBaseLost(ctx) {
+  const h = grid.get(SMOLENSK);
+  return "german" !== h.control || !(ctx || supplyContext()).german(h);
+}
+// The railheads in use: Smolensk, and Vyazma from turn 4 while it is German-held and in communication
+function germanRailheads(ctx) {
+  ctx = ctx || supplyContext();
+  const heads = [],
+    v = grid.get(VYAZMA);
+  (smolenskBaseLost(ctx) || heads.push(grid.get(SMOLENSK)),
+    currentTurn.turn >= VYAZMA_RAILHEAD_TURN && "german" === v.control && ctx.german(v) && heads.push(v));
+  return heads;
+}
+function railheadDistance(hex, heads) {
+  let d = 99;
+  for (const h of heads) d = Math.min(d, h.distance(hex));
+  return d;
+}
 function unitSupplyStatus(e, t) {
   if (!e || !e.position) return null;
   t = t || supplyContext();
   const n = grid.get(e.position),
     i = "soviet" === e.army ? "the red-bordered east map edge" : "the west map edge";
+  if (t[e.army](n) && "german" === e.army) {
+    // in communication, but out of reach of the truck columns from the railhead
+    const d = railheadDistance(n, germanRailheads(t));
+    if (smolenskBaseLost(t))
+      return {
+        ok: !0,
+        stretched: !0,
+        text: L(
+          "In communication, but Smolensk, the supply base, is lost or cut off: no recovery",
+          "在交通线上，但补给基地斯摩棱斯克失守或被切断：不能恢复疲劳",
+        ),
+      };
+    if (d > railheadRange())
+      return {
+        ok: !0,
+        stretched: !0,
+        text: L(
+          "In communication, but " + d + " hexes from the nearest railhead (at most " + railheadRange() + "): the truck columns cannot keep up, no recovery",
+          "在交通线上，但离最近的铁路终点站 " + d + " 格（最多 " + railheadRange() + " 格）：卡车运不过来，不能恢复疲劳",
+        ),
+      };
+  }
   if (t[e.army](n))
     return "soviet" === e.army && nearPartisans(n) && !t.sovietNoPartisans(n)
       ? { ok: !0, text: "Supplied by the partisans" }
@@ -1169,10 +1229,24 @@ function refreshStatusMarkers() {
   if ((n.clearRect(0, 0, e.width, e.height), t && (t.innerText = ""), supplyView)) {
     const e = { german: 0, soviet: 0 },
       i = supplyContext();
+    let stretched = 0;
     for (const t of b4mUnits) {
       if (!t.position) continue;
       const o = unitSupplyStatus(t, i);
-      if (!o || o.ok) continue;
+      if (!o || (o.ok && !o.stretched)) continue;
+      if (o.ok) {
+        // out of reach of the railhead: a gold dashed frame
+        const r = grid.get(t.position),
+          a = r.center().add(r.toPoint());
+        (stretched++,
+          n.save(),
+          n.setLineDash([4, 4]),
+          (n.lineWidth = 3),
+          (n.strokeStyle = "#f2c230"),
+          strokeRoundRect(n, a.x - 36, a.y - 36, 72, 72, 9),
+          n.restore());
+        continue;
+      }
       e[t.army]++;
       const r = grid.get(t.position),
         a = r.center().add(r.toPoint());
@@ -1202,7 +1276,26 @@ function refreshStatusMarkers() {
         n.fillText(l, r.x, r.y - 49),
         n.restore());
     }
-    t && (t.innerText = ": " + e.german + " German, " + e.soviet + " Russian cut off");
+    // the supply base and the railheads
+    const heads = germanRailheads(i),
+      lost = smolenskBaseLost(i);
+    for (const [pos, label] of [
+      [SMOLENSK, lost ? L("Supply base lost", "补给基地已失") : L("Supply base · railhead", "补给基地 · 铁路终点站")],
+      [VYAZMA, L("Railhead", "铁路终点站")],
+    ]) {
+      const h = grid.get(pos);
+      if (pos === VYAZMA && heads.indexOf(h) < 0) continue;
+      const r = h.center().add(h.toPoint());
+      (n.save(), (n.font = "bold 11px Arial, sans-serif"), (n.textAlign = "center"), (n.textBaseline = "middle"));
+      const s = n.measureText(label).width + 10;
+      ((n.fillStyle = "rgba(0, 0, 0, 0.7)"),
+        n.fillRect(r.x - s / 2, r.y + 36, s, 14),
+        (n.fillStyle = pos === SMOLENSK && lost ? "#ff8a80" : "#f2c230"),
+        n.fillText(label, r.x, r.y + 43),
+        n.restore());
+    }
+    // (the units out of reach of the railhead are framed on the map; the bar keeps its short count)
+    t && (t.innerText = L(": " + e.german + " German, " + e.soviet + " Russian cut off", "：" + e.german + " 支德军、" + e.soviet + " 支苏军被切断"));
   }
   // Fatigue: a three-segment bar under the counter, one segment per level (only for tired units)
   if (fatigueView)
@@ -1366,7 +1459,7 @@ const FATIGUE = {
     // recovering in the rear, out of reach of the enemy (no enemy unit within rearDistance hexes)
     rear: 1,
     rearDistance: 3,
-    // in a town of its side; in Moscow and Tula, with their barracks, hospitals and depots
+    // in a town of its side; in Moscow, Tula and Smolensk, with their barracks, hospitals and depots
     city: 1,
     majorCity: 2,
     liberation: 4,
@@ -1453,6 +1546,9 @@ function processTurnFatigue(e) {
     })),
     drawPartisans());
   buildCityStocks(e, t);
+  // German units out of reach of the trucks from the railhead, and all of them while Smolensk is lost, do not recover
+  const heads = "german" === e ? germanRailheads(t) : null,
+    baseLost = "german" === e && smolenskBaseLost(t);
   for (const n of b4mUnits) {
     if (n.army !== e) continue;
     // a unit off the map (eliminated) starts afresh when it comes back
@@ -1476,10 +1572,11 @@ function processTurnFatigue(e) {
       o ||
         s ||
         n.raided === currentTurn.turn ||
+        ("german" === e && (baseLost || railheadDistance(i, heads) > railheadRange())) ||
         (n.fought || (r -= (n.moved ? FATIGUE.idle : FATIGUE.rest) + (inTheRear(i, e) ? FATIGUE.rear : 0)),
         "none" !== i.city &&
           i.control === e &&
-          (r -= "major" === i.city || "moscow" === i.city ? FATIGUE.majorCity : FATIGUE.city)),
+          (r -= isMajorCity(i) ? FATIGUE.majorCity : FATIGUE.city)),
       (n.fatigue = Math.max(0, Math.min(FATIGUE.max, (n.fatigue || 0) + r))),
       (n.fought = !1),
       (n.moved = !1));
@@ -1758,7 +1855,7 @@ function showSweepChoice(unit, band) {
     document.body.appendChild(box));
 }
 // ---------------------------------------------------------------- Victory points, stand-fast order and chronicle
-const CITY_VP = { "10,2": 5, "10,6": 3 },
+const CITY_VP = { "10,2": 5, "10,6": 3, "1,4": 3 },
   // Hitler's stand-fast order of 16 December 1941 applies from this turn
   HALT_ORDER_TURN = 9,
   // Cities the Red Army held when each turn of the game ended, historically
@@ -1921,7 +2018,7 @@ function risingBands(hex) {
 }
 // Total strength of the bands that can rise in this town (0 if they cannot)
 function risingStrength(hex) {
-  if (!hex || !hex.city || "none" === hex.city || "german" !== hex.control || germanUnitsWithin(hex, 1).length > 0) return 0;
+  if (!hex || !hex.city || "none" === hex.city || "base" === hex.city || "german" !== hex.control || germanUnitsWithin(hex, 1).length > 0) return 0;
   const strength = risingBands(hex).reduce(function (sum, band) {
     return sum + (band.strength || 1);
   }, 0);
@@ -2680,7 +2777,7 @@ function drawNkvdMarks(ctx, x, y, strength) {
 }
 // Winter fatigue of a German unit at the start of its turn, after the choice made at Orsha
 function germanWinterFatigue(hex) {
-  return !isWinterTurn() || "clothing" === decisions.trains || "moscow" === hex.city || "major" === hex.city
+  return !isWinterTurn() || "clothing" === decisions.trains || isMajorCity(hex)
     ? 0
     : "none" === hex.city
       ? FATIGUE.winterOutsideCity
@@ -2898,7 +2995,7 @@ const HISTORY_EVENTS = [
             });
           return [
             "No change now: German replacements as usual.",
-            "In winter (turns 8 and 9), at the start of each German turn: +2 fatigue outside the towns, +1 in a town, none in Moscow or Tula.",
+            "In winter (turns 8 and 9), at the start of each German turn: +2 fatigue outside the towns, +1 in a town, none in Moscow, Tula or Smolensk.",
             "German units outside the towns now: " + outside.length + " of " + german.length + ".",
           ];
         },
@@ -3514,7 +3611,7 @@ const DISPATCH_ZH = {
             });
           return [
             "现在没有变化：德军补充兵照常。",
-            "冬季（第 8、9 回合）每个德军回合开始时：[[在城镇外 +2 疲劳]]，在城镇里 +1，在莫斯科或图拉不加。",
+            "冬季（第 8、9 回合）每个德军回合开始时：[[在城镇外 +2 疲劳]]，在城镇里 +1，在莫斯科、图拉或斯摩棱斯克不加。",
             "现在在城镇外的德军：" + outside.length + " / " + german.length + " 支。",
           ];
         },
@@ -4020,7 +4117,7 @@ function computeBattleOdds() {
           })
         ))) &&
       t.push(e.terrain),
-      !e.city || ("major" !== e.city && "moscow" !== e.city) || t.push("major"));
+      !isMajorCity(e) || t.push("major"));
     let n = !0;
     for (const t of battle.attackingUnits)
       if (-1 === e.river.indexOf(t.attackFrom)) {
@@ -4970,7 +5067,7 @@ function advanceAfterCombat() {
       return (currentBattle.defendingUnit.position.x <= 8 && e.position.x - t.position.x) || i - n;
     })) {
       const t = grid.get(e.position);
-      if (b4mUnits[b4mUnitsIndex(e)].position && "moscow" !== t.city && "major" !== t.city) {
+      if (b4mUnits[b4mUnitsIndex(e)].position && !isMajorCity(t)) {
         handleAdvanceAfterCombat(e.position);
         break;
       }
@@ -5191,8 +5288,7 @@ function resolveNextBattle(e) {
         ((d.innerText = "The defending unit needs to retreat 2 hexes."),
           !(
             "full" === currentDefendingUnit.strength &&
-            ("moscow" === t.city ||
-              "major" === t.city ||
+            (isMajorCity(t) ||
               (currentTurn.turn >= HALT_ORDER_TURN &&
                 "elastic" !== decisions.haltOrder &&
                 "german" === currentDefendingUnit.army &&
@@ -5205,7 +5301,7 @@ function resolveNextBattle(e) {
               clearUnit(board, currentDefendingUnit, i.x - 40, i.y - 40),
               drawUnit(board, currentDefendingUnit, i.x - 30, i.y - 30),
               (d.innerText +=
-                "moscow" === t.city || "major" === t.city
+                isMajorCity(t)
                   ? " But it is in a major city, so it takes a step loss instead and doesn't retreat."
                   : " But Hitler's stand-fast order holds it in the city: it takes a step loss instead and doesn't retreat."),
               (document.querySelector(".table_battle div.next_battle_button").style.display =
@@ -6351,7 +6447,9 @@ function replacementPhase(e) {
             takeLiberationBonus() +
             decisionReplacements(currentTurn.turn, "soviet"),
         )
-      : Math.max(0, 1 + decisionReplacements(currentTurn.turn, "german"));
+      : smolenskBaseLost()
+        ? 0
+        : Math.max(0, 1 + decisionReplacements(currentTurn.turn, "german"));
   const n = function () {
     t > 0
       ? "" === playAIAs || playAIAs !== currentTurn.army
@@ -6377,6 +6475,12 @@ function replacementPhase(e) {
         (document.getElementById("next_step_replacement").onclick = specialMovementPhase));
   };
   n();
+  "german" === currentTurn.army &&
+    smolenskBaseLost() &&
+    (document.getElementById("step_replacement_tip").innerText += L(
+      " Smolensk, the supply base of Army Group Centre, is lost or cut off: no German replacements this turn, and no German unit recovers fatigue.",
+      "中央集团军群的补给基地斯摩棱斯克失守或被切断：本回合德军没有补充兵，所有德军都不能恢复疲劳。",
+    ));
   const i = function () {
     let e = b4mUnits
       .filter(function (e) {
@@ -6421,6 +6525,7 @@ function replacementPhase(e) {
             n = 3;
             break;
           case "major":
+          case "base":
             n = 2;
             break;
           case "normal":
@@ -6432,6 +6537,7 @@ function replacementPhase(e) {
             i = 3;
             break;
           case "major":
+          case "base":
             i = 2;
             break;
           case "normal":
