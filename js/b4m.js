@@ -1,3 +1,15 @@
+// ---------------------------------------------------------------- Language
+// The game can be played in English or in Chinese: the switch is in the Layers bar
+let lang = "en";
+try {
+  lang = "zh" === window.localStorage.getItem("b4mLang") ? "zh" : "en";
+} catch (e) {}
+function isZh() {
+  return "zh" === lang;
+}
+function L(en, zh) {
+  return isZh() && void 0 !== zh ? zh : en;
+}
 const originalUnitSize = 120,
   displayUnitSize = 60,
   extendHexProperties = { size: { width: 114.55, height: 101.9 }, orientation: "flat", offset: 1 },
@@ -776,34 +788,86 @@ function drawSkiPair(e, t, n, i) {
 function drawSkiBadge(e, t, n) {
   drawSkiPair(e, t, n, 1);
 }
+// A partisan band. The icon follows a photograph of the partisans of the Borovsk district by V. Zunin
+// (Moscow region, November-December 1941): a partisan in white winter camouflage, kneeling in the snow and
+// aiming his rifle with the bayonet fixed, with the red ribbon the partisans wore across their caps.
+function partisanSilhouette(e) {
+  const t = function (t) {
+    e.moveTo(t[0][0], t[0][1]);
+    for (let n = 1; n < t.length; n++) e.lineTo(t[n][0], t[n][1]);
+    e.closePath();
+  };
+  (e.beginPath(),
+    e.ellipse(46, 27, 8.5, 9.5, -0.35, 0, 2 * Math.PI),
+    t([[38, 24], [52, 30], [60, 42], [58, 56], [44, 64], [30, 62], [22, 50], [26, 34]]),
+    t([[50, 36], [70, 38], [72, 43], [52, 46]]),
+    t([[44, 44], [56, 46], [58, 52], [46, 54]]),
+    t([[40, 58], [60, 64], [64, 70], [60, 74], [56, 88], [48, 88], [50, 72], [38, 68]]),
+    t([[28, 58], [40, 64], [36, 84], [34, 90], [10, 90], [10, 84], [26, 82]]));
+}
 function drawPartisanMarker(e, t, n, i, s) {
+  const o = 1.6 * i,
+    r = t - o / 2,
+    a = n - o / 2;
   (e.save(),
+    e.translate(r, a),
+    e.scale(o / 100, o / 100),
+    // the badge: forest green with a dark frame
     e.beginPath(),
-    e.arc(t, n, i, 0, 2 * Math.PI),
-    (e.fillStyle = "rgba(47, 74, 42, 0.92)"),
+    e.roundRect(2, 2, 96, 96, 12),
+    (e.fillStyle = "#2f3d24"),
     e.fill(),
-    (e.lineWidth = Math.max(2, i / 12)),
-    (e.strokeStyle = "#f2e6c0"),
+    (e.lineWidth = 4),
+    (e.strokeStyle = "#141a10"),
     e.stroke(),
-    e.beginPath());
-  for (let r = 0; r < 10; r++) {
-    const o = r % 2 ? 0.2 * i : 0.48 * i,
-      a = -Math.PI / 2 + (r * Math.PI) / 5;
-    e.lineTo(t + o * Math.cos(a), n - 0.08 * i + o * Math.sin(a));
-  }
-  (e.closePath(),
-    (e.fillStyle = "#d9232e"),
+    // the snow he kneels in
+    (e.fillStyle = "rgba(235, 238, 230, 0.35)"),
+    e.fillRect(6, 86, 88, 8),
+    // the partisan in white camouflage
+    partisanSilhouette(e),
+    (e.fillStyle = "#f2f1ea"),
     e.fill(),
-    (e.lineWidth = 1),
-    (e.strokeStyle = "#5a0d12"),
+    (e.lineWidth = 2.2),
+    (e.strokeStyle = "#141a10"),
     e.stroke(),
-    s &&
-      ((e.fillStyle = "#ffffff"),
-      (e.font = "bold " + Math.round(0.36 * i) + "px Arial, sans-serif"),
+    // the rifle and its bayonet
+    (e.lineCap = "round"),
+    (e.strokeStyle = "#141a10"),
+    (e.lineWidth = 3.6),
+    e.beginPath(),
+    e.moveTo(40, 47),
+    e.lineTo(90, 28),
+    e.stroke(),
+    (e.lineWidth = 1.8),
+    e.beginPath(),
+    e.moveTo(90, 28),
+    e.lineTo(98, 25),
+    e.stroke(),
+    (e.lineWidth = 5.5),
+    e.beginPath(),
+    e.moveTo(37, 48.5),
+    e.lineTo(50, 43.5),
+    e.stroke(),
+    // the red ribbon across the hood
+    e.save(),
+    e.beginPath(),
+    e.ellipse(46, 27, 8.5, 9.5, -0.35, 0, 2 * Math.PI),
+    e.clip(),
+    e.translate(46, 25),
+    e.rotate(-0.6),
+    (e.fillStyle = "#d21f26"),
+    e.fillRect(-12, -2.6, 24, 5.2),
+    e.restore());
+  if (s) {
+    ((e.fillStyle = "#141a10"),
+      e.fillRect(68, 66, 26, 28),
+      (e.fillStyle = "#ffffff"),
+      (e.font = "bold 24px Arial, sans-serif"),
       (e.textAlign = "center"),
       (e.textBaseline = "middle"),
-      e.fillText(String(s), t, n + 0.68 * i)),
-    e.restore());
+      e.fillText(String(s), 81, 81));
+  }
+  e.restore();
 }
 function drawPartisans() {
   const e = document.getElementById("partisan_markers");
@@ -1035,7 +1099,7 @@ function refreshStatusMarkers() {
         o = grid.get({ x: t, y: i }),
         r = o.center().add(o.toPoint()),
         a = cityStocks[e] && cityStocks[e].owner === o.control ? cityStocks[e].value : 0,
-        l = "Stocks " + a + "/" + CITY_STOCK_CAP[e];
+        l = L("Stocks ", "储备 ") + a + "/" + CITY_STOCK_CAP[e];
       (n.save(),
         (n.font = "bold 11px Arial, sans-serif"),
         (n.textAlign = "center"),
@@ -1237,6 +1301,7 @@ function markFought(e) {
   t && (t.fought = !0);
 }
 function unitName(e) {
+  if (isZh()) return unitNameZh(e);
   const t = parseInt(e.id.replace(/\D/g, ""), 10),
     n = t % 100,
     i = t + (n >= 11 && n <= 13 ? "th" : ["th", "st", "nd", "rd"][t % 10] || "th");
@@ -1358,6 +1423,9 @@ function applyBattleFatigue(e) {
     { result: t, note: n }
   );
 }
+function attackFatigueFactor(e) {
+  return [1, 1, 0.5, 0.5][fatigueLevel(e)];
+}
 function fatigueFactor(e) {
   return [1, 0.75, 0.5, 0.5][fatigueLevel(e)];
 }
@@ -1374,7 +1442,12 @@ function strengthHtml(army, strength, lost) {
     (lost > 0
       ? '<s class="strength_before">' +
         fmtStrength(strength + lost) +
-        '</s> <span class="tired_strength" title="Weakened by fatigue: tired units (level 1) fight at 3/4 of their strength, exhausted (2) and broken (3) ones at 1/2, and the odds are worked out with this reduced strength. An exhausted attacker also loses a step on a DE or DRL result, a broken unit cannot attack, and a broken defender turns a DR into a DRL.">' +
+        '</s> <span class="tired_strength" title="' +
+        L(
+          "Weakened by fatigue: tired units (level 1) defend at 3/4 of their strength but still attack at full strength; exhausted (2) and broken (3) ones fight at 1/2. The odds are worked out with this reduced strength. An exhausted attacker also loses a step on a DE or DRL result, a broken unit cannot attack, and a broken defender turns a DR into a DRL.",
+          "因疲劳而削弱：疲劳（1 级）的部队防守时只有 3/4 兵力，但进攻时仍按满兵力；疲惫（2 级）和崩溃（3 级）的部队作战时只有一半兵力。战斗比例按削弱后的兵力计算。疲惫的进攻部队在 DE 或 DRL 结果时还要损失 1 级，崩溃的部队不能进攻，崩溃的防守部队遇到 DR 时变成 DRL。",
+        ) +
+        '">' +
         fmtStrength(strength) +
         "</span>"
       : fmtStrength(strength))
@@ -1418,7 +1491,7 @@ function showEventBanner(e, ms) {
 }
 // A Russian unit enters a German-held city during the Russian turn
 function cityLiberated(e, t) {
-  const n = CITY_NAMES[e.x + "," + e.y] || "A city";
+  const n = cityNameOf(e.x + "," + e.y, "A city", "一座城市");
   (liberationBonus++,
     t && addFatigue(t, -FATIGUE.liberation),
     showEventBanner(
@@ -1468,7 +1541,7 @@ function historicalSovietVP(e) {
     : null;
 }
 function chronicleHtml(e) {
-  return CHRONICLE[e] ? '<div class="chronicle_note">' + CHRONICLE[e] + "</div>" : "";
+  return CHRONICLE[e] ? '<div class="chronicle_note">' + L(CHRONICLE[e], CHRONICLE_ZH[e]) + "</div>" : "";
 }
 // Extra lines of the turn report (click on the turn bar)
 function turnReportExtra() {
@@ -1518,7 +1591,7 @@ function standardResult() {
     const t = grid.get({ x: e.x, y: e.y });
     a +=
       "<tr><td>" +
-      (CITY_NAMES[e.x + "," + e.y] || "City") +
+      cityNameOf(e.x + "," + e.y, "City", "城市") +
       '</td><td><img src="img/' +
       ("soviet" === t.control ? "soviet" : "german") +
       '_marker.png" /></td><td>' +
@@ -1586,7 +1659,7 @@ function partisanRising(hex) {
   const need = Math.min(5, risingStrength(hex)),
     roll = Math.floor(6 * Math.random()) + 1,
     success = roll <= need,
-    name = CITY_NAMES[hex.x + "," + hex.y] || "the town";
+    name = cityNameOf(hex.x + "," + hex.y, "the town", "这座城镇");
   for (const band of risingBands(hex)) ((band.acted = !0), success || (band.strength = (band.strength || 1) - 1));
   (success && ((hex.control = "soviet"), liberationBonus++, partisanTowns.push({ x: hex.x, y: hex.y })),
     (partisans = partisans.filter(function (band) {
@@ -1607,7 +1680,7 @@ function announceRising(result) {
       ? "the partisans rise and take " + result.name + "! +1 Russian replacement step."
       : "the rising in " + result.name + " is crushed; every band taking part loses 1 strength.");
   showEventBanner(
-    '<img src="img/' +
+    '<img class="banner_photo" src="img/partisans_borovsk_1941.jpg" /><img src="img/' +
       result.roll +
       '.png" />' +
       (result.success ? result.name + " taken by the partisans!" : "The rising in " + result.name + " is crushed") +
@@ -1680,7 +1753,7 @@ function audioReady() {
       const n = noiseBuf.getChannelData(0);
       for (let e = 0; e < n.length; e++) n[e] = 2 * Math.random() - 1;
     }
-    return ("suspended" === audioCtx.state && audioCtx.resume(), audioCtx);
+    return ("suspended" === audioCtx.state && audioCtx.resume(), loadRecordings(audioCtx), audioCtx);
   } catch (e) {
     return null;
   }
@@ -1831,6 +1904,72 @@ function soundUra() {
 // track links clattering over the sprocket and the road wheels, the heavy slap of the track, the
 // squeal of the idlers and the rumble of the hull. The column comes closer, passes and goes away.
 let rollingUntil = 0;
+// ---------------------------------------------------------------- Recorded tanks
+// Real tanks, cut from films on Wikimedia Commons: a Panther driving past at the Saumur tank museum and
+// the original Maybach engine of Tiger 131 at Bovington starting.
+const RECORDINGS = {
+  panther: "audio/panzer_panther.wav",
+  tigerStart: "audio/panzer_tiger_start.wav",
+};
+let panzerEnginesTurn = 0;
+// Loaded once per audio context, as soon as the sound is woken up by a click
+function loadRecordings(ctx) {
+  if (!ctx || ctx.recordings) return;
+  ctx.recordings = {};
+  for (const name in RECORDINGS)
+    fetch(RECORDINGS[name])
+      .then(function (response) {
+        return response.ok ? response.arrayBuffer() : Promise.reject();
+      })
+      .then(function (data) {
+        return ctx.decodeAudioData(data);
+      })
+      .then(function (buffer) {
+        ctx.recordings[name] = buffer;
+      })
+      .catch(function () {});
+}
+// Part of a recording played as a column passing by: it swells, holds and fades away
+function playPass(ctx, buffer, t0, length, level, options) {
+  const source = ctx.createBufferSource(),
+    gain = ctx.createGain(),
+    tone = ctx.createBiquadFilter(),
+    rate = options.rate || 1,
+    span = Math.min(length * rate, buffer.duration - 0.05),
+    offset = void 0 !== options.offset ? options.offset : Math.random() * Math.max(0, buffer.duration - span);
+  ((source.buffer = buffer),
+    (source.playbackRate.value = rate),
+    (tone.type = "lowpass"),
+    (tone.frequency.value = options.muffle || 16e3),
+    gain.gain.setValueAtTime(0.06 * level, t0),
+    gain.gain.exponentialRampToValueAtTime(level, t0 + options.fadeIn),
+    gain.gain.setValueAtTime(level, t0 + Math.max(options.fadeIn, length - options.fadeOut)),
+    gain.gain.exponentialRampToValueAtTime(0.03 * level, t0 + length),
+    gain.gain.linearRampToValueAtTime(0, t0 + length + 0.05),
+    source.connect(tone).connect(gain).connect(audioOut),
+    source.start(t0, offset, span));
+}
+// German panzers: the Panther of Saumur; the first column to move in a turn starts its engines first
+function soundPanzer(ctx, t0, winter, mud) {
+  if (ctx.currentTime < rollingUntil) return;
+  loadRecordings(ctx);
+  const recordings = ctx.recordings;
+  if (!recordings.panther) return soundPanzerSynth(ctx, t0, winter, mud);
+  let start = t0;
+  (recordings.tigerStart &&
+    panzerEnginesTurn !== currentTurn.turn &&
+    ((panzerEnginesTurn = currentTurn.turn),
+    playPass(ctx, recordings.tigerStart, t0, 3.6, 0.8, { offset: 0, fadeIn: 0.02, fadeOut: 1.2 }),
+    (start = t0 + 1.4)),
+    playPass(ctx, recordings.panther, start, 3.4, 1.3, {
+      fadeIn: 0.7,
+      fadeOut: 1.1,
+      rate: mud ? 0.88 : 1,
+      // deep mud and snow swallow the clatter of the tracks
+      muffle: winter ? 3500 : mud ? 2500 : 16e3,
+    }),
+    (rollingUntil = start + 3));
+}
 // The engine as one turn of the crankshaft: strong firing orders (6, 12, 18...), weaker orders in
 // between (uneven cylinders), falling off above about 1.5 kHz. Built once per audio context.
 function engineWave(ctx) {
@@ -1900,7 +2039,7 @@ function trackBuffer(ctx, duration, winter, mud) {
   }
   return buf;
 }
-function soundPanzer(ctx, t0, winter, mud) {
+function soundPanzerSynth(ctx, t0, winter, mud) {
   if (ctx.currentTime < rollingUntil) return;
   const duration = 3;
   rollingUntil = t0 + duration - 0.5;
@@ -2198,7 +2337,7 @@ const WEATHER = {
   8: "Severe frost and deep snow, -25 to -35 °C",
   9: "Deep snow, around -20 °C",
 };
-// The map turns muddy on the mud turns and white in winter
+// The map turns muddy on the mud turns
 function drawSeason() {
   const canvas = document.getElementById("season_overlay");
   if (!canvas || !canvas.width) return;
@@ -2207,20 +2346,6 @@ function drawSeason() {
   if (3 === currentTurn.turn || 4 === currentTurn.turn) {
     ctx.fillStyle = "rgba(110, 80, 40, 0.18)";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-  } else if (isWinterTurn()) {
-    ctx.fillStyle = "rgba(236, 242, 250, 0.32)";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    // snow, scattered with a fixed pseudo-random sequence so it never flickers
-    let seed = 7;
-    const next = function () {
-      seed = (seed * 16807) % 2147483647;
-      return seed;
-    };
-    ctx.fillStyle = "rgba(255, 255, 255, 0.75)";
-    for (let i = 0; i < 2600; i++) {
-      const size = i % 3 === 0 ? 2 : 1;
-      ctx.fillRect(next() % canvas.width, next() % canvas.height, size, size);
-    }
   }
 }
 // ---------------------------------------------------------------- Command decisions
@@ -2318,6 +2443,11 @@ const HISTORY_EVENTS = [
     id: "nkvd",
     turn: 3,
     army: "soviet",
+    photo: {
+      src: "img/partisans_borovsk_1941.jpg",
+      caption: "Partisans of the Borovsk district on reconnaissance. Photograph by V. Zunin, Moscow region, November-December 1941.",
+      captionZh: "博罗夫斯克区游击队在侦察。V. 兹宁摄，莫斯科州，1941 年 11 月至 12 月。",
+    },
     office: "Народный комиссариат внутренних дел СССР",
     officeEn: "People's Commissariat for Internal Affairs of the USSR (NKVD)",
     stamp: "Совершенно секретно",
@@ -2326,13 +2456,13 @@ const HISTORY_EVENTS = [
     date: "17 October 1941",
     title: "The special brigade of the NKVD",
     text: [
-      "The Independent Motorised Rifle Brigade of Special Purpose of the NKVD (OMSBON) was raised in the summer at the Dynamo stadium from athletes, Chekists and foreign Communists, and trained to fight behind the enemy lines.",
-      "Now the front before Moscow is breaking, and the capital is put under a state of siege. Commit the brigade's picked men to the line, or drop its detachments into the forests behind Army Group Centre?",
+      "The Independent Motorised Rifle Brigade of Special Purpose of the NKVD (OMSBON) was raised in the summer at the Dynamo stadium from athletes, Chekists and foreign Communists, and trained to fight [[behind the enemy lines]].",
+      "Now the front before Moscow is breaking, and the capital is put under a [[state of siege]]. Commit the brigade's picked men to the line, or drop its detachments into the forests behind Army Group Centre?",
     ],
     quotes: [
       {
         original: "Ввести с 20 октября 1941 года в городе Москве и прилегающих к городу районах осадное положение.",
-        translation: "A state of siege is to be introduced in the city of Moscow and the districts adjacent to it from 20 October 1941.",
+        translation: "A [[state of siege]] is to be introduced in the city of Moscow and the districts adjacent to it from 20 October 1941.",
         source: "Decree of the State Defence Committee, 19 October 1941",
       },
     ],
@@ -2369,7 +2499,7 @@ const HISTORY_EVENTS = [
       return nkvdCandidates().length ? "infantry" : "drop";
     },
     history:
-      "Both, in fact. In October and November 1941 the brigade prepared the demolition of key objects in Moscow and held sectors of the city's defences, while detachments of it were sent behind the German lines.",
+      "Both, in fact. In October and November 1941 the brigade prepared the demolition of key objects in Moscow and held sectors of the city's defences, while [[detachments of it were sent behind the German lines]].",
     historyQuote: {
       original: "...предоставить войска внутренней охраны НКВД, милицию и добровольческие рабочие отряды.",
       translation: "...the internal troops of the NKVD, the militia and the volunteer workers' detachments are placed at the disposal [of the commandant of Moscow].",
@@ -2388,7 +2518,7 @@ const HISTORY_EVENTS = [
     date: "Early November 1941",
     title: "A parade on Red Square?",
     text: [
-      "The anniversary of the Revolution falls on 7 November. Stalin wants the traditional parade held on Red Square with the front less than 100 km away: the troops would march past the Mausoleum and straight on to the front.",
+      "The anniversary of the Revolution falls on 7 November. Stalin wants the traditional parade held on Red Square with the front [[less than 100 km away]]: the troops would march past the Mausoleum and [[straight on to the front]].",
       "The Luftwaffe can reach Moscow in minutes. Only low clouds and snow would keep it on the ground.",
     ],
     options: [
@@ -2421,16 +2551,16 @@ const HISTORY_EVENTS = [
             unit && "full" === unit.strength
               ? ((unit.strength = "reduced"), (casualties.soviet += unitMen(unit) / 2))
               : unit && addFatigue(unit, FATIGUE.perLevel);
-            return "This time the die rolled a 1: the Luftwaffe bombs the parade.";
+            return L("This time the die rolled a 1: the Luftwaffe bombs the parade.", "这次掷出了 1：德国空军轰炸了阅兵。");
           }
-          return "Snow keeps the Luftwaffe on the ground: the troops march straight to the front.";
+          return L("Snow keeps the Luftwaffe on the ground: the troops march straight to the front.", "大雪让德国空军无法起飞：部队直接开赴前线。");
         },
       },
       { id: "cancel", label: "Cancel the parade", order: "Take no risk with the garrison.", effects: ["No effect."] },
     ],
     ai: "hold",
     history:
-      "The parade was held on 7 November in a snowstorm that kept the Luftwaffe away. The troops marched past the Mausoleum and on to the front, and the newsreel of the parade was shown across the country.",
+      "The parade was held on 7 November in a [[snowstorm]] that kept the Luftwaffe away. The troops marched past the Mausoleum and on to the front, and the newsreel of the parade was shown across the country.",
     historyQuote: {
       original:
         "Пусть вдохновляет вас в этой войне мужественный образ наших великих предков – Александра Невского, Димитрия Донского, Кузьмы Минина, Димитрия Пожарского, Александра Суворова, Михаила Кутузова!",
@@ -2452,8 +2582,8 @@ const HISTORY_EVENTS = [
     date: "13 November 1941",
     title: "Winter clothing or ammunition?",
     text: [
-      "Army Group Centre needs some 26 to 30 trains a day. The worn-out Russian railways bring 8 to 10 a day up to its railheads.",
-      "The winter clothing of the army group, sweaters, gloves, caps, socks and woollen underwear for nearly two million men, would fill some 20 trains, two days of everything that reaches the front. It lies in the depots in Poland. Every train of clothing is a train less of shells, fuel and replacements for the offensive that must take Moscow before the winter.",
+      "Army Group Centre needs some [[26 to 30 trains a day]]. The worn-out Russian railways bring [[8 to 10 a day]] up to its railheads.",
+      "The winter clothing of the army group, sweaters, gloves, caps, socks and woollen underwear for nearly two million men, would fill [[some 20 trains]], two days of everything that reaches the front. It lies in the depots in Poland. Every train of clothing is [[a train less of shells, fuel and replacements]] for the offensive that must take Moscow before the winter.",
     ],
     quotes: [
       {
@@ -2491,9 +2621,9 @@ const HISTORY_EVENTS = [
     ],
     ai: "ammo",
     history:
-      "Ammunition, fuel and rations kept the priority. When the frost came the winter clothing was still in the depots at the railheads: by mid-December not a third of it had been issued to the troops. On 20 December Goebbels appealed to the German people to give their furs and woollens for the soldiers in the East.",
+      "Ammunition, fuel and rations kept the priority. When the frost came the winter clothing was still in the depots at the railheads: by mid-December [[not a third of it had been issued to the troops]]. On 20 December Goebbels appealed to the German people to give their furs and woollens for the soldiers in the East.",
     historyQuote: {
-      translation: "Movement of ammunition, gasoline, and rations had to receive an iron priority.",
+      translation: "Movement of ammunition, gasoline, and rations had to receive [[an iron priority]].",
       source: "The US Army official history (E. F. Ziemke, Moscow to Stalingrad), from the German records",
     },
   },
@@ -2509,8 +2639,8 @@ const HISTORY_EVENTS = [
     date: "1 December 1941",
     title: "The Stavka reserves",
     text: [
-      "New armies have assembled behind the front in secret, the 10th south-east of Moscow and the 20th to the north. The German pincers stand some 30 km from the Kremlin at Krasnaya Polyana, and before Tula.",
-      "Feed the reserves into the battle now, where the line is breaking, or hold them back for the blow that is being prepared?",
+      "New armies have assembled behind the front in secret, the 10th south-east of Moscow and the 20th to the north. The German pincers stand [[some 30 km from the Kremlin]] at Krasnaya Polyana, and before Tula.",
+      "Feed the reserves into the battle now, where the line is breaking, or [[hold them back]] for the blow that is being prepared?",
     ],
     quotes: [
       {
@@ -2537,10 +2667,10 @@ const HISTORY_EVENTS = [
     ],
     ai: "keep",
     history:
-      "The Stavka gave the fronts only what was needed to stop the pincers and kept its new armies for the counteroffensive of 5 and 6 December.",
+      "The Stavka gave the fronts only what was needed to stop the pincers and [[kept its new armies for the counteroffensive]] of 5 and 6 December.",
     historyQuote: {
       original: "Нам важно было выстоять до подхода резервов.",
-      translation: "What mattered to us was to hold out until the reserves arrived.",
+      translation: "What mattered to us was [[to hold out until the reserves arrived]].",
       source: "G. K. Zhukov, 1966",
     },
   },
@@ -2557,8 +2687,8 @@ const HISTORY_EVENTS = [
     date: "5 and 6 December 1941",
     title: "The counteroffensive",
     text: [
-      "The German offensive has spent itself. Guderian's panzers are stuck before Tula and Kashira; in the north the enemy stands at Krasnaya Polyana and on the Moscow-Volga canal, some 25 to 30 km from the Kremlin. The frost has fallen to -25 and -35 °C, and the German divisions, exhausted and short of fuel, dig in where they stopped.",
-      "Behind our front the Stavka reserves have reached their start lines, moving only by night and without fires. At dawn the whole front from Kalinin to Yelets goes over to the attack.",
+      "The German offensive [[has spent itself]]. Guderian's panzers are stuck before Tula and Kashira; in the north the enemy stands at Krasnaya Polyana and on the Moscow-Volga canal, some 25 to 30 km from the Kremlin. The frost has fallen to [[-25 and -35 °C]], and the German divisions, exhausted and short of fuel, dig in where they stopped.",
+      "Behind our front the Stavka reserves have reached their start lines, moving only by night and without fires. At dawn the whole front from Kalinin to Yelets [[goes over to the attack]].",
     ],
     quotes: [
       {
@@ -2591,7 +2721,7 @@ const HISTORY_EVENTS = [
     ],
     ai: "attack",
     history:
-      "The Kalinin Front attacked on 5 December, the Western Front on 6 December. Within ten days the Red Army retook Yakhroma, Istra, Solnechnogorsk and Klin; Kalinin was freed on 16 December.",
+      "The Kalinin Front attacked on 5 December, the Western Front on 6 December. [[Within ten days]] the Red Army retook Yakhroma, Istra, Solnechnogorsk and Klin; Kalinin was freed on 16 December.",
   },
   {
     id: "haltOrder",
@@ -2605,12 +2735,12 @@ const HISTORY_EVENTS = [
     date: "16 to 18 December 1941",
     title: "Hitler's stand-fast order",
     text: [
-      "Army Group Centre is reeling back in the snow. Guderian and Hoepner want to pull back to shorter lines before their divisions are cut off. Hitler fears a rout like Napoleon's in 1812 and forbids any retreat.",
+      "Army Group Centre is reeling back in the snow. Guderian and Hoepner want to pull back to shorter lines before their divisions are cut off. Hitler fears a rout like Napoleon's in 1812 and [[forbids any retreat]].",
     ],
     quotes: [
       {
         translation:
-          "The Fuehrer has ordered: Larger evasive movements cannot be made. They will lead to a total loss of heavy weapons and equipment. Commanding generals, commanders, and officers are to intervene in person to compel the troops to fanatical resistance in their positions without regard to enemy broken through on the flanks or to the rear.",
+          "The Fuehrer has ordered: Larger evasive movements cannot be made. They will lead to a total loss of heavy weapons and equipment. Commanding generals, commanders, and officers are to intervene in person to compel the troops to [[fanatical resistance]] in their positions without regard to enemy broken through on the flanks or to the rear.",
         source: "Teletype to Army Group Centre, 18 December 1941 (as translated in the US Army official history)",
       },
     ],
@@ -2648,7 +2778,7 @@ const HISTORY_EVENTS = [
     ],
     ai: "obey",
     history:
-      "Hitler imposed the order. Bock went on sick leave, Brauchitsch was dismissed and Hitler took over the command of the army himself; Guderian was relieved on 26 December, and Hoepner in January for withdrawing without leave.",
+      "Hitler imposed the order. Bock went on sick leave, Brauchitsch was dismissed and [[Hitler took over the command of the army himself]]; Guderian was relieved on 26 December, and Hoepner in January for withdrawing without leave.",
   },
   {
     id: "radio",
@@ -2663,7 +2793,7 @@ const HISTORY_EVENTS = [
     date: "13 December 1941",
     title: "Attention, this is Moscow speaking!",
     text: [
-      "At the microphone Yuri Levitan reads a special bulletin. For the first time since June the radio announces a great German defeat: the plan to encircle and take Moscow has failed, the German flank groups are beaten and falling back, leaving their equipment behind, and town after town is freed.",
+      "At the microphone Yuri Levitan reads a special bulletin. For the first time since June the radio announces [[a great German defeat]]: the plan to encircle and take Moscow has failed, the German flank groups are beaten and falling back, leaving their equipment behind, and town after town is freed.",
     ],
     quotes: [
       {
@@ -2682,17 +2812,45 @@ const HISTORY_EVENTS = [
     ],
     ai: "press",
     history:
-      "The bulletin was read on the radio and printed in the newspapers with the portraits of the generals of the Western Front. It announced the first great victory of the Red Army in the war.",
+      "The bulletin was read on the radio and printed in the newspapers with the portraits of the generals of the Western Front. It announced [[the first great victory of the Red Army]] in the war.",
   },
 ];
 function textOf(value) {
   return "function" == typeof value ? value() : value;
 }
-function optionEffects(option) {
-  return (textOf(option.effects) || []).filter(Boolean);
+// The text of a dispatch in the current language: its Chinese twin when there is one
+function ev(event, field) {
+  return isZh() && event.zh && void 0 !== event.zh[field] ? event.zh[field] : event[field];
+}
+function optionText(event, option, field) {
+  const twin = isZh() && event.zh && event.zh.options && event.zh.options[option.id];
+  return twin && void 0 !== twin[field] ? twin[field] : option[field];
+}
+function optionEffects(event, option) {
+  return (textOf(optionText(event, option, "effects")) || []).filter(Boolean);
 }
 function optionAvailable(option) {
   return !option.available || option.available();
+}
+// Key words and sentences are marked [[like this]]: underlined in red pencil, as on a staff document
+function richText(text) {
+  return String(text).replace(/\[\[(.+?)\]\]/g, '<span class="key">$1</span>');
+}
+function plainText(text) {
+  return String(text).replace(/\[\[|\]\]/g, "");
+}
+// A quotation keeps its original words; the translation and the source follow the language
+function eventQuotes(event, field) {
+  const quotes = [].concat(event[field] || []),
+    twins = isZh() && event.zh ? [].concat(event.zh[field] || []) : [];
+  return quotes.map(function (quote, k) {
+    const twin = twins[k] || {};
+    return {
+      original: quote.original,
+      translation: twin.translation || quote.translation,
+      source: twin.source || quote.source,
+    };
+  });
 }
 function applyDecision(event, optionId, deferred) {
   const option = event.options.find(function (o) {
@@ -2725,11 +2883,13 @@ function showDecisionResult(event, result) {
     '<img src="img/' +
       event.army +
       '_marker.png" />' +
-      (event.options.length > 1 ? "Enemy decision: " + result.option.label : event.title) +
+      (event.options.length > 1
+        ? L("Enemy decision: ", "敌方决定：") + optionText(event, result.option, "label")
+        : ev(event, "title")) +
       "<span>" +
       (result.outcome ? result.outcome + " " : "") +
-      "In 1941: " +
-      event.history +
+      L("In 1941: ", "1941 年：") +
+      plainText(ev(event, "history")) +
       "</span>",
     15000,
   );
@@ -2738,59 +2898,76 @@ function quoteHtml(quote) {
   return (
     '<blockquote class="dispatch_quote">' +
     (quote.original ? '<div class="quote_original">' + quote.original.replace(/\n/g, "<br />") + "</div>" : "") +
-    (quote.translation ? '<div class="quote_translation">' + quote.translation + "</div>" : "") +
+    (quote.translation ? '<div class="quote_translation">' + richText(quote.translation) + "</div>" : "") +
     '<div class="quote_source">' +
     quote.source +
     "</div></blockquote>"
   );
 }
-// The dispatch on the commander's desk: orders as buttons, their effect shown when pointed at
-// (first tap on a touch screen), then what was actually done in 1941
+// The dispatch takes the whole screen: the historical photograph on one side when there is one, the
+// document on the other; orders as buttons, their effect shown when pointed at (first tap on a touch
+// screen), then what was actually done in 1941
 function showDispatch(event, decide, next) {
   let overlay = document.getElementById("decision_overlay");
   overlay ||
     ((overlay = document.createElement("div")), (overlay.id = "decision_overlay"), document.body.appendChild(overlay));
   const meta = [
-    ["To", event.to],
-    ["From", event.from],
-    ["Place", event.place],
-    ["Date", event.date],
-  ]
-    .filter(function (row) {
-      return row[1];
-    })
-    .map(function (row) {
-      return "<tr><th>" + row[0] + "</th><td>" + row[1] + "</td></tr>";
-    })
-    .join("");
+      [L("To", "收文"), ev(event, "to")],
+      [L("From", "发文"), ev(event, "from")],
+      [L("Place", "地点"), ev(event, "place")],
+      [L("Date", "日期"), ev(event, "date")],
+    ]
+      .filter(function (row) {
+        return row[1];
+      })
+      .map(function (row) {
+        return "<tr><th>" + row[0] + "</th><td>" + row[1] + "</td></tr>";
+      })
+      .join(""),
+    photo = event.photo
+      ? '<figure class="dispatch_photo"><img src="' +
+        event.photo.src +
+        '" alt="" /><figcaption>' +
+        L(event.photo.caption, event.photo.captionZh) +
+        "</figcaption></figure>"
+      : "";
   overlay.innerHTML =
+    '<div class="dispatch_screen ' +
+    event.army +
+    (photo ? " with_photo" : "") +
+    '">' +
+    photo +
     '<div class="dispatch ' +
     event.army +
     " " +
     (event.kind || "order") +
-    '"><div class="dispatch_head"><img src="img/' +
+    '"><div class="dispatch_inner"><div class="dispatch_head"><img src="img/' +
     event.army +
     '_marker.png" /><div class="dispatch_office"><div class="office_original">' +
     event.office +
     '</div><div class="office_en">' +
-    event.officeEn +
+    ev(event, "officeEn") +
     "</div></div>" +
     (event.stamp ? '<div class="dispatch_stamp">' + event.stamp + "</div>" : "") +
     '</div><table class="dispatch_meta">' +
     meta +
     '</table><div class="dispatch_title">' +
-    event.title +
+    ev(event, "title") +
     '</div><div class="dispatch_text">' +
-    event.text
+    ev(event, "text")
       .map(function (p) {
-        return "<p>" + p + "</p>";
+        return "<p>" + richText(p) + "</p>";
       })
       .join("") +
     "</div>" +
-    (event.quotes || []).map(quoteHtml).join("") +
+    eventQuotes(event, "quotes").map(quoteHtml).join("") +
     '<div class="dispatch_orders_title">' +
-    (event.options.length > 1 ? "Your orders" : "Your order") +
-    '</div><div class="dispatch_orders"></div><div class="dispatch_estimate"><div class="estimate_title">Effect on the game</div><ul><li class="estimate_hint">Point at an order to see what it does.</li></ul></div><div class="dispatch_outcome"></div></div>';
+    (event.options.length > 1 ? L("Your orders", "你的命令") : L("Your order", "你的命令")) +
+    '</div><div class="dispatch_orders"></div><div class="dispatch_estimate"><div class="estimate_title">' +
+    L("Effect on the game", "对游戏的影响") +
+    '</div><ul><li class="estimate_hint">' +
+    L("Point at an order to see what it does.", "把鼠标放在命令上，查看它对游戏的影响。") +
+    '</li></ul></div><div class="dispatch_outcome"></div></div></div></div>';
   const card = overlay.querySelector(".dispatch"),
     orders = overlay.querySelector(".dispatch_orders"),
     estimate = overlay.querySelector(".dispatch_estimate ul");
@@ -2799,13 +2976,13 @@ function showDispatch(event, decide, next) {
   const show = function (option, button) {
       for (const other of orders.children) other.classList.toggle("focused", other === button);
       estimate.innerHTML =
-        optionEffects(option)
+        optionEffects(event, option)
           .map(function (line) {
-            return "<li>" + line + "</li>";
+            return "<li>" + richText(line) + "</li>";
           })
           .join("") +
-        (optionAvailable(option) ? "" : '<li class="estimate_warn">Not possible now.</li>') +
-        (button === armed ? '<li class="estimate_hint">Tap the order again to give it.</li>' : "");
+        (optionAvailable(option) ? "" : '<li class="estimate_warn">' + L("Not possible now.", "现在无法执行。") + "</li>") +
+        (button === armed ? '<li class="estimate_hint">' + L("Tap the order again to give it.", "再点一次即下达这道命令。") + "</li>" : "");
     },
     giveOrder = function (option, button) {
       const result = decide(option.id);
@@ -2819,13 +2996,17 @@ function showDispatch(event, decide, next) {
         (overlay.querySelector(".dispatch_estimate").style.display = "none"));
       const outcome = overlay.querySelector(".dispatch_outcome");
       ((outcome.innerHTML =
-        '<div class="outcome_title">What happened in 1941</div>' +
+        '<div class="outcome_title">' +
+        L("What happened in 1941", "1941 年实际发生了什么") +
+        "</div>" +
         (result.outcome ? '<p class="outcome_now">' + result.outcome + "</p>" : "") +
         "<p>" +
-        event.history +
+        richText(ev(event, "history")) +
         "</p>" +
-        (event.historyQuote ? quoteHtml(event.historyQuote) : "") +
-        '<button type="button" class="dispatch_continue">Continue</button>'),
+        eventQuotes(event, "historyQuote").map(quoteHtml).join("") +
+        '<button type="button" class="dispatch_continue">' +
+        L("Continue", "继续") +
+        "</button>"),
         (outcome.style.display = "block"),
         (outcome.querySelector(".dispatch_continue").onclick = function (e) {
           (e.stopPropagation(), (overlay.style.display = "none"), (overlay.innerHTML = ""), next());
@@ -2837,7 +3018,12 @@ function showDispatch(event, decide, next) {
       ok = optionAvailable(option);
     ((button.type = "button"),
       (button.className = "dispatch_option" + (ok ? "" : " unavailable")),
-      (button.innerHTML = '<span class="option_label">' + option.label + '</span><span class="option_order">' + option.order + "</span>"),
+      (button.innerHTML =
+        '<span class="option_label">' +
+        optionText(event, option, "label") +
+        '</span><span class="option_order">' +
+        optionText(event, option, "order") +
+        "</span>"),
       button.addEventListener("pointerdown", function (e) {
         pointerType = e.pointerType || "mouse";
       }),
@@ -2860,9 +3046,230 @@ function showDispatch(event, decide, next) {
     (overlay.onclick = function (e) {
       e.stopPropagation();
     }),
-    (overlay.style.display = "flex"),
+    (overlay.style.display = "block"),
     (card.scrollTop = 0));
 }
+// The Chinese text of the dispatches (the original Russian and German quotations are kept as they are)
+const DISPATCH_ZH = {
+  nkvd: {
+    officeEn: "苏联内务人民委员部（NKVD）",
+    to: "NKVD 特别组组长 P. A. 苏多普拉托夫",
+    place: "莫斯科，卢比扬卡",
+    date: "1941 年 10 月 17 日",
+    title: "NKVD 特种旅",
+    text: [
+      "NKVD 独立特种摩托化步兵旅（OMSBON）今年夏天在迪纳摩体育场组建，成员是运动员、契卡人员和外国共产党员，受训的任务是[[在敌人后方作战]]。",
+      "现在莫斯科前方的战线正在崩溃，首都已经宣布[[戒严]]。是把这个旅的精兵投入防线，还是把它的分队空投到中央集团军群背后的森林里？",
+    ],
+    quotes: [{ translation: "自 1941 年 10 月 20 日起，在莫斯科市及其毗邻地区[[实行戒严]]。", source: "国防委员会决定，1941 年 10 月 19 日" }],
+    options: {
+      infantry: {
+        label: "作为步兵投入防线",
+        order: "用这个旅的精兵加强一个残破的集团军。",
+        effects: function () {
+          const candidates = nkvdCandidates();
+          return [
+            "由你选一个[[有补给的半血步兵集团军]]：它变成突击集团军，立即为 5-4，补满后为 10-4。",
+            candidates.length ? "现在可以接收的集团军：" + namesOf(candidates) + "。" : "",
+          ];
+        },
+      },
+      drop: {
+        label: "空投到德军后方",
+        order: "把各分队作为游击队伞降到森林里。",
+        effects: function () {
+          return [
+            "立即在德军后方的森林格里组建 [[2 支力量为 2 的游击队]]（由你放置），从你的下一回合起行动。",
+            "德军的补给线不能穿过游击队所在的格子及其相邻格子。",
+            "地图上现有游击队：" + partisans.length + " 支（最多 " + MAX_PARTISANS + " 支）。",
+          ];
+        },
+      },
+    },
+    history: "两样都做了。1941 年 10 月至 11 月，这个旅为炸毁莫斯科的要害目标做好了准备，并防守城市防线的一些地段，同时[[派出分队深入德军后方]]。",
+    historyQuote: { translation: "……把内务人民委员部内卫部队、民警和工人志愿队交由（莫斯科卫戍司令）指挥。", source: "国防委员会决定，1941 年 10 月 19 日，第 3 条" },
+  },
+  parade: {
+    officeEn: "国防委员会",
+    to: "国防委员会全体委员",
+    place: "莫斯科，克里姆林宫",
+    date: "1941 年 11 月初",
+    title: "在红场阅兵？",
+    text: [
+      "11 月 7 日是十月革命纪念日。斯大林希望照常在红场举行阅兵，而前线离这里[[不到 100 公里]]：部队将走过列宁墓，[[直接开赴前线]]。",
+      "德国空军几分钟就能飞到莫斯科上空，只有低云和大雪能让它们飞不起来。",
+    ],
+    options: {
+      hold: {
+        label: "举行阅兵",
+        order: "部队从红场直接开赴前线。",
+        effects: function () {
+          const moscow = grid.get({ x: 10, y: 2 }),
+            near = unitsOf("soviet").filter(function (unit) {
+              return Hex(unit.position).distance(moscow) <= 1;
+            });
+          return [
+            "莫斯科及其相邻格的苏军[[疲劳减 4 点，即降一级]]（" + (near.length ? "现有 " + near.length + " 支：" + namesOf(near) : "现在那里没有部队") + "）。",
+            "本回合苏军 +1 个补充兵步数。",
+            "风险：掷骰掷出 1，德国空军轰炸红场，莫斯科城内的满编部队损失一级。",
+          ];
+        },
+      },
+      cancel: { label: "取消阅兵", order: "不拿卫戍部队冒险。", effects: ["没有效果。"] },
+    },
+    history: "11 月 7 日的阅兵在[[暴风雪]]中照常举行，德国空军没能起飞。部队走过列宁墓，直接开往前线；阅兵的新闻纪录片传遍了全国。",
+    historyQuote: {
+      translation: "让我们伟大祖先——亚历山大·涅夫斯基、德米特里·顿斯科伊、库兹马·米宁、德米特里·波扎尔斯基、亚历山大·苏沃洛夫、米哈伊尔·库图佐夫——的英勇形象，在这场战争中[[鼓舞你们]]！",
+      source: "斯大林在红场的讲话，1941 年 11 月 7 日（《真理报》11 月 8 日）",
+    },
+  },
+  trains: {
+    officeEn: "陆军总司令部，军需总监",
+    to: "陆军总参谋长 F. 哈尔德大将",
+    from: "军需总监 E. 瓦格纳上将",
+    place: "奥尔沙，各集团军群参谋长会议",
+    date: "1941 年 11 月 13 日",
+    title: "冬装还是弹药？",
+    text: [
+      "中央集团军群每天需要 [[26 到 30 列火车]]，而残破的俄国铁路每天只能把 [[8 到 10 列]]送到它的铁路终点站。",
+      "全集团军群近两百万人的冬衣——毛衣、手套、帽子、袜子和羊毛内衣——要装满[[约 20 列火车]]，相当于前线两天的全部到货。它们还堆在波兰的仓库里。每多运一列冬衣，就[[少运一列炮弹、燃料和补充兵]]，而这次攻势必须在冬天之前拿下莫斯科。",
+    ],
+    quotes: [{ translation: "……这个敌人[[已经被打垮]]，再也站不起来了！", source: "希特勒在柏林体育宫的演讲，1941 年 10 月 3 日" }],
+    options: {
+      ammo: {
+        label: "弹药和燃料优先",
+        order: "冬衣先留在仓库，等拿下莫斯科再说。",
+        effects: function () {
+          const german = unitsOf("german"),
+            outside = german.filter(function (unit) {
+              return "none" === grid.get(unit.position).city;
+            });
+          return [
+            "现在没有变化：德军补充兵照常。",
+            "冬季（第 8、9 回合）每个德军回合开始时：[[在城镇外 +2 疲劳]]，在城镇里 +1，在莫斯科或图拉不加。",
+            "现在在城镇外的德军：" + outside.length + " / " + german.length + " 支。",
+          ];
+        },
+      },
+      clothing: {
+        label: "冬装优先",
+        order: "二十列冬衣赶在炮弹前面运往东线。",
+        effects: [
+          "德军[[不再有冬季疲劳]]，和红军一样。",
+          "这些火车挤占了补充兵的运力：[[第 6、7 回合德军没有补充兵]]（本回合之后剩下的 4 次里少 2 次）。",
+        ],
+      },
+    },
+    history: "弹药、燃料和口粮仍然优先。霜冻来临时，冬衣还堆在铁路终点站的仓库里：到 12 月中旬，[[发到部队手里的还不到三分之一]]。12 月 20 日，戈培尔号召德国民众为东线士兵捐献皮衣和毛织品。",
+    historyQuote: { translation: "弹药、汽油和口粮的运输[[必须享有绝对优先]]。", source: "美国陆军官方战史（E. F. 齐姆克《从莫斯科到斯大林格勒》），据德方档案" },
+  },
+  reserves: {
+    officeEn: "最高统帅部大本营",
+    to: "总参谋长 B. M. 沙波什尼科夫元帅",
+    place: "莫斯科，总参谋部",
+    date: "1941 年 12 月 1 日",
+    title: "大本营预备队",
+    text: [
+      "新的集团军已经秘密集结在前线后方：第 10 集团军在莫斯科东南，第 20 集团军在北面。德军的钳形攻势已推进到克拉斯纳亚波利亚纳，[[离克里姆林宫只有约 30 公里]]，南面已到图拉城下。",
+      "是现在就把预备队投入战线崩溃的地方，还是[[留着]]准备那场正在酝酿的反击？",
+    ],
+    quotes: [
+      {
+        translation: "“您有把握守住莫斯科吗？我是怀着痛苦的心情问您的。请您像一个共产党员那样诚实地回答。”“[[莫斯科我们守得住。]]”",
+        source: "1941 年 11 月斯大林与朱可夫的电话，据朱可夫 1966 年的回忆",
+      },
+    ],
+    options: {
+      commit: { label: "现在投入", order: "把新组建的师投到战线崩溃的地方。", effects: ["本回合苏军 [[+2 个补充兵步数]]。"] },
+      keep: { label: "留给反攻", order: "前线必须用现有的兵力顶住。", effects: ["第 8 回合反攻开始时，苏军 [[+2 个补充兵步数]]。"] },
+    },
+    history: "大本营只给各方面军补充了挡住钳形攻势所必需的兵力，把新组建的集团军[[留到了 12 月 5 日和 6 日的反攻]]。",
+    historyQuote: { translation: "对我们来说，重要的是[[坚持到预备队赶到]]。", source: "G. K. 朱可夫，1966 年" },
+  },
+  counteroffensive: {
+    officeEn: "最高统帅部大本营致西方面军",
+    to: "加里宁方面军、西方面军和西南方面军各集团军",
+    place: "佩尔胡什科沃，西方面军司令部",
+    date: "1941 年 12 月 5 日和 6 日",
+    title: "反攻",
+    text: [
+      "德军的攻势[[已经耗尽]]。古德里安的坦克被挡在图拉和卡希拉城下；北面的敌人停在克拉斯纳亚波利亚纳和莫斯科—伏尔加运河一线，离克里姆林宫 25 到 30 公里。气温已降到[[零下 25 到 35 度]]，筋疲力尽、缺少燃料的德军各师就地挖壕。",
+      "在我们的战线后方，大本营预备队已经进入出发阵地，只在夜间行军，不生火。拂晓时分，从加里宁到叶列茨的整条战线[[转入进攻]]。",
+    ],
+    quotes: [{ translation: "我们的事业是正义的。敌人必将被粉碎。[[胜利必将属于我们。]]", source: "V. M. 莫洛托夫，1941 年 6 月 22 日广播讲话" }],
+    options: {
+      attack: {
+        label: "Вперёд！进攻",
+        order: "反攻开始。",
+        effects: function () {
+          const plan = SPECIAL_ARRIVALS[WINTER_START];
+          return [
+            "本回合到达：[[近卫骑兵第 1、第 2 军（6-6）]]、" + plan.ski + " 个滑雪营和 " + plan.partisans + " 支游击队。",
+            "冬季：苏军滑雪集团军穿越森林只需 1 点移动力；" +
+              ("clothing" === decisions.trains ? "德军已经拿到冬装。" : "没有冬装的德军在城镇外很快就会疲劳。"),
+            "keep" === decisions.reserves ? "你留下的大本营预备队：本回合 +2 个补充兵步数。" : "",
+          ];
+        },
+      },
+    },
+    history: "加里宁方面军 12 月 5 日发起进攻，西方面军 12 月 6 日跟进。[[十天之内]]，红军收复了亚赫罗马、伊斯特拉、索尔涅奇诺戈尔斯克和克林；12 月 16 日加里宁解放。",
+  },
+  haltOrder: {
+    officeEn: "陆军总司令部，致中央集团军群电传",
+    to: "中央集团军群司令 F. 冯·博克元帅",
+    place: "东普鲁士，元首大本营",
+    date: "1941 年 12 月 16 日至 18 日",
+    title: "希特勒的死守令",
+    text: [
+      "中央集团军群在雪地里节节后退。古德里安和霍普纳想在部队被切断之前撤到较短的防线上。希特勒担心重演 1812 年拿破仑的溃败，[[禁止任何撤退]]。",
+    ],
+    quotes: [
+      {
+        translation:
+          "元首命令：不得进行较大规模的后撤，那将导致重武器和装备的全部损失。各级指挥官和军官要亲自出面，迫使部队在阵地上进行[[狂热的抵抗]]，不管敌人是否已从侧翼或后方突破。",
+        source: "1941 年 12 月 18 日发给中央集团军群的电传（据美国陆军官方战史的英译）",
+      },
+    ],
+    options: {
+      obey: {
+        label: "服从：坚守每一个阵地",
+        order: "每个人都在原地战斗。",
+        effects: function () {
+          const held = unitsOf("german").filter(function (unit) {
+            return "full" === unit.strength && "none" !== grid.get(unit.position).city;
+          });
+          return ["满编德军在任何城市防守时，[[DR 结果改为损失一级、不撤退]]。", "现在城市里的满编德军：" + held.length + " 支。"];
+        },
+      },
+      elastic: {
+        label: "按古德里安的建议后撤",
+        order: "在各师被切断之前缩短防线。",
+        effects: function () {
+          const vp = victoryPoints().soviet;
+          return [
+            "没有死守令：德军照常撤退。",
+            "每支德军现在[[减 2 点疲劳]]（共 " + unitsOf("german").length + " 支）。",
+            "希特勒撤换将领：[[苏军 +1 胜利点]]（" + vp + " → " + (vp + 1) + "）。",
+          ];
+        },
+      },
+    },
+    history: "希特勒强行下达了这道命令。博克请了病假，布劳希奇被解职，[[希特勒亲自接管陆军指挥]]；古德里安 12 月 26 日被撤职，霍普纳在 1 月因擅自撤退被撤职。",
+  },
+  radio: {
+    officeEn: "苏联情报局，莫斯科广播电台",
+    place: "莫斯科广播电台",
+    date: "1941 年 12 月 13 日",
+    title: "注意，这里是莫斯科！",
+    text: [
+      "列维坦在话筒前宣读一份特别公报。自 6 月以来，电台第一次宣布德军遭到[[一场大败]]：包围和夺取莫斯科的计划已经破产，德军的两翼集团被击溃，丢下装备后撤，城镇一个接一个获得解放。",
+    ],
+    quotes: [{ translation: "注意，这里是莫斯科！最新消息：[[德军包围和夺取莫斯科的计划破产。]]", source: "苏联情报局公报，1941 年 12 月 13 日" }],
+    options: { press: { label: "За Родину！继续进攻", order: "攻势继续。", effects: ["规则没有变化：攻势继续。"] } },
+    history: "这份公报在电台播出，并配上西方面军将领们的照片刊登在各家报纸上。它宣告了红军在这场战争中的[[第一次大胜利]]。",
+  },
+};
+for (const event of HISTORY_EVENTS) event.zh = DISPATCH_ZH[event.id];
 // Called at the start of replacementPhase and reinforcementPhase: true if the phase must wait for a decision
 function gateHistoryEvent(phase, turn, army, deferred) {
   const event = HISTORY_EVENTS.find(function (e) {
@@ -2897,18 +3304,23 @@ function decisionsHtml() {
     return decisions[e.id] && e.options.length > 1;
   });
   return taken.length
-    ? '<div style="text-align: left;">- Command decisions: ' +
+    ? '<div style="text-align: left;">- ' +
+        L("Command decisions: ", "指挥决策：") +
         taken
           .map(function (e) {
             return (
-              e.title +
-              " — " +
-              e.options.find(function (o) {
-                return o.id === decisions[e.id];
-              }).label
+              ev(e, "title") +
+              " \u2014 " +
+              optionText(
+                e,
+                e.options.find(function (o) {
+                  return o.id === decisions[e.id];
+                }),
+                "label",
+              )
             );
           })
-          .join("; ") +
+          .join(L("; ", "；")) +
         "</div>"
     : "";
 }
@@ -3222,8 +3634,8 @@ function computeBattleOdds() {
     for (const e of battle.attackingUnits) {
       let t = "full" === e.strength ? e.combatFull : e.combatReduced;
       (3 !== currentTurn.turn && 4 !== currentTurn.turn) || "tank" !== e.type || (t /= 2);
-      // a tired unit fights at part of its own strength (3/4 tired, 1/2 exhausted)
-      const n = t * fatigueFactor(e);
+      // attacking, a merely tired unit still fights at full strength; exhausted and broken ones at half
+      const n = t * attackFatigueFactor(e);
       ((f += t - n), (i += n));
     }
     const s =
@@ -3454,9 +3866,9 @@ function setTurnInfo() {
     default:
       console.log("ERROR - Invalid turn: ", currentTurn);
   }
-  document.getElementById("turn_info_title").innerText = e;
+  document.getElementById("turn_info_title").innerText = L(e, turnTitleZh(currentTurn.turn));
   const w = document.getElementById("turn_info_weather");
-  (w && (w.innerText = WEATHER[currentTurn.turn] || ""), drawSeason());
+  (w && (w.innerText = L(WEATHER[currentTurn.turn], WEATHER_ZH[currentTurn.turn]) || ""), drawSeason());
 }
 function turn1GermanSetupPhase() {
   ((currentTurn = { turn: 1, army: "german", phase: "setup", subphase: "" }),
@@ -6525,4 +6937,367 @@ window.addEventListener("load", function () {
       },
       !0,
     ));
+});
+// ---------------------------------------------------------------- Chinese interface
+// The game writes its interface in English. In Chinese mode every text it shows is translated as it
+// appears on the page (whole labels, then sentences, then sentences with numbers and names), and put back
+// in English when the switch goes back. Names, dates, the weather and the chronicle are written in
+// Chinese at the source; the dispatches and the help have a Chinese twin of their own.
+const CITY_NAMES_ZH = {
+  "1,4": "斯摩棱斯克",
+  "2,6": "罗斯拉夫尔",
+  "4,8": "布良斯克",
+  "5,1": "勒热夫",
+  "5,3": "维亚济马",
+  "7,3": "莫扎伊斯克",
+  "7,5": "卡卢加",
+  "7,9": "奥廖尔",
+  "10,2": "莫斯科",
+  "10,6": "图拉",
+  "13,5": "梁赞",
+};
+function cityNameOf(key, fallbackEn, fallbackZh) {
+  return L(CITY_NAMES[key] || fallbackEn, CITY_NAMES_ZH[key] || fallbackZh);
+}
+const WEATHER_ZH = {
+  1: "凉爽干燥，约 +5 °C",
+  2: "10 月 7 日初雪，约 0 °C",
+  3: "雨水和深泥（泥泞季），约 +3 °C",
+  4: "泥泞，夜间结霜，约 0 °C",
+  5: "地面冻硬，约 -8 °C",
+  6: "下雪结冰，约 -10 °C",
+  7: "严寒，约 -15 °C",
+  8: "酷寒深雪，-25 至 -35 °C",
+  9: "深雪，约 -20 °C",
+};
+const CHRONICLE_ZH = {
+  1: "1941 年 10 月 2 日。“台风”行动开始。希特勒的当日命令：“今天，开始了今年最后一场伟大的决战。”",
+  2: "10 月 3 日：希特勒在广播讲话中宣称敌人“已经被打垮，再也无法恢复元气”。10 月 7 日：德军最高统帅部的一道指令规定，即使莫斯科提出投降，也不予接受。",
+  3: "10 月中旬。秋季的泥泞拖慢了一切行动。苏联历史学家强调，泥泞对双方同样不利，并没有决定这场会战。",
+  4: "11 月初。德军在莫扎伊斯克防线前的泥泞中停滞不前；11 月 7 日，红军在红场举行阅兵。",
+  5: "11 月 15 日至 16 日。德军从西北和南面恢复对莫斯科的进攻。",
+  6: "11 月下旬。德军先头部队逼近莫斯科，大本营则在前线后方集结预备队。",
+  7: "12 月初。德军攻势在莫斯科城下达到顶点；各师筋疲力尽，补给短缺。",
+  8: "12 月 5 日至 6 日。红军开始反击。罗科索夫斯基回忆：深雪和严寒使部队很难离开道路机动，撤退的德军烧毁了每一个村庄。部队只在夜间行军，气温零下 28 至 35 度。",
+  9: "12 月 16 日。希特勒的死守令：中央集团军群不得大规模后撤，军官们要让部队“以狂热的顽强”坚守阵地。撤退的德军身后留下一片废墟：伊斯特拉被烧毁，新耶路撒冷修道院被炸毁，博罗季诺博物馆被焚。",
+};
+const TURN_DATES_ZH = ["", "1941 年 10 月 2 日", "1941 年 10 月 10 日", "1941 年 10 月 17 日", "1941 年 11 月 1 日", "1941 年 11 月 16 日", "1941 年 11 月 23 日", "1941 年 12 月 1 日", "1941 年 12 月 5 日", "1941 年 12 月 15 日"];
+function turnTitleZh(turn) {
+  return (
+    TURN_DATES_ZH[turn] +
+    " · 第 " +
+    turn +
+    "/" +
+    LAST_TURN +
+    " 回合" +
+    (3 === turn || 4 === turn ? "（泥泞）" : turn >= WINTER_START ? "（冬季）" : "")
+  );
+}
+function unitNameZh(e) {
+  const t = parseInt(e.id.replace(/\D/g, ""), 10);
+  return "soviet" === e.army
+    ? e.nkvd
+      ? "第 " + t + " 集团军（NKVD）"
+      : "shock" === e.type
+        ? "突击第 " + t + " 集团军"
+        : "cavalry" === e.type
+          ? "近卫骑兵第 " + t + " 军"
+          : "第 " + t + " 集团军"
+    : "第 " + t + ("tank" === e.type ? " 装甲军" : " 军");
+}
+// Whole labels: a text that is exactly one of these
+const ZH_WORDS = {
+  "Battle for Moscow": "莫斯科战役",
+  "Continue Game": "继续游戏",
+  "Solitaire / Hotseat": "单人 / 双人轮流",
+  "Play with": "使用",
+  "Tournament Rules": "锦标赛规则",
+  Layers: "图层",
+  Supply: "补给",
+  Fatigue: "疲劳",
+  Men: "兵力",
+  Sound: "声音",
+  "Setting Up": "部署",
+  Undo: "撤销",
+  Next: "下一场",
+  Continue: "继续",
+  Close: "关闭",
+  "New Game": "新游戏",
+  "To Combat Phase": "进入战斗阶段",
+  "To Russian Redeployment Phase": "进入苏军重新部署阶段",
+  "Redeployment Phase": "重新部署阶段",
+  "No more redeployment needed": "不再重新部署",
+  "To German Combat Phase": "进入德军战斗阶段",
+  "Combat Phase": "战斗阶段",
+  "Go straight to movement phase": "直接进入移动阶段",
+  "No more battle to announce": "不再宣布战斗",
+  "To Battles Resolution": "进入战斗结算",
+  "To Movement Phase": "进入移动阶段",
+  "Movement Phase": "移动阶段",
+  "No more movement required": "不再移动",
+  "To Other Player Turn": "进入对方回合",
+  "To Final Results": "查看最终结果",
+  "Replacement Phase": "补充阶段",
+  "No more replacement needed": "不再补充",
+  "To Standard Replacement Phase": "进入常规补充阶段",
+  "To Special Movement Phase": "进入特殊移动阶段",
+  "Special Movement Phase": "特殊移动阶段",
+  "No more special movement needed": "不再进行特殊移动",
+  Raid: "伏击",
+  "Sabotage rail": "破坏铁路",
+  "Guide the army": "为大军带路",
+  "Rise in a town": "城中起义",
+  Move: "转移",
+  Recruit: "扩编",
+  "Exchange!": "交换！",
+  "The Historical Result": "历史结果",
+  "German Decisive Victory!": "德军决定性胜利！",
+  "Russian Decisive Victory!": "苏军决定性胜利！",
+  "Russian Victory!": "苏军胜利！",
+  "German Victory!": "德军胜利！",
+  "German Major Victory!": "德军重大胜利！",
+  "Russian Major Victory!": "苏军重大胜利！",
+  "Russian Minor Victory!": "苏军小胜！",
+  "German Minor Victory!": "德军小胜！",
+  City: "城市",
+};
+// Sentences, translated wherever they appear (the longest first)
+const ZH_PHRASES = [
+  ["Show the units cut off from their map edge (key S)", "显示与地图边缘失去联系的部队（S 键）"],
+  ["Show unit fatigue (key F)", "显示部队疲劳（F 键）"],
+  ["Show the estimated manpower of each unit (key P)", "显示每支部队的估计兵力（P 键）"],
+  ["Sound effects on or off (key M)", "开关音效（M 键）"],
+  ["Set up one full-strength German unit on each hex containing a black cross.", "在每个画有黑十字的格子里布置一支满编德军部队。"],
+  ["The German army sets up one full-strength unit on each hex containing a black cross.", "德军在每个画有黑十字的格子里布置一支满编部队。"],
+  ['Redeploy some, none or all three Russian "reserve" armies  located in the highlighted hexes.', "重新部署位于高亮格子里的三个苏军“预备”集团军：可以部署其中一部分、全部，或者都不部署。"],
+  ["The enemy has decided to not redeploy any unit for this turn.", "敌方决定本回合不重新部署任何部队。"],
+  ["Upon choosing a defending unit, all compatible attacking units are selected. Adjust the ones taking part in this battle by clicking on them. Then, add each battle to the stack.", "选择一个防守部队后，所有能参加进攻的部队都会被选中。点击它们可以调整参加这场战斗的部队，然后把每场战斗加入列表。"],
+  ["The enemy is announcing the battles of this turn...", "敌方正在宣布本回合的战斗……"],
+  ["The enemy has announced all the battles for this turn. Click below to highlight each battle or proceed to the resolution.", "敌方已宣布本回合的所有战斗。点击下方可以高亮每场战斗，或者进入结算。"],
+  ["Announce all the battles of this turn by selecting each set of defending and attacking units (or skip combat and go to the movement phase).", "选择每一组防守和进攻部队，宣布本回合的所有战斗（也可以跳过战斗，直接进入移动阶段）。"],
+  ["The enemy doesn't announce any battle for this turn and goes straight to the movement phase.", "敌方本回合不宣布任何战斗，直接进入移动阶段。"],
+  [" It loses 1 step as it must retreat through an EZOC.", "它必须穿过敌方控制区撤退，因此损失 1 级。"],
+  ["Select a valid destination", "选择一个可以撤退到的格子"],
+  [" for the retreat...", "……"],
+  [" But there is no valid retreat so it is eliminated.", "但它无路可退，因此被消灭。"],
+  ["Use the option to advance", "可以推进"],
+  [" into the vacated hex by clicking on the attacking unit, ", "：点击一支进攻部队，让它进入空出来的格子，"],
+  ["or continue without", "或者不推进，直接继续"],
+  [" The selected attacking unit is eliminated during the exchange.", "选中的进攻部队在交换中被消灭。"],
+  [" The selected attacking unit loses 1 step during the exchange.", "选中的进攻部队在交换中损失 1 级。"],
+  [" The attacking unit is eliminated during the exchange.", "进攻部队在交换中被消灭。"],
+  [" The attacking unit loses 1 step during the exchange.", "进攻部队在交换中损失 1 级。"],
+  ["Select the attacking unit(s) to match the defending unit's loss", "选择进攻部队，抵消防守部队的损失"],
+  [" The attacking unit strength is already reduced so it is eliminated.", "进攻部队已经是半血，因此被消灭。"],
+  ["The battle has no effect.", "这场战斗没有结果。"],
+  ["The defending unit needs to retreat 2 hexes.", "防守部队必须后撤 2 格。"],
+  [" But it is in a major city, so it takes a step loss instead and doesn't retreat.", "但它在大城市里，因此改为损失 1 级，不撤退。"],
+  [" But Hitler's stand-fast order holds it in the city: it takes a step loss instead and doesn't retreat.", "但希特勒的死守令把它钉在城里：改为损失 1 级，不撤退。"],
+  ["The defending unit loses 1 step and is retreated 2 hexes.", "防守部队损失 1 级，并后撤 2 格。"],
+  [" But its strength is already reduced so it is eliminated.", "但它已经是半血，因此被消灭。"],
+  ["The defending unit is eliminated.", "防守部队被消灭。"],
+  [" The defending unit strength is already reduced so it is eliminated.", "防守部队已经是半血，因此被消灭。"],
+  ["One attacking unit needs to lose 1 step.", "一支进攻部队必须损失 1 级。"],
+  ["Select the attacking unit", "选择受影响的进攻部队"],
+  [" to be impacted...", "……"],
+  ["All battles have been resolved.", "所有战斗都已结算。"],
+  ["The defender is broken by fatigue: its retreat costs it a step. ", "防守部队已疲劳崩溃：撤退让它损失 1 级。"],
+  ["Select all the units you choose to move and their destination in order to conclude the turn.", "选择你要移动的部队和它们的目的地，以结束本回合。"],
+  ["The enemy has chosen to complete the turn without moving any unit.", "敌方选择不移动任何部队，结束本回合。"],
+  ["The enemy has selected units to move in order to complete this turn.", "敌方已选好要移动的部队，以结束本回合。"],
+  ["Ambush the supply columns of a German unit within 2 hexes: it gains 2 fatigue points for each strength point of the band, and cannot recover any fatigue at the start of the next German turn.", "伏击 2 格内一支德军部队的补给车队：游击队每有 1 点力量，它就增加 2 点疲劳，并且在下一个德军回合开始时不能恢复疲劳。"],
+  ["Cut the German supply line: blow up the railway in a hex within 1 hex. Only the Russians move by rail in this game, but the German armies lived on the railways for their ammunition, fuel and food. For the next two German turns, German units within 2 hexes of the cut gain +1 fatigue at the start of their turn and cannot recover.", "切断德军补给线：炸毁 1 格内某个格子的铁路。本游戏中只有苏军能沿铁路移动，但德军靠铁路运送弹药、燃料和口粮。在接下来的两个德军回合里，被炸点 2 格内的德军部队在回合开始时 +1 疲劳，并且不能恢复。"],
+  ["This turn, Russian attacks on German units within 1 hex of the band gain one odds column.", "本回合苏军进攻该游击队 1 格内的德军部队时，战斗比例 +1 栏。"],
+  ["A German-held town within 2 hexes with no German unit in or next to it, if the bands within 2 hexes of it total 3 strength or more: roll a die; up to their total strength (at most 5) the town becomes Russian, otherwise every band taking part loses 1 strength.", "2 格内一座德军控制、城里及相邻格都没有德军的城镇，且该城 2 格内的游击队力量合计 3 点或以上时：掷一个骰子，点数不超过游击队总力量（最多算 5）时城镇变为苏军控制，否则每支参加的游击队损失 1 点力量。"],
+  ["Slip through the forests to an empty forest hex within 2 hexes.", "穿过森林，转移到 2 格内的空森林格。"],
+  ["+1 strength (at most 3), only with no German unit within 2 hexes.", "+1 力量（最多 3），只有 2 格内没有德军时才行。"],
+  [" Click a highlighted hex.", "点击一个高亮的格子。"],
+  ["The Stavka reserves are committed! Place the reinforcement units in the eligible area of the map (red-bordered edge).", "大本营预备队投入战斗！把增援部队放到地图上的可放置区域（红边地图边缘）。"],
+  ["Place the reinforcement unit in the eligible area of the map.", "把增援部队放到地图上的可放置区域。"],
+  ["The enemy places the reinforcement units in the eligible area of the map.", "敌方把增援部队放到地图上的可放置区域。"],
+  ["The NKVD brigade joins the line: click a half-strength infantry army in communication (highlighted). It becomes a shock army, 5-4 now and 10-4 once restored.", "NKVD 旅投入防线：点击一个有补给的半血步兵集团军（已高亮）。它变成突击集团军，现在是 5-4，补满后是 10-4。"],
+  ["The NKVD brigade joins an army in the line.", "NKVD 旅加入了前线的一个集团军。"],
+  ["Ski battalions arrive: select infantry armies in communication to reinforce them (optional). In winter, ski-reinforced armies move through forests at 1 MP per hex and ignore the forest shift when they attack.", "滑雪营到达：选择有补给的步兵集团军进行加强（可选）。冬季里，滑雪加强的集团军穿越森林每格只需 1 点移动力，进攻时不受森林降栏影响。"],
+  ["The enemy reinforces infantry armies with ski battalions.", "敌方用滑雪营加强了步兵集团军。"],
+  ["The NKVD detachments parachute behind the German lines: place them as partisan bands of strength 2 on forest hexes behind the German lines, not next to German units (optional).", "NKVD 分队伞降到德军后方：把它们作为力量 2 的游击队，放到德军后方、不与德军相邻的森林格里（可选）。"],
+  ["New partisan bands form behind the German lines: place them on forest hexes behind the German lines, not next to German units (optional).", "新的游击队在德军后方组建：把它们放到德军后方、不与德军相邻的森林格里（可选）。"],
+  ["The NKVD detachments parachute behind the German lines.", "NKVD 分队伞降到德军后方。"],
+  ["New partisan bands form behind the German lines.", "新的游击队在德军后方组建。"],
+  ["Partisan operations behind the German lines.", "游击队在德军后方行动。"],
+  ["All the reinforcements have been deployed and the partisans have acted.", "增援已全部部署，游击队也已行动。"],
+  ["The enemy has deployed its reinforcements and its partisans have acted.", "敌方已部署增援，它的游击队也已行动。"],
+  ["Place new half-strength units in the eligible area of the map or flip a half-strength unit that is currently on the map over to its full-strength side.", "在地图上的可放置区域放下新的半血部队，或者把地图上的半血部队翻回满编面。"],
+  ["The enemy places new half-strength units in the eligible area of the map or flips half-strength units that are currently on the map over to their full-strength side.", "敌方在地图上放下新的半血部队，或者把地图上的半血部队翻回满编面。"],
+  ["You have finished assigning your replacements.", "你已经分配完补充兵。"],
+  ["The enemy has finished assigning replacements.", "敌方已经分配完补充兵。"],
+  [" No unit of yours is off the map to be rebuilt now, so a step can only restore a half-strength unit in communication or rest a tired full-strength one.", "现在你没有被消灭、可以重建的部队，所以补充兵步数只能补满有补给的半血部队，或者让疲劳的满编部队休整。"],
+  [" A step spent on a full-strength unit in communication (orange) takes one fatigue level off it.", "一个步数用在有补给的满编部队上（橙色），可以让它的疲劳降一级。"],
+  ["All units that begin this phase on a rail line may move along it.", "本阶段开始时位于铁路上的所有部队可以沿铁路移动。"],
+  ["All armor/panzer units may move.", "所有装甲部队可以移动。"],
+  [" Select the ones you choose to move and their destination.", "选择你要移动的部队和它们的目的地。"],
+  [" But the enemy has decided not to use this capability during this phase.", "但敌方决定本阶段不使用这个能力。"],
+  ["+1 Russian replacement step next turn · the liberators shake off some fatigue", "下回合苏军 +1 个补充兵步数 · 解放城市的部队疲劳降一级"],
+  ["The German Army took Moscow and held it to the end of the game.", "德军攻占了莫斯科，并一直守到游戏结束。"],
+  ["The counteroffensive went far beyond what the Red Army achieved in 1941.", "这次反攻的战果远远超过了红军在 1941 年的实际成就。"],
+  ["The Red Army did better than in 1941.", "红军打得比 1941 年更好。"],
+  ["The front stands where it stood in December 1941: Moscow is saved, but the Germans still hold most of the cities.", "战线停在 1941 年 12 月的位置：莫斯科得救了，但德军仍占着大部分城市。"],
+  ["The Wehrmacht held more than it did in 1941.", "德国国防军守住的比 1941 年更多。"],
+  ["The Wehrmacht held far more than it did in 1941.", "德国国防军守住的远比 1941 年多。"],
+  ["The battle of Moscow destroyed the myth of the Wehrmacht's invincibility. Yet, as Marshal Vasilevsky wrote, the general offensive of the winter of 1942 did not completely destroy any of the main German groupings.", "莫斯科会战打破了德国国防军不可战胜的神话。但正如华西列夫斯基元帅所写，1942 年冬季的总攻并没有彻底消灭任何一个德军主要集团。"],
+  [", while the Red Army still controls Tula.", "，而红军仍控制着图拉。"],
+  [", and the city is in communication, while the German Army controls Tula.", "，且该城在交通线上，而德军控制着图拉。"],
+  [", and both cities are in communication.", "，且两城都在交通线上。"],
+  [", but either or both cities are not in communication.", "，但其中一座或两座城市不在交通线上。"],
+  [", while the Red Army still controls Moscow, but Moscow is not in communication.", "，而红军仍控制着莫斯科，但莫斯科不在交通线上。"],
+  ["- Army in control of Moscow: ", "- 控制莫斯科的一方："],
+  ["- Other cities: ", "- 其他城市："],
+  ["- Victory points: ", "- 胜利点："],
+];
+// Sentences with numbers and names
+const ZH_LEVELS = { fresh: "精力充沛", tired: "疲劳", exhausted: "疲惫", broken: "崩溃" };
+const ZH_PATTERNS = [
+  [/You have <strong>(\d+)<\/strong> replacement steps? left to assign\./g, "你还有 <strong>$1</strong> 个补充兵步数可以分配。"],
+  [/The enemy has <strong>(\d+)<\/strong> replacement steps? left to assign\./g, "敌方还有 <strong>$1</strong> 个补充兵步数可以分配。"],
+  [/Ski battalions left: <strong>(\d+)<\/strong>/g, "剩余滑雪营：<strong>$1</strong>"],
+  [/New bands left: <strong>(\d+)<\/strong>/g, "剩余可组建的游击队：<strong>$1</strong>"],
+  [/ \(at least (\d+) strength points\)\.\.\./g, "（至少 $1 点兵力）……"],
+  [/ with (\d+) more points? to lose\.\.\./g, "，还要再损失 $1 点……"],
+  [/Partisan band at (\d{4}) \(strength (\d)\): choose its action for this turn\. Click another band to give it its orders first; click Next when you are done\./g, "位于 $1 的游击队（力量 $2）：选择它本回合的行动。也可以先点击另一支游击队给它下令；完成后点下方按钮继续。"],
+  [/Partisans ambush the supply columns of the (.+?): fatigue (\d+) → (\d+) \((fresh|tired|exhausted|broken)\), and it cannot rest next turn\./g, function (m, u, a, b, l) { return "游击队伏击了" + u + "的补给车队：疲劳 " + a + " → " + b + "（" + ZH_LEVELS[l] + "），它下回合不能休整。"; }],
+  [/Partisans blow up the railway at (\d{4})\./g, "游击队炸毁了 $1 的铁路。"],
+  [/Partisans will guide the Red Army around (\d{4}) this turn\./g, "本回合游击队将在 $1 一带为红军带路。"],
+  [/A partisan band moves to (\d{4})\./g, "一支游击队转移到 $1。"],
+  [/A partisan band grows to strength (\d)\./g, "一支游击队扩编到力量 $1。"],
+  [/Die roll (\d) \((\d) or less needed\): the partisans rise and take (.+?)! \+1 Russian replacement step\./g, "掷骰 $1（需要 $2 或更小）：游击队起义，夺取了$3！苏军 +1 个补充兵步数。"],
+  [/Die roll (\d) \((\d) or less needed\): the rising in (.+?) is crushed; every band taking part loses 1 strength\./g, "掷骰 $1（需要 $2 或更小）：$3的起义被镇压，每支参加的游击队损失 1 点力量。"],
+  [/([^>]+?) taken by the partisans!/g, "$1被游击队夺取！"],
+  [/The rising in ([^<]+?) is crushed/g, "$1的起义被镇压"],
+  [/([^>]+?) liberated!/g, "$1解放了！"],
+  [/The NKVD brigade joins the (.+?)\./g, "NKVD 旅加入了$1。"],
+  [/Lost in these battles: German ([\d,]+), Russian ([\d,]+)/g, "本轮战斗损失：德军 $1 人，苏军 $2 人"],
+  [/Losses: German ([\d,]+), Russian ([\d,]+)/g, "损失：德军 $1 人，苏军 $2 人"],
+  [/ · ratio German : Russian = 1 : ([\d.]+)/g, " · 战损比 德军 : 苏军 = 1 : $1"],
+  [/ \(historically the Red Army held (\d+) at the end of the game\)/g, "（1941 年同期红军实际为 $1 点）"],
+  [/Victory points at the end of Game Turn (\d+): /g, "第 $1 回合结束时的胜利点："],
+  [/Russians (\d+), Germans (\d+)/g, "苏军 $1，德军 $2"],
+  [/\. In 1941 the Red Army held Moscow, Tula and Ryazan at this date \((\d+) points\)\./g, "。1941 年同期，红军控制着莫斯科、图拉和梁赞（$1 点）。"],
+  [/The enemy has decided to redeploy (.+?) for this turn\./g, "敌方决定本回合重新部署$1。"],
+  [/Exhausted attackers pay for the victory: the (.+?) loses 1 step\. /g, "疲惫的进攻部队为胜利付出了代价：$1损失 1 级。"],
+  [/ ?([^.>]+?) is eliminated\. /g, "$1被消灭。"],
+  [/The German Army wins (<strong>)?(\d) points?(<\/strong>)? because it controls Moscow and Tula at the end of Game Turn (\d+)/g, "德军得 $1$2 分$3，因为它在第 $4 回合结束时控制着莫斯科和图拉"],
+  [/The German Army wins (<strong>)?(\d) points?(<\/strong>)? because it controls Moscow at the end of Game Turn (\d+)/g, "德军得 $1$2 分$3，因为它在第 $4 回合结束时控制着莫斯科"],
+  [/The German Army wins (<strong>)?(\d) points?(<\/strong>)? because it controls Tula at the end of Game Turn (\d+)/g, "德军得 $1$2 分$3，因为它在第 $4 回合结束时控制着图拉"],
+  [/The Red Army wins (<strong>)?(\d) points?(<\/strong>)? because it controls Moscow and Tula at the end of Game Turn (\d+)/g, "红军得 $1$2 分$3，因为它在第 $4 回合结束时控制着莫斯科和图拉"],
+  [/The Red Army wins (<strong>)?(\d) points?(<\/strong>)? because it controls Moscow at the end of Game Turn (\d+)/g, "红军得 $1$2 分$3，因为它在第 $4 回合结束时控制着莫斯科"],
+  [/The Germans get an extra point because they have 12 or more Panzer steps on the map at the end of the game, bringing their total to (<strong>)?(\d+)/g, "游戏结束时德军在地图上有 12 级或更多装甲部队，多得 1 分，总分 $1$2"],
+  [/Although they lost, the Germans get (<strong>)?1 point(<\/strong>)? because they have 12 or more Panzer steps on the map at the end of the game\./g, "虽然输了，但游戏结束时德军在地图上有 12 级或更多装甲部队，得 $11 分$2。"],
+  [/The Red Army gets an extra point because the Germans have 7 or fewer Panzer steps on the map at the end of the game, bringing the Red Army's total to (<strong>)?(\d+)/g, "游戏结束时德军在地图上的装甲部队不超过 7 级，红军多得 1 分，总分 $1$2"],
+  [/Although they lost, the Red Army gets (<strong>)?1 point(<\/strong>)? because the Germans have 7 or fewer Panzer steps on the map at the end of the game\./g, "虽然输了，但游戏结束时德军在地图上的装甲部队不超过 7 级，红军得 $11 分$2。"],
+  [/: (\d+) German, (\d+) Russian cut off/g, "：$1 支德军、$2 支苏军被切断"],
+];
+const ZH_PHRASE_LIST = ZH_PHRASES.slice().sort(function (a, b) {
+  return b[0].length - a[0].length;
+});
+function zhText(s) {
+  const t = s.trim();
+  if (!t || !/[A-Za-z]{2}/.test(t)) return s;
+  if (Object.prototype.hasOwnProperty.call(ZH_WORDS, t)) return s.replace(t, ZH_WORDS[t]);
+  let r = s;
+  for (const [a, b] of ZH_PHRASE_LIST) r.indexOf(a) > -1 && (r = r.split(a).join(b));
+  for (const [a, b] of ZH_PATTERNS) r = r.replace(a, b);
+  return r;
+}
+// What has been translated, to put the English back when the switch goes back
+let zhChanges = [];
+const ZH_INLINE = /^(STRONG|B|I|EM|SPAN|IMG|BR|S|SMALL|U)$/;
+function zhSkip(e) {
+  return !e || /^(SCRIPT|STYLE|CANVAS|TEXTAREA|INPUT)$/.test(e.nodeName) || (e.closest && e.closest("#decision_overlay, .help_zh, #help_body, #help_toc"));
+}
+function zhTranslate(root) {
+  if (!isZh() || !root || zhSkip(root.nodeType === 3 ? root.parentNode : root)) return;
+  if (3 === root.nodeType) {
+    const t = zhText(root.nodeValue);
+    t !== root.nodeValue && (zhChanges.push([root, "text", root.nodeValue, t]), (root.nodeValue = t));
+    return;
+  }
+  if (1 !== root.nodeType) return;
+  root.title && /[A-Za-z]{3}/.test(root.title) && ((t) => t !== root.title && (zhChanges.push([root, "title", root.title, t]), (root.title = t)))(zhText(root.title));
+  // a short sentence with inline marks (a number in bold, an icon) is translated as a whole
+  const kids = Array.from(root.children);
+  if (kids.length && kids.length < 8 && root.innerHTML.length < 1500 && kids.every(function (k) { return ZH_INLINE.test(k.nodeName) && !k.children.length; })) {
+    const html = root.innerHTML,
+      t = zhText(html);
+    if (t !== html) return (zhChanges.push([root, "html", html, t]), void (root.innerHTML = t));
+  }
+  for (const k of Array.from(root.childNodes)) zhTranslate(k);
+}
+function zhRevert() {
+  for (let k = zhChanges.length - 1; k >= 0; k--) {
+    const [node, kind, before, after] = zhChanges[k];
+    if (!node.isConnected) continue;
+    "text" === kind ? node.nodeValue === after && (node.nodeValue = before) : "title" === kind ? node.title === after && (node.title = before) : node.innerHTML === after && (node.innerHTML = before);
+  }
+  zhChanges = [];
+}
+const zhObserver = new MutationObserver(function (records) {
+  if (!isZh()) return;
+  zhChanges.length > 4000 && (zhChanges = zhChanges.filter(function (c) { return c[0].isConnected; }));
+  for (const r of records)
+    "characterData" === r.type
+      ? zhTranslate(r.target)
+      : "attributes" === r.type
+        ? zhTranslate(r.target)
+        : (r.addedNodes.forEach(zhTranslate), r.target.children && r.target.children.length < 8 && zhTranslate(r.target));
+});
+// The switch: the whole page, the help, the turn bar and the map labels follow it
+function applyLanguage() {
+  document.documentElement.lang = isZh() ? "zh-CN" : "en";
+  const box = document.getElementById("layer_zh");
+  box && (box.checked = isZh());
+  for (const e of document.querySelectorAll(".help_zh")) e.style.display = isZh() ? "" : "none";
+  for (const id of ["help_toc", "help_body"]) {
+    const e = document.getElementById(id);
+    e && (e.style.display = isZh() ? "none" : "");
+  }
+  isZh() ? zhTranslate(document.body) : zhRevert();
+  currentTurn && currentTurn.turn && document.getElementById("turn_info_title") && setTurnInfo();
+  "function" == typeof refreshStatusMarkers && refreshStatusMarkers();
+}
+function setLanguage(value) {
+  lang = value ? "zh" : "en";
+  try {
+    window.localStorage.setItem("b4mLang", lang);
+  } catch (e) {}
+  applyLanguage();
+}
+window.addEventListener("load", function () {
+  const box = document.getElementById("layer_zh");
+  box &&
+    box.addEventListener("change", function () {
+      setLanguage(box.checked);
+    });
+  const close = document.getElementById("help_close_zh");
+  close &&
+    close.addEventListener("click", function (e) {
+      (e.preventDefault(), (document.getElementById("help_content").style.display = "none"));
+    });
+  // the Chinese lists of the help
+  const d = document.getElementById("help_decisions_list_zh");
+  d &&
+    (d.innerHTML =
+      "<ul>" +
+      HISTORY_EVENTS.map(function (e) {
+        const z = e.zh || {};
+        return "<li><strong>第 " + e.turn + " 回合，" + ("german" === e.army ? "德军" : "苏军") + "</strong>：" + (z.title || e.title) + "（" + (z.to || z.officeEn || e.to || e.officeEn) + "，" + (z.date || e.date) + "）</li>";
+      }).join("") +
+      "</ul>");
+  const c = document.getElementById("help_chronicle_list_zh");
+  c &&
+    (c.innerHTML = Object.keys(CHRONICLE_ZH)
+      .map(function (k) {
+        return "<p><strong>第 " + k + " 回合</strong>：" + CHRONICLE_ZH[k] + "</p>";
+      })
+      .join(""));
+  zhObserver.observe(document.body, { childList: !0, subtree: !0, characterData: !0, attributes: !0, attributeFilter: ["title"] });
+  applyLanguage();
 });
