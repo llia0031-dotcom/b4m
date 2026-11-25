@@ -815,8 +815,8 @@ function nearPartisans(e) {
   return !1;
 }
 // A pair of skis drawn left of the unit symbol, in the counter's own line style (k: scale, 1 = 60 px counter)
-function drawSkiPair(e, t, n, i) {
-  (e.save(), (e.strokeStyle = "#211c21"), (e.lineCap = "round"), (e.lineWidth = 1.15 * i));
+function drawSkiPair(e, t, n, i, colour) {
+  (e.save(), (e.strokeStyle = colour || "#211c21"), (e.lineCap = "round"), (e.lineWidth = 1.15 * i));
   for (const o of [28.2, 31.6])
     (e.beginPath(),
       e.moveTo(t + 15.2 * i, n + o * i),
@@ -825,8 +825,9 @@ function drawSkiPair(e, t, n, i) {
       e.stroke());
   e.restore();
 }
+// on the crimson counter the skis are drawn in its gold
 function drawSkiBadge(e, t, n) {
-  drawSkiPair(e, t, n, 1);
+  drawSkiPair(e, t, n, 1, "#f4cf5c");
 }
 // A partisan band. The badge has the colours of the flag of the USSR, red with the gold hammer and sickle.
 // On it a partisan kneels and aims his rifle, bayonet fixed, after the photograph of the partisans of the
@@ -1887,9 +1888,15 @@ function defenderStrengthOf(e) {
       ? e.defendingUnit.combatFull
       : e.defendingUnit.combatReduced;
 }
+// the terrain of a battle, drawn as the hex looks on the map in use (its style and season)
+function terrainMarkerSrc(n) {
+  return ["forest", "fortification", "river", "major"].indexOf(n) > -1
+    ? "img/markers/" + mapArtStyle() + "_" + mapArtSeason() + "_" + n + ".png"
+    : "img/" + n + "_marker.png";
+}
 function modifiersHtml(e) {
   let t = "";
-  for (const n of e.modifiers) "fatigue" !== n && (t += '<img src="img/' + n + '_marker.png" /> ');
+  for (const n of e.modifiers) "fatigue" !== n && (t += '<img src="' + terrainMarkerSrc(n) + '" /> ');
   return (
     e.partisanBonus &&
       (t += '<span class="modifier_badge partisan" title="Partisans guide the attack">Partisans +1</span> '),
@@ -2968,26 +2975,318 @@ function mapArtSeason() {
 function applyMapArt() {
   const map = document.getElementById("map");
   if (!map) return;
-  const style = mapArtStyle(),
-    src = "img/map_" + style + "_" + mapArtSeason() + ".webp",
-    chart = "img/terrain_" + style + ".png";
+  const src = "img/map_" + mapArtStyle() + "_" + mapArtSeason() + ".webp";
   map.getAttribute("src") !== src && map.setAttribute("src", src);
-  for (const e of document.querySelectorAll(".terrain_chart")) e.getAttribute("src") !== chart && e.setAttribute("src", chart);
   const select = document.getElementById("layer_map");
   select && (select.value = mapArtChoice);
-  drawBoardCharts();
+  // the charts take their terrain samples from the map: they are drawn once it has loaded
+  map.complete && map.naturalWidth ? drawBoardCharts() : map.addEventListener("load", drawBoardCharts, { once: !0 });
 }
-// the terrain chart and the combat results table, printed on the board to the right of the map
+// ---------------------------------------------------------------- The reference charts on the board
+// The game draws its own charts from its rules (the numbers are the constants of the code above), in the language
+// of the interface and in the look of the side you play: a staff table of the Red Army (Russian headings), of the
+// German army (German headings), or, for two players at one screen, a neutral table in the manner of a NATO field
+// manual. The terrain samples are cut from the map in use, so they look like the hexes on the board.
+// They stand to the right of the map in two sheets: terrain and combat; air power, fatigue and the turns.
+const CHART_A = { x: 1262, y: 290 },
+  CHART_B = { x: 2400, y: 290 },
+  CHART_W = 1120,
+  BOARD_WIDTH = 3540;
+function chartStyle() {
+  return "german" === playAIAs ? "soviet" : "soviet" === playAIAs ? "german" : "nato";
+}
+const CHART_LOOKS = {
+  soviet: {
+    paper: "#f3ecd8", ink: "#1d1712", head: "#8e1d16", headInk: "#f6d77a", sub: "#e9dcbc", grid: "rgba(110,50,35,0.45)", alt: "rgba(142,29,22,0.05)",
+    font: "'Times New Roman', Georgia, serif", headFont: "'Bahnschrift SemiBold Condensed', 'Arial Narrow', Arial", red: "#b3201a",
+    titles: { terrain: "ВЛИЯНИЕ МЕСТНОСТИ", combat: "ТАБЛИЦА РЕЗУЛЬТАТОВ БОЯ", air: "АВИАЦИЯ", fatigue: "УТОМЛЕНИЕ ВОЙСК", turns: "ХОД ОПЕРАЦИИ" },
+  },
+  german: {
+    paper: "#f4f4ef", ink: "#111111", head: "#262626", headInk: "#ffffff", sub: "#dcdcd4", grid: "rgba(0,0,0,0.42)", alt: "rgba(0,0,0,0.04)",
+    font: "Arial, 'Helvetica Neue', sans-serif", headFont: "Arial, 'Helvetica Neue', sans-serif", red: "#c3261c",
+    titles: { terrain: "Geländeeinfluß", combat: "Kampfergebnistafel", air: "Luftlage", fatigue: "Erschöpfung der Truppe", turns: "Zeittafel" },
+  },
+  nato: {
+    paper: "#eceee6", ink: "#1a1d14", head: "#4b5320", headInk: "#ffffff", sub: "#dde2cc", grid: "rgba(40,46,20,0.42)", alt: "rgba(75,83,32,0.06)",
+    font: "Arial, 'Helvetica Neue', sans-serif", headFont: "'Arial Narrow', Arial, sans-serif", red: "#b52a1f",
+    titles: { terrain: "TERRAIN EFFECTS", combat: "COMBAT RESULTS", air: "AIR POWER", fatigue: "FATIGUE", turns: "TURN RECORD" },
+  },
+};
+const CHART_SUBTITLES = {
+  terrain: ["Terrain effects", "地形效果"],
+  combat: ["Combat results", "战斗结果"],
+  air: ["Air power and interdiction", "空中力量与遮断"],
+  fatigue: ["Fatigue", "疲劳"],
+  turns: ["The turns", "回合进程"],
+};
+function chartFont(look, size, bold, italic) {
+  return (italic ? "italic " : "") + (bold ? "bold " : "") + size + "px " + look.font + ", 'Microsoft YaHei', 'PingFang SC', sans-serif";
+}
+// splits a text into lines that fit a width: Chinese character by character, other text word by word
+function chartLines(ctx, text, w) {
+  const out = [];
+  for (const para of String(text).split("\n")) {
+    const tokens = para.match(/[⺀-鿿＀-￯]|[^\s⺀-鿿＀-￯]+\s*|\s+/g) || [""];
+    let line = "";
+    for (const tk of tokens) {
+      // a closing mark never begins a line: it stays at the end of the line before
+      if (line && ctx.measureText(line + tk).width > w && !/^[，。；：、）」』！？,.;:)]/.test(tk)) (out.push(line.trimEnd()), (line = tk.trimStart()));
+      else line += tk;
+    }
+    out.push(line.trimEnd());
+  }
+  return out;
+}
+function chartText(ctx, look, text, x, y, w, size, opts) {
+  opts = opts || {};
+  ctx.font = chartFont(look, size, opts.bold, opts.italic);
+  ctx.fillStyle = opts.color || look.ink;
+  ctx.textBaseline = "top";
+  ctx.textAlign = opts.align || "left";
+  const lines = chartLines(ctx, text, w),
+    lh = Math.round(size * 1.22);
+  lines.forEach(function (l, i) {
+    ctx.fillText(l, "center" === opts.align ? x + w / 2 : x, y + i * lh);
+  });
+  return lines.length * lh;
+}
+function chartHead(ctx, look, x, y, w, key) {
+  ctx.fillStyle = look.head;
+  ctx.fillRect(x, y, w, 30);
+  ctx.font = "bold 17px " + look.headFont + ", 'Microsoft YaHei', sans-serif";
+  ctx.fillStyle = look.headInk;
+  ctx.textBaseline = "middle";
+  ctx.textAlign = "left";
+  ctx.fillText(look.titles[key], x + 10, y + 16);
+  const sub = L(CHART_SUBTITLES[key][0], CHART_SUBTITLES[key][1]);
+  if (sub.toUpperCase() !== look.titles[key].toUpperCase()) {
+    ctx.font = chartFont(look, 13);
+    ctx.textAlign = "right";
+    ctx.fillText(sub, x + w - 10, y + 16);
+  }
+  return y + 30;
+}
+// a table: columns widths, a header row, rows of cells (text, or { text, bold, color, align, draw })
+function chartTable(ctx, look, x, y, widths, header, rows, size, minH) {
+  const pad = 5;
+  let yy = y;
+  const rowHeight = function (cells, sz) {
+    let h = minH || 0;
+    cells.forEach(function (c, i) {
+      if (c && c.draw) return void (h = Math.max(h, c.h || 0));
+      const t = c && "object" == typeof c ? c.text : c;
+      ctx.font = chartFont(look, sz, c && "object" == typeof c && c.bold);
+      h = Math.max(h, chartLines(ctx, t, widths[i] - 2 * pad).length * Math.round(sz * 1.22) + 2 * pad);
+    });
+    return h;
+  };
+  const drawRow = function (cells, sz, bg) {
+    const h = rowHeight(cells, sz);
+    let xx = x;
+    bg && ((ctx.fillStyle = bg), ctx.fillRect(x, yy, widths.reduce((a, b) => a + b, 0), h));
+    cells.forEach(function (c, i) {
+      if (c && c.draw) c.draw(xx, yy, widths[i], h);
+      else {
+        const t = c && "object" == typeof c ? c.text : c;
+        const th = chartLines((ctx.font = chartFont(look, sz, c && "object" == typeof c && c.bold), ctx), t, widths[i] - 2 * pad).length * Math.round(sz * 1.22);
+        chartText(ctx, look, t, xx + pad, yy + (h - th) / 2, widths[i] - 2 * pad, sz, { bold: c && "object" == typeof c && c.bold, color: c && "object" == typeof c && c.color, align: c && "object" == typeof c && c.align });
+      }
+      xx += widths[i];
+    });
+    ctx.strokeStyle = look.grid;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x + 0.5, yy + 0.5, widths.reduce((a, b) => a + b, 0) - 1, h);
+    xx = x;
+    for (let i = 0; i < widths.length - 1; i++) ((xx += widths[i]), ctx.beginPath(), ctx.moveTo(xx + 0.5, yy), ctx.lineTo(xx + 0.5, yy + h), ctx.stroke());
+    yy += h;
+  };
+  header && drawRow(header.map((t) => ({ text: t, bold: !0, align: "center" })), size, look.sub);
+  rows.forEach(function (r, i) {
+    drawRow(r, size, i % 2 ? look.alt : null);
+  });
+  return yy;
+}
+// a hex of the map in use, as a sample of its terrain
+function chartHexSample(ctx, x, y, w, hx, hy, marks) {
+  const map = document.getElementById("map"),
+    h = grid.get([hx, hy]);
+  if (!map || !map.naturalWidth || !h) return;
+  const c = h.center().add(h.toPoint()),
+    k = w / 114.55;
+  (ctx.save(), ctx.translate(x, y), ctx.scale(k, k), ctx.beginPath());
+  h.corners().forEach(function (p, i) {
+    i ? ctx.lineTo(p.x - 57.275, p.y - 50.95) : ctx.moveTo(p.x - 57.275, p.y - 50.95);
+  });
+  (ctx.closePath(), ctx.save(), ctx.clip(), ctx.drawImage(map, c.x + 6 - 60, c.y - 55, 120, 110, -60, -55, 120, 110));
+  if (marks) {
+    ctx.beginPath();
+    for (let q = 0; q < 10; q++) {
+      const a = -Math.PI / 2 + (q * Math.PI) / 5,
+        r = q % 2 ? 5 : 12;
+      q ? ctx.lineTo(-18 + Math.cos(a) * r, -8 + Math.sin(a) * r) : ctx.moveTo(-18 + Math.cos(a) * r, -8 + Math.sin(a) * r);
+    }
+    (ctx.closePath(), (ctx.fillStyle = "#d62218"), ctx.fill());
+    ((ctx.fillStyle = "#fff"), ctx.fillRect(6, 8, 24, 8), ctx.fillRect(14, 0, 8, 24), (ctx.fillStyle = "#111"), ctx.fillRect(8, 10, 20, 4), ctx.fillRect(16, 2, 4, 20));
+  }
+  (ctx.restore(), (ctx.lineWidth = 2.4), (ctx.strokeStyle = "rgba(30,26,22,0.8)"), ctx.stroke(), ctx.restore());
+}
+// Sheet A: the terrain effects and the combat results
+function renderChartSheetA(look) {
+  const cv = document.createElement("canvas");
+  ((cv.width = CHART_W), (cv.height = 840));
+  const ctx = cv.getContext("2d");
+  ((ctx.fillStyle = look.paper), ctx.fillRect(0, 0, cv.width, cv.height));
+  const none = L("No effect", "无影响"),
+    icon = function (hx, hy, marks) {
+      return {
+        h: 50,
+        draw: function (x, y, w, h) {
+          chartHexSample(ctx, x + w / 2, y + h / 2, 48, hx, hy, marks);
+        },
+      };
+    },
+    badge = function (text) {
+      return {
+        h: 40,
+        draw: function (x, y, w, h) {
+          ((ctx.font = "bold 20px " + look.headFont), (ctx.fillStyle = look.red), (ctx.textAlign = "center"), (ctx.textBaseline = "middle"), ctx.fillText(text, x + w / 2, y + h / 2));
+        },
+      };
+    };
+  // terrain
+  let y = chartHead(ctx, look, 0, 0, 700, "terrain");
+  const rows = [
+    [icon(11, 8), { text: L("Open", "开阔地"), bold: !0 }, none, none, "—"],
+    [icon(1, 8), { text: L("Forest", "森林"), bold: !0 }, L("Counts as 2 hexes (1 in Russian rail movement)", "算 2 格（苏军铁路机动算 1 格）"), L("1 column left (none against ski troops in winter)", "左移 1 栏（冬季对滑雪部队无效）"), L("Cover 1 from aircraft", "对空掩护 1")],
+    [icon(7, 9), { text: L("Town", "城镇"), bold: !0 }, none, none, L("Replacements come in here. Recovers " + FATIGUE.city + " fatigue a turn; air cover 1; 1 VP", "补充兵入口。每回合恢复 " + FATIGUE.city + " 点疲劳；对空掩护 1；1 胜利点")],
+    [icon(10, 6), { text: L("Major city (Tula, Smolensk)", "大城市（图拉、斯摩棱斯克）"), bold: !0 }, none, L("1 column left; a full-strength defender takes a step loss instead of a DR", "左移 1 栏；满编守军遇 DR 改为损失 1 级、不撤退"), L("Recovers " + FATIGUE.majorCity + "; air cover 2; 3 VP. Smolensk is the German supply base", "恢复 " + FATIGUE.majorCity + "；对空掩护 2；3 胜利点。斯摩棱斯克是德军补给基地")],
+    [icon(10, 2), { text: L("Moscow", "莫斯科"), bold: !0 }, none, L("2 columns left against the Soviet garrison; a DR has no effect on it", "攻击苏军守军左移 2 栏；DR 对守军无效"), L("Garrison safe from aircraft, Soviet cover 2 within 2 hexes. Recovers " + FATIGUE.moscow + "; 5 VP; while it is lost the Soviets get 1 replacement less", "守军不受空袭，周围 2 格苏军对空掩护 2。恢复 " + FATIGUE.moscow + "；5 胜利点；失守期间苏军补充兵少 1")],
+    [icon(7, 4), { text: L("Defence line", "防线"), bold: !0 }, none, L("1 column left for Soviet defenders only", "仅苏军防守时左移 1 栏"), L("Cover 1 for Soviet units", "苏军对空掩护 1")],
+    [icon(6, 4), { text: L("River", "河流"), bold: !0 }, none, L("1 column left if all the attackers are across it", "所有进攻部队都隔河时左移 1 栏"), "—"],
+    [icon(5, 2), { text: L("Railway", "铁路"), bold: !0 }, L("Russian rail movement phase (turns 3–4: at most " + EVACUATION_RAIL_LIMIT + " units, the evacuation)", "苏军铁路机动阶段（第 3–4 回合疏散，最多 " + EVACUATION_RAIL_LIMIT + " 支）"), none, L("German supply: within " + RAILHEAD_RANGE + " hexes of a railhead (" + RAILHEAD_RANGE_MUD + " in the mud)", "德军补给：距铁路终点 " + RAILHEAD_RANGE + " 格内（泥泞时 " + RAILHEAD_RANGE_MUD + " 格）")],
+    [icon(11, 8, !0), { text: L("Star or cross", "红星或十字"), bold: !0 }, none, none, L("Set-up hexes: Russian (star), German (cross)", "布阵位置：苏军（红星）、德军（十字）")],
+    [badge("3–4"), { text: L("Mud", "泥泞"), bold: !0 }, L("1 hex per move outside the rail phase", "铁路机动以外每次只能走 1 格"), L("Panzer attack strength halved", "装甲部队进攻力减半"), L("Game turns 3 and 4", "第 3、4 回合")],
+    [badge(WINTER_START + "–" + LAST_TURN), { text: L("Winter", "冬季"), bold: !0 }, L("Ski troops cross forests at no extra cost", "滑雪部队穿越森林不额外耗费"), L("Forests give no shift against ski troops", "森林对滑雪部队不左移"), L("Germans without winter clothing: +" + FATIGUE.winterOutsideCity + " fatigue a turn outside towns, +" + FATIGUE.winterInTown + " in towns, none in major cities", "德军若无冬装：城外每回合 +" + FATIGUE.winterOutsideCity + " 疲劳，城镇里 +" + FATIGUE.winterInTown + "，大城市里不加")],
+  ];
+  y = chartTable(ctx, look, 0, y, [62, 108, 160, 190, 180], [L("Symbol", "图示"), L("Terrain", "地形"), L("Movement", "移动"), L("Combat", "战斗"), L("Notes", "说明")], rows, 12, 52);
+  // combat results
+  let yc = chartHead(ctx, look, 715, 0, 405, "combat");
+  const CRT = [
+      ["DR", "DR", "DR", "DR", "DR", "DRL"],
+      ["EX", "DR", "DR", "DR", "DRL", "DRL"],
+      ["EX", "EX", "DR", "EX", "DRL", "DE"],
+      ["NE", "EX", "EX", "DRL", "DRL", "DE"],
+      ["NE", "NE", "EX", "DRL", "DE", "DE"],
+      ["AL", "NE", "DRL", "DE", "DE", "DE"],
+    ],
+    resCell = function (r) {
+      return { text: r, bold: "DE" === r || "DRL" === r, color: "EX" === r || "AL" === r ? look.red : look.ink, align: "center" };
+    };
+  yc = chartTable(ctx, look, 715, yc, [45, 60, 60, 60, 60, 60, 60], [L("Die", "骰点"), "1:1", "2:1", "3:1", "4:1", "5:1", "6:1"], CRT.map((r, i) => [{ text: String(i + 1), bold: !0, align: "center" }].concat(r.map(resCell))), 14, 26);
+  yc += 8;
+  const legend = [
+    ["NE", L("No effect.", "无效果。")],
+    ["DR", L("The defender retreats 2 hexes.", "守方后撤 2 格。")],
+    ["DRL", L("The defender loses 1 step and retreats 2 hexes.", "守方损失 1 级并后撤 2 格。")],
+    ["DE", L("The defender is eliminated.", "守方被歼灭。")],
+    ["EX", L("Exchange: the defender loses 1 step, the attacker at least as much strength; then the defender retreats 2 hexes.", "交换：守方损失 1 级，攻方至少损失同等战斗力；然后守方后撤 2 格。")],
+    ["AL", L("One attacking unit loses 1 step.", "一支进攻部队损失 1 级。")],
+  ];
+  for (const [k, t] of legend) {
+    ((ctx.font = "bold 13px " + look.font), (ctx.fillStyle = "EX" === k || "AL" === k ? look.red : look.ink), (ctx.textAlign = "left"), (ctx.textBaseline = "top"), ctx.fillText(k, 722, yc));
+    yc += Math.max(16, chartText(ctx, look, t, 762, yc, 350, 12)) + 3;
+  }
+  yc += 6;
+  const rules = [
+    L("Odds: attack ÷ defence, rounded down, at most 6:1.", "比值：进攻力 ÷ 防御力，向下取整，最高 6:1。"),
+    L("Each terrain effect moves the odds one column left; partisans guiding a Soviet attack move them one column right.", "每种地形效果左移一栏；游击队为苏军进攻带路时右移一栏。"),
+    L("Fatigue: exhausted and broken attackers fight at half strength, a broken defender at 2/5 and its DR becomes DRL. When a battle ends in DE or DRL, the most exhausted attacker loses a step.", "疲劳：疲惫和崩溃的进攻部队只发挥一半战斗力，崩溃的守军只剩 2/5，且 DR 变为 DRL。战斗结果为 DE 或 DRL 时，最疲惫的一支进攻部队损失 1 级。"),
+    L("Every battle: +" + FATIGUE.attack + " fatigue to each attacker, +" + FATIGUE.defend + " to the defender (unless NE).", "每次战斗：每支进攻部队 +" + FATIGUE.attack + " 疲劳，守方 +" + FATIGUE.defend + "（NE 除外）。"),
+  ];
+  for (const t of rules) yc += chartText(ctx, look, "• " + t, 722, yc, 392, 12) + 5;
+  const used = Math.max(y, yc) + 10;
+  const out = document.createElement("canvas");
+  ((out.width = CHART_W), (out.height = used), out.getContext("2d").drawImage(cv, 0, 0));
+  return out;
+}
+// Sheet B: air power, fatigue and the turns
+function renderChartSheetB(look) {
+  const cv = document.createElement("canvas");
+  ((cv.width = CHART_W), (cv.height = 840));
+  const ctx = cv.getContext("2d");
+  ((ctx.fillStyle = look.paper), ctx.fillRect(0, 0, cv.width, cv.height));
+  // air
+  let ya = chartHead(ctx, look, 0, 0, 360, "air");
+  const rowsA = [];
+  for (let t = 1; t <= LAST_TURN; t++) {
+    const a = AIR_STRENGTH[t] || { german: 0, soviet: 0 },
+      sky = a.german > a.soviet ? L("German", "德军") : a.soviet > a.german ? L("Soviet", "苏军") : L("Contested", "争夺");
+    rowsA.push([{ text: String(t), bold: !0, align: "center" }, { text: String(a.german), align: "center" }, { text: String(a.soviet), align: "center" }, { text: sky, align: "center", bold: a.german !== a.soviet }]);
+  }
+  ya = chartTable(ctx, look, 0, ya, [60, 90, 90, 120], [L("Turn", "回合"), L("German air", "德军空军"), L("Soviet air", "苏军空军"), L("The sky", "制空权")], rowsA, 12, 22);
+  ya += 8;
+  const airRules = [
+    L("A unit that moves in a movement phase (rail and panzer moves too), or retreats after a battle, is bombed on a die roll up to the enemy air strength less its cover. The cover is that of the most exposed hex of its march.", "在移动阶段移动（含铁路和装甲机动）或战后撤退的部队，掷骰点数不超过“敌方空军强度 − 掩护”即被空袭。掩护按其行军路线上最暴露的一格计算。"),
+    L("Bombed: +" + INTERDICTION_FATIGUE + " fatigue at once.", "被空袭：立即 +" + INTERDICTION_FATIGUE + " 疲劳。"),
+    L("Cover 1: forest, town; for the Russians also the defence lines. Cover 2: major city; Russians within 2 hexes of a Soviet Moscow. The Soviet garrison of Moscow cannot be bombed.", "掩护 1：森林、城镇；苏军在防线上也算。掩护 2：大城市；在苏军控制的莫斯科周围 2 格内的苏军。莫斯科的苏军守军不会被空袭。"),
+    L("An advance after combat is not exposed.", "战后推进不会遭空袭。"),
+  ];
+  for (const t of airRules) ya += chartText(ctx, look, "• " + t, 6, ya, 350, 12) + 5;
+  // fatigue
+  let yf = chartHead(ctx, look, 375, 0, 380, "fatigue");
+  const P = FATIGUE.perLevel,
+    lv = [
+      [0 + "–" + (P - 1), L("Fresh", "精力充沛"), L("Full", "全额"), L("Full", "全额")],
+      [P + "–" + (2 * P - 1), L("Tired", "疲劳"), L("Full", "全额"), L("Full", "全额")],
+      [2 * P + "–" + (3 * P - 1), L("Exhausted", "疲惫"), L("Half", "一半"), L("Full", "全额")],
+      [String(FATIGUE.max), L("Broken", "崩溃"), L("Cannot attack", "不能进攻"), L("2/5; DR → DRL", "2/5；DR → DRL")],
+    ];
+  yf = chartTable(ctx, look, 375, yf, [70, 100, 105, 105], [L("Points", "点数"), L("State", "状态"), L("Attack", "进攻"), L("Defence", "防御")], lv.map((r) => r.map((t, i) => ({ text: t, align: "center", bold: 1 === i }))), 12, 22);
+  yf += 8;
+  const gain = [
+    L("Gains: battle +" + FATIGUE.attack + " (attacker) / +" + FATIGUE.defend + " (defender); bombed +" + INTERDICTION_FATIGUE + "; cut off from its map edge +" + FATIGUE.cutOff + ", +" + FATIGUE.ringed + " more if ringed (a besieged city's stocks hold it to +" + FATIGUE.siegeCutOff + "); Germans near a cut railway +" + FATIGUE.railCut + "; sweeping partisans +" + SWEEP_FATIGUE_PER_STRENGTH + " per band strength, driving them off +" + DRIVE_OFF_FATIGUE + ".", "增加：战斗 +" + FATIGUE.attack + "（攻方）/ +" + FATIGUE.defend + "（守方）；被空袭 +" + INTERDICTION_FATIGUE + "；与己方地图边缘断开 +" + FATIGUE.cutOff + "，被合围再 +" + FATIGUE.ringed + "（被围城市有存粮时只 +" + FATIGUE.siegeCutOff + "）；德军靠近被切断的铁路 +" + FATIGUE.railCut + "；清剿游击队每级兵力 +" + SWEEP_FATIGUE_PER_STRENGTH + "，驱散 +" + DRIVE_OFF_FATIGUE + "。"),
+    L("Recovery each turn, if it did not fight: " + FATIGUE.rest + " at rest, " + FATIGUE.idle + " if it moved; " + FATIGUE.rear + " more in the rear (no enemy within " + FATIGUE.rearDistance + " hexes); in a town of its side " + FATIGUE.city + ", a major city " + FATIGUE.majorCity + ", Moscow " + FATIGUE.moscow + "; Russians supplied from the Moscow depots " + FATIGUE.moscowDepots + " more.", "每回合恢复（未参战时）：原地休整 " + FATIGUE.rest + "，移动过 " + FATIGUE.idle + "；在后方（" + FATIGUE.rearDistance + " 格内无敌军）再 " + FATIGUE.rear + "；在己方城镇 " + FATIGUE.city + "，大城市 " + FATIGUE.majorCity + "，莫斯科 " + FATIGUE.moscow + "；由莫斯科仓库补给的苏军再 " + FATIGUE.moscowDepots + "。"),
+    L("No recovery when cut off, raided by partisans, or for Germans beyond railhead range or while Smolensk is lost. Liberating a town: −" + FATIGUE.liberation + ".", "被切断、遭游击队袭扰时不恢复；德军超出铁路终点补给范围或斯摩棱斯克失守时也不恢复。解放一座城镇：−" + FATIGUE.liberation + "。"),
+  ];
+  for (const t of gain) yf += chartText(ctx, look, "• " + t, 381, yf, 370, 12) + 5;
+  // turns
+  let yt = chartHead(ctx, look, 770, 0, 350, "turns");
+  const DATES_EN = ["", "2 Oct", "10 Oct", "17 Oct", "1 Nov", "16 Nov", "23 Nov", "1 Dec", "5 Dec", "15 Dec"],
+    notes = {
+      1: L("Typhoon begins", "“台风”开始"),
+      3: L("Mud", "泥泞"),
+      4: L("Mud; 1st Shock Army", "泥泞；突击第 1 集团军"),
+      6: L("Snow lies: the winter map", "积雪：换冬季地图"),
+      8: L("Winter; Soviet counter-offensive: Guards cavalry, ski battalions, partisans", "冬季；苏军反攻：近卫骑兵、滑雪营、游击队"),
+      9: L("Winter; last turn", "冬季；最后一回合"),
+    },
+    rowsT = [];
+  for (let t = 1; t <= LAST_TURN; t++)
+    rowsT.push([{ text: String(t), bold: !0, align: "center" }, isZh() ? TURN_DATES_ZH[t].replace("1941 年 ", "") : DATES_EN[t], L(WEATHER[t], WEATHER_ZH[t]) + (notes[t] ? (isZh() ? "。" : ". ") + notes[t] : "")]);
+  yt = chartTable(ctx, look, 770, yt, [44, 80, 226], [L("Turn", "回合"), L("Date", "日期"), L("Weather and events", "天气与事件")], rowsT, 12, 24);
+  yt += 8;
+  yt += chartText(ctx, look, "• " + L("Victory points: Moscow 5, Tula 3, Smolensk 3, other towns 1.", "胜利点：莫斯科 5，图拉 3，斯摩棱斯克 3，其他城镇 1。"), 776, yt, 340, 12) + 5;
+  const used = Math.max(ya, yf, yt) + 10;
+  const out = document.createElement("canvas");
+  ((out.width = CHART_W), (out.height = used), out.getContext("2d").drawImage(cv, 0, 0));
+  return out;
+}
+// the charts on the board, and the same charts in the help
 function drawBoardCharts() {
-  if ("undefined" == typeof board || !board) return;
-  const terrain = document.getElementById("help_terrain_img"),
-    crt = document.getElementById("help_crt_img");
-  if (!terrain.complete || !terrain.naturalWidth) return void terrain.addEventListener("load", drawBoardCharts, { once: !0 });
-  board.clearRect(1285, 525, 703, 610);
-  board.drawImage(terrain, 1290, 530, 693, 600);
-  crt.complete && crt.naturalWidth
-    ? (board.clearRect(1995, 525, 390, 615), board.drawImage(crt, 0, 0, 600, 480, 2e3, 530, 381, 305), board.drawImage(crt, 601, 0, 534, 480, 2e3, 830, 339, 305))
-    : crt.addEventListener("load", drawBoardCharts, { once: !0 });
+  const map = document.getElementById("map");
+  if (!map || !map.naturalWidth) return;
+  const look = CHART_LOOKS[chartStyle()],
+    a = renderChartSheetA(look),
+    b = renderChartSheetB(look);
+  if ("undefined" != typeof board && board) {
+    board.clearRect(1250, 280, BOARD_WIDTH - 1250, 1139 - 280);
+    board.drawImage(a, CHART_A.x, CHART_A.y);
+    board.drawImage(b, CHART_B.x, CHART_B.y);
+  }
+  const ua = a.toDataURL("image/png"),
+    ub = b.toDataURL("image/png");
+  for (const e of document.querySelectorAll(".terrain_chart")) e.src = ua;
+  for (const e of document.querySelectorAll(".crt_chart")) e.src = ub;
 }
 window.addEventListener("load", function () {
   const select = document.getElementById("layer_map");
@@ -3045,26 +3344,32 @@ function nkvdDone() {
 function convertToShockArmy(unit) {
   ((unit.type = "shock"), (unit.combatFull = 10), (unit.combatReduced = 5), (unit.nkvd = !0));
 }
-// The counter of an NKVD army: the shock symbol (a black dot), the new strengths and a small NKVD tab
+// The counter of an NKVD army: the shock symbol (a dot in the middle of the infantry cross), the new strengths
+// and a small NKVD tab, in the colours of the counter (crimson and gold, or the lighter back with cream)
 function drawNkvdMarks(ctx, x, y, strength) {
-  const full = "full" === strength;
+  const full = "full" === strength,
+    ink = full ? "#f4cf5c" : "#fff3d6";
   (ctx.save(),
-    (ctx.fillStyle = "#211c21"),
+    (ctx.fillStyle = ink),
     ctx.beginPath(),
-    ctx.arc(x + 29, y + 24.5, 3.6, 0, 2 * Math.PI),
+    ctx.arc(x + 26, y + 23.5, 2.4, 0, 2 * Math.PI),
     ctx.fill(),
-    (ctx.fillStyle = full ? "rgb(231, 69, 82)" : "rgb(247, 162, 156)"),
-    ctx.fillRect(x + 6, y + 36, 48, 15),
-    (ctx.fillStyle = "#211c21"),
-    (ctx.font = "bold " + (full ? 15 : 16) + "px Arial, sans-serif"),
+    (ctx.fillStyle = full ? "#ab1a20" : "#d96b60"),
+    ctx.fillRect(x + 7, y + 35, 46, 20),
+    (ctx.fillStyle = ink),
+    (ctx.font = "bold 20px 'Bahnschrift SemiBold Condensed', 'Arial Narrow', Arial, sans-serif"),
     (ctx.textAlign = "center"),
+    (ctx.textBaseline = "alphabetic"),
+    ctx.fillText(full ? "10-4" : "5-4", x + 30, y + 53),
     (ctx.textBaseline = "middle"),
-    ctx.fillText(full ? "10-4" : "5-4", x + 30, y + 44),
+    // the NKVD tab stands upright along the left edge, clear of the size mark and the symbol
+    ctx.translate(x + 8, y + 24),
+    ctx.rotate(-Math.PI / 2),
     (ctx.fillStyle = "#1f3a7a"),
-    ctx.fillRect(x + 4, y + 4, 22, 9),
+    ctx.fillRect(-11, -4.5, 22, 9),
     (ctx.fillStyle = "#ffffff"),
     (ctx.font = "bold 7px Arial, sans-serif"),
-    ctx.fillText("NKVD", x + 15, y + 8.8),
+    ctx.fillText("NKVD", 0, 0.3),
     ctx.restore());
 }
 // Winter fatigue of a German unit at the start of its turn, after the choice made at Orsha
@@ -7720,7 +8025,7 @@ function startGame() {
   if (
     (document.body.removeChild(t),
     (canvasBoard = document.getElementById("board")),
-    (canvasBoard.width = Math.max(window.innerWidth, document.getElementById("map").width, 2390)),
+    (canvasBoard.width = Math.max(window.innerWidth, document.getElementById("map").width, BOARD_WIDTH)),
     (canvasBoard.height = document.getElementById("map").height),
     (board = canvasBoard.getContext("2d")),
     (canvasHexHighlights = document.getElementById("hex_highlights")),
@@ -8305,6 +8610,8 @@ function applyLanguage() {
   currentTurn && currentTurn.turn && document.getElementById("turn_info_title") && setTurnInfo();
   "function" == typeof refreshStatusMarkers && refreshStatusMarkers();
   renderSplashChronicle();
+  // the charts are written in the language of the interface
+  "undefined" != typeof board && board && drawBoardCharts();
 }
 function setLanguage(value) {
   lang = value ? "zh" : "en";
