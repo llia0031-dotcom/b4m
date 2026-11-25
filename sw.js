@@ -2,7 +2,7 @@
 // Handles offline caching and resource serving
 
 // Cache version - increment this to force cache refresh
-const CACHE_VERSION = 'b4m-v1.9.2';
+const CACHE_VERSION = 'b4m-v1.9.3';
 const CACHE_NAME = `battle-for-moscow-${CACHE_VERSION}`;
 
 // All resources to precache for offline functionality

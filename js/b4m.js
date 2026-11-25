@@ -807,7 +807,7 @@ function hasPartisan(e) {
     })
   );
 }
-function inPartisanZOC(e) {
+function nearPartisans(e) {
   if (!e) return !1;
   if (hasPartisan(e)) return !0;
   for (const t of grid.neighborsOf(e)) if (t && hasPartisan(t)) return !0;
@@ -1061,13 +1061,16 @@ function communicationMap(e, t) {
     { hexes: i, neighbors: o } = getCommTopology(),
     r = new Map(),
     a = new Set(),
+    ph = new Set(),
     l = "soviet" === e ? "sovietReplacement" : "germanReplacement";
   for (const e of b4mUnits) e.position && r.set(e.position.x + "," + e.position.y, e.army);
-  // Partisan hexes and the ring around them (empty when partisans are ignored)
+  // Partisan hexes (ph) and, with the ring around them, the hexes where they supply the Red Army (a);
+  // both are empty when partisans are ignored. A band has no zone of control: German lines of
+  // communication are cut only by the band's own hex.
   if (!0 !== t)
     for (const e of partisans) {
       const t = e.x + "," + e.y;
-      a.add(t);
+      (a.add(t), ph.add(t));
       for (const e of o.get(t) || []) a.add(e);
     }
   const s = function (t) {
@@ -1076,7 +1079,7 @@ function communicationMap(e, t) {
         !o.get(t).some(function (e) {
           return r.get(e) === n;
         }) &&
-        !("german" === e && a.has(t))
+        !("german" === e && ph.has(t))
       );
     },
     c = new Map(),
@@ -1119,7 +1122,7 @@ function unitSupplyStatus(e, t) {
   const n = grid.get(e.position),
     i = "soviet" === e.army ? "the red-bordered east map edge" : "the west map edge";
   if (t[e.army](n))
-    return "soviet" === e.army && inPartisanZOC(n) && !t.sovietNoPartisans(n)
+    return "soviet" === e.army && nearPartisans(n) && !t.sovietNoPartisans(n)
       ? { ok: !0, text: "Supplied by the partisans" }
       : { ok: !0, text: "In communication with " + i };
   const o = cityStock(n, e.army),
@@ -2772,7 +2775,7 @@ const HISTORY_EVENTS = [
         effects: function () {
           return [
             "2 partisan bands of strength 2 form now on forest hexes behind the German lines (you place them). They act from your next turn.",
-            "German lines of communication cannot pass through a band's hex or the hexes next to it.",
+            "German lines of communication cannot pass through a band's hex (a band has no zone of control).",
             "Partisan bands on the map now: " + partisans.length + " (at most " + MAX_PARTISANS + ").",
           ];
         },
@@ -3436,7 +3439,7 @@ const DISPATCH_ZH = {
         effects: function () {
           return [
             "立即在德军后方的森林格里组建 [[2 支力量为 2 的游击队]]（由你放置），从你的下一回合起行动。",
-            "德军的补给线不能穿过游击队所在的格子及其相邻格子。",
+            "德军的补给线不能穿过游击队所在的格子（游击队没有控制区）。",
             "地图上现有游击队：" + partisans.length + " 支（最多 " + MAX_PARTISANS + " 支）。",
           ];
         },
@@ -6264,7 +6267,7 @@ const isInCommunication = function (e, t) {
   let n = Hex(grid.get(e));
   if ("soviet" === t ? n.sovietReplacement : n.germanReplacement) return !0;
   // Russian units in or next to a partisan hex are supplied by the partisans
-  if ("soviet" === t && inPartisanZOC(n)) return !0;
+  if ("soviet" === t && nearPartisans(n)) return !0;
   const i = "soviet" === t ? 10 * (13 - n.x) : 10 * n.x,
     o = "german" === t ? "soviet" : "german";
   ((n.credit = i), (n.path = []));
@@ -6276,7 +6279,7 @@ const isInCommunication = function (e, t) {
     l++;
     const n = "soviet" === t ? e.sovietReplacement : e.germanReplacement,
       i = lookupUnit(e);
-    if (l > 1 && n && (!i || i.army === t) && !isEZOC(e, t) && !("german" === t && inPartisanZOC(e)))
+    if (l > 1 && n && (!i || i.army === t) && !isEZOC(e, t) && !("german" === t && hasPartisan(e)))
       return !0;
     for (const n of grid.neighborsOf(e)) {
       let i = Hex(n);
@@ -6285,9 +6288,8 @@ const isInCommunication = function (e, t) {
         let n = lookupUnit(i);
         (n && n.army === o && (i.credit = -1),
           isEZOC(i, t) && i.credit > -1 && (i.credit = 0),
-          // Partisans cut German lines of communication: their hex is impassable, the hexes around it act like an enemy ZOC
-          "german" === t &&
-            (hasPartisan(i) ? (i.credit = -1) : i.credit > -1 && inPartisanZOC(i) && (i.credit = 0)));
+          // Partisans cut German lines of communication through their own hex only: a band has no zone of control
+          "german" === t && hasPartisan(i) && (i.credit = -1));
         let l = indexOfHex(i, a);
         l < 0
           ? i.credit > -1 &&
