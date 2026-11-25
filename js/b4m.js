@@ -743,37 +743,6 @@ function inPartisanZOC(e) {
   for (const t of grid.neighborsOf(e)) if (t && hasPartisan(t)) return !0;
   return !1;
 }
-// A German unit entering a band's hex sweeps it: the band loses 2 strength and the survivors slip
-// away into a forest within 2 hexes that is not next to German units (or are destroyed)
-function removePartisanAt(e) {
-  if (!e) return;
-  const t = partisanAt(e);
-  if (!t) return;
-  if (((t.strength = (t.strength || 1) - 2), t.strength > 0)) {
-    const n = grid.get(e),
-      i = b4mGrid
-        .map(function (e) {
-          return grid.get({ x: e.x, y: e.y });
-        })
-        .filter(function (e) {
-          return (
-            "forest" === e.terrain &&
-            !lookupUnit(e) &&
-            !partisanAt(e) &&
-            !isEZOC(e, "soviet") &&
-            n.distance(e) <= 2
-          );
-        })
-        .sort(function (e, t) {
-          return n.distance(e) - n.distance(t);
-        })[0];
-    i ? ((t.x = i.x), (t.y = i.y)) : (t.strength = 0);
-  }
-  ((partisans = partisans.filter(function (e) {
-    return null == e.strength || e.strength > 0;
-  })),
-    drawPartisans());
-}
 // A pair of skis drawn left of the unit symbol, in the counter's own line style (k: scale, 1 = 60 px counter)
 function drawSkiPair(e, t, n, i) {
   (e.save(), (e.strokeStyle = "#211c21"), (e.lineCap = "round"), (e.lineWidth = 1.15 * i));
@@ -1272,7 +1241,12 @@ const FATIGUE = {
     winterInTown: 1,
     idle: 1,
     rest: 2,
+    // recovering in the rear, out of reach of the enemy (no enemy unit within rearDistance hexes)
+    rear: 1,
+    rearDistance: 3,
+    // in a town of its side; in Moscow and Tula, with their barracks, hospitals and depots
     city: 1,
+    majorCity: 2,
     liberation: 4,
   },
   CITY_NAMES = {
@@ -1327,6 +1301,18 @@ function unitName(e) {
     for (; r >= e; ) ((o += t), (r -= e));
   return o + ("tank" === e.type ? " Panzer Corps" : " Corps");
 }
+// In the rear: no enemy unit within 3 hexes (and, for the Germans, no partisan band within 2)
+function inTheRear(hex, army) {
+  return !(
+    b4mUnits.some(function (u) {
+      return u.army !== army && u.position && hex.distance(Hex(u.position)) <= FATIGUE.rearDistance;
+    }) ||
+    ("german" === army &&
+      partisans.some(function (b) {
+        return hex.distance(Hex(b)) <= 2;
+      }))
+  );
+}
 // Start of a side's turn: supply, winter and rest change the fatigue of its units
 // (the "fought" and "moved" marks cover the side's previous turn and the enemy turn that followed)
 function processTurnFatigue(e) {
@@ -1368,13 +1354,15 @@ function processTurnFatigue(e) {
       o ||
         s ||
         n.raided === currentTurn.turn ||
-        (n.fought || (r -= n.moved ? FATIGUE.idle : FATIGUE.rest),
-        "none" !== i.city && i.control === e && (r -= FATIGUE.city)),
+        (n.fought || (r -= (n.moved ? FATIGUE.idle : FATIGUE.rest) + (inTheRear(i, e) ? FATIGUE.rear : 0)),
+        "none" !== i.city &&
+          i.control === e &&
+          (r -= "major" === i.city || "moscow" === i.city ? FATIGUE.majorCity : FATIGUE.city)),
       (n.fatigue = Math.max(0, Math.min(FATIGUE.max, (n.fatigue || 0) + r))),
       (n.fought = !1),
       (n.moved = !1));
   }
-  scheduleStatusRefresh();
+  (moraleTurnStart(e, t), scheduleStatusRefresh());
 }
 // Fatigue in a battle, just before its result is applied. Returns the result to apply
 // (a broken defender turns DR into DRL) and a note for the battle log.
@@ -1383,6 +1371,16 @@ function applyBattleFatigue(e) {
     n = "";
   if ("DR" === t && 3 === fatigueLevel(b4mUnits[b4mUnitsIndex(currentBattle.defendingUnit)]))
     ((t = "DRL"), (n += "The defender is broken by fatigue: its retreat costs it a step. "));
+  else if (
+    "DR" === t &&
+    0 === moraleBand(currentBattle.defendingUnit.army) &&
+    inTheOpen(grid.get(currentBattle.defendingUnit.position))
+  )
+    ((t = "DRL"),
+      (n += L(
+        "The defenders are shaken and caught in the open: the retreat turns into a rout and costs them a step. ",
+        "守军士气动摇，又困在开阔地：撤退变成溃逃，损失 1 级。",
+      )));
   if ("DE" === t || "DRL" === t) {
     const e = currentBattle.attackingUnits
       .map(function (e) {
@@ -1426,8 +1424,9 @@ function applyBattleFatigue(e) {
 function attackFatigueFactor(e) {
   return [1, 1, 0.5, 0.5][fatigueLevel(e)];
 }
+// Defending, tired and exhausted troops still hold their positions; a broken unit falls apart (2/5)
 function fatigueFactor(e) {
-  return [1, 0.75, 0.5, 0.5][fatigueLevel(e)];
+  return [1, 1, 1, 0.4][fatigueLevel(e)];
 }
 function fmtStrength(e) {
   return String(Math.round(10 * e) / 10);
@@ -1444,8 +1443,8 @@ function strengthHtml(army, strength, lost) {
         fmtStrength(strength + lost) +
         '</s> <span class="tired_strength" title="' +
         L(
-          "Weakened by fatigue: tired units (level 1) defend at 3/4 of their strength but still attack at full strength; exhausted (2) and broken (3) ones fight at 1/2. The odds are worked out with this reduced strength. An exhausted attacker also loses a step on a DE or DRL result, a broken unit cannot attack, and a broken defender turns a DR into a DRL.",
-          "因疲劳而削弱：疲劳（1 级）的部队防守时只有 3/4 兵力，但进攻时仍按满兵力；疲惫（2 级）和崩溃（3 级）的部队作战时只有一半兵力。战斗比例按削弱后的兵力计算。疲惫的进攻部队在 DE 或 DRL 结果时还要损失 1 级，崩溃的部队不能进攻，崩溃的防守部队遇到 DR 时变成 DRL。",
+          "Weakened by fatigue: an exhausted unit (level 2) attacks at half its strength, a broken one (level 3) defends at 2/5 of it; tired and exhausted units still defend at full strength. The odds are worked out with this reduced strength. An exhausted attacker also loses a step on a DE or DRL result, a broken unit cannot attack, and a broken defender turns a DR into a DRL.",
+          "因疲劳而削弱：疲惫（2 级）的部队进攻时只有一半兵力，崩溃（3 级）的部队防守时只有 2/5 兵力；疲劳和疲惫的部队防守时仍是满兵力。战斗比例按削弱后的兵力计算。疲惫的进攻部队在 DE 或 DRL 结果时还要损失 1 级，崩溃的部队不能进攻，崩溃的防守部队遇到 DR 时变成 DRL。",
         ) +
         '">' +
         fmtStrength(strength) +
@@ -1466,6 +1465,16 @@ function modifiersHtml(e) {
   return (
     e.partisanBonus &&
       (t += '<span class="modifier_badge partisan" title="Partisans guide the attack">Partisans +1</span> '),
+    e.moraleMod &&
+      (t +=
+        '<span class="modifier_badge morale ' +
+        (e.moraleMod > 0 ? "up" : "down") +
+        '" title="' +
+        (e.attackingUnits.length ? moraleTitle(e.attackingUnits[0].army) : "") +
+        '">' +
+        L("Morale ", "士气 ") +
+        (e.moraleMod > 0 ? "+1" : "\u22121") +
+        "</span> "),
     t
   );
 }
@@ -1499,6 +1508,313 @@ function cityLiberated(e, t) {
         n +
         " liberated!<span>+1 Russian replacement step next turn · the liberators shake off some fatigue</span>",
     ));
+}
+// ---------------------------------------------------------------- Morale
+// Each army has a morale from 0 to 10: shaken (0-2), strained (3-4), steady (5-7), high (8-10). In October
+// 1941 the Wehrmacht was sure of victory after Vyazma and Bryansk, and the Red Army was reeling. Cities taken
+// and lost, armies destroyed or encircled, the mud, the frost and the great events of the campaign move it.
+// High morale adds a column to the army's attacks, low morale takes one away, and shaken troops caught in
+// the open rout (a DR becomes a DRL).
+let morale = { soviet: 4, german: 8 },
+  moraleLog = [],
+  moraleLosses = {},
+  // while above 0, a city changing hands does not move morale (a unit retreating through it)
+  cityMoraleQuiet = 0;
+const CITY_MORALE = { "10,2": 3, "10,6": 2 },
+  MORALE_BANDS_EN = ["Shaken", "Strained", "Steady", "High"],
+  MORALE_BANDS_ZH = ["动摇", "低落", "稳定", "高昂"];
+function moraleBand(army) {
+  const m = morale[army];
+  return m <= 2 ? 0 : m <= 4 ? 1 : m <= 7 ? 2 : 3;
+}
+function moraleBandName(army) {
+  return L(MORALE_BANDS_EN[moraleBand(army)], MORALE_BANDS_ZH[moraleBand(army)]);
+}
+// The odds columns an army's morale gives its attacks
+function moraleColumns(army) {
+  const b = moraleBand(army);
+  return 3 === b ? 1 : b <= 1 ? -1 : 0;
+}
+function changeMorale(army, delta, en, zh) {
+  if (!delta || !army || !currentTurn || "setup" === currentTurn.phase) return;
+  const before = morale[army],
+    after = Math.max(0, Math.min(10, before + delta));
+  if (after === before) return;
+  ((morale[army] = after),
+    moraleLog.push({ turn: currentTurn.turn, army: army, delta: after - before, en: en, zh: zh }),
+    moraleLog.length > 40 && moraleLog.shift(),
+    refreshMoraleBar(!0));
+}
+function cityChangedHands(hex, from, to) {
+  if (cityMoraleQuiet || !from || !to || from === to) return;
+  const key = hex.x + "," + hex.y,
+    v = CITY_MORALE[key] || 1,
+    name = cityNameOf(key, "a city", "一座城市");
+  (changeMorale(to, v, name + " taken", "夺取" + name), changeMorale(from, -v, name + " lost", "失去" + name));
+}
+// A unit destroyed in battle: its army loses heart (at most 2 points a turn)
+function unitDestroyed(unit) {
+  const key = unit.army + currentTurn.turn;
+  ((moraleLosses[key] = (moraleLosses[key] || 0) + 1),
+    moraleLosses[key] <= 2 && changeMorale(unit.army, -1, unitName(unit) + " destroyed", unitName(unit) + "被歼灭"));
+}
+// The start of a side's turn: encirclements, the mud, the frost; then an army below 5 rallies by 1,
+// and one above 7 calms down by 1 (victories have to be won again every turn to keep it high)
+function moraleTurnStart(army, ctx) {
+  const cut = b4mUnits.filter(function (u) {
+    return u.army === army && u.position && !ctx[army](grid.get(u.position));
+  }).length;
+  (cut >= 2 && changeMorale(army, -1, cut + " units encircled", cut + " 支部队被围"),
+    "german" === army && 3 === currentTurn.turn && changeMorale("german", -1, "the autumn mud", "秋季泥泞"),
+    "german" === army &&
+      isWinterTurn() &&
+      "clothing" !== decisions.trains &&
+      changeMorale("german", -1, "frost, and no winter clothing", "严寒，又没有冬装"),
+    morale[army] < 5
+      ? changeMorale(army, 1, "the army rallies", "部队重新振作")
+      : morale[army] > 7 && changeMorale(army, -1, "high spirits settle down", "高涨的士气渐渐平复"));
+}
+// The morale changes a command decision brings, shown with its other effects
+function moraleEffects(option) {
+  return (option.morale || []).map(function (m) {
+    const army = m[0],
+      d = m[1],
+      after = Math.max(0, Math.min(10, morale[army] + d));
+    return L(
+      ("soviet" === army ? "Morale of the Red Army " : "Morale of the Wehrmacht ") + (d > 0 ? "+" : "") + d + " (" + morale[army] + " to " + after + ").",
+      ("soviet" === army ? "红军士气 " : "德军士气 ") + (d > 0 ? "+" : "") + d + "（" + morale[army] + " → " + after + "）。",
+    );
+  });
+}
+function applyDecisionMorale(event, option) {
+  for (const m of option.morale || [])
+    changeMorale(m[0], m[1], m[2], m[3]);
+}
+// Shaken troops caught in the open rout: not in a forest, a fortification or a city
+function inTheOpen(hex) {
+  return !!hex && "open" === hex.terrain && (!hex.city || "none" === hex.city);
+}
+function moraleCells(army) {
+  let s = "";
+  for (let k = 1; k <= 10; k++) s += "<i" + (k <= morale[army] ? ' class="on"' : "") + "></i>";
+  return s;
+}
+function moraleTitle(army) {
+  const c = moraleColumns(army);
+  return (
+    L("soviet" === army ? "Morale of the Red Army: " : "Morale of the Wehrmacht: ", "soviet" === army ? "红军士气：" : "德军士气：") +
+    morale[army] +
+    L("/10, ", "/10，") +
+    moraleBandName(army) +
+    L(". ", "。") +
+    (c > 0
+      ? L("Its attacks gain one odds column.", "进攻时战斗比例 +1 栏。")
+      : c < 0
+        ? L("Its attacks lose one odds column.", "进攻时战斗比例 -1 栏。") +
+          (0 === moraleBand(army) ? L(" Its troops caught in the open rout: a DR becomes a DRL.", "在开阔地防守的部队会溃逃：DR 变成 DRL。") : "")
+        : L("No effect on combat.", "对战斗没有影响。"))
+  );
+}
+function refreshMoraleBar(flash) {
+  const e = document.getElementById("turn_info_morale");
+  if (!e) return;
+  e.innerHTML = ["soviet", "german"]
+    .map(function (army) {
+      return (
+        '<span class="morale_side ' +
+        army +
+        " band" +
+        moraleBand(army) +
+        '" title="' +
+        moraleTitle(army) +
+        '"><img src="img/' +
+        army +
+        '_marker.png" /><span class="morale_value">' +
+        morale[army] +
+        '</span><span class="morale_cells">' +
+        moraleCells(army) +
+        "</span></span>"
+      );
+    })
+    .join("");
+  flash && (e.classList.remove("flash"), void e.offsetWidth, e.classList.add("flash"));
+}
+// The morale lines of the turn report: where both armies stand, and the latest changes
+function moraleHtml() {
+  const recent = moraleLog
+    .filter(function (m) {
+      return m.turn >= currentTurn.turn - 1;
+    })
+    .slice(-8)
+    .reverse();
+  return (
+    '<div style="text-align: left;">- ' +
+    L("Morale: ", "士气：") +
+    L("Red Army ", "红军 ") +
+    morale.soviet +
+    L(" (", "（") +
+    moraleBandName("soviet") +
+    L(")", "）") +
+    L(", Wehrmacht ", "，德军 ") +
+    morale.german +
+    L(" (", "（") +
+    moraleBandName("german") +
+    L(")", "）") +
+    (recent.length
+      ? '<div class="morale_log">' +
+        recent
+          .map(function (m) {
+            return (
+              '<span class="' +
+              (m.delta > 0 ? "up" : "down") +
+              '">' +
+              (m.delta > 0 ? "+" : "") +
+              m.delta +
+              " " +
+              L("soviet" === m.army ? "Red Army" : "Wehrmacht", "soviet" === m.army ? "红军" : "德军") +
+              L(": ", "：") +
+              L(m.en, m.zh) +
+              "</span>"
+            );
+          })
+          .join(L("; ", "；")) +
+        "</div>"
+      : "") +
+    "</div>"
+  );
+}
+// A German unit entering a band's hex sweeps it. The German commander chooses: a full sweep combs the
+// forest until the band is destroyed, at a heavy cost in fatigue (4 points for each strength point of
+// the band); driving it off costs only 2 points, but the band merely loses 1 strength and the survivors
+// slip away into a forest within 2 hexes that is not next to German units (with no refuge, they scatter)
+const SWEEP_FATIGUE_PER_STRENGTH = 4,
+  DRIVE_OFF_FATIGUE = 2;
+function partisanRefuge(band) {
+  const n = grid.get(band);
+  return (
+    b4mGrid
+      .map(function (e) {
+        return grid.get({ x: e.x, y: e.y });
+      })
+      .filter(function (e) {
+        return "forest" === e.terrain && !lookupUnit(e) && !partisanAt(e) && !isEZOC(e, "soviet") && n.distance(e) <= 2;
+      })
+      .sort(function (e, t) {
+        return n.distance(e) - n.distance(t);
+      })[0] || null
+  );
+}
+function fatigueLevelName(points) {
+  const k = fatigueLevel({ fatigue: points });
+  return L(["fresh", "tired", "exhausted", "broken"][k], ["精力充沛", "疲劳", "疲惫", "崩溃"][k]);
+}
+function sweepFatigue(unit, band, mode) {
+  const u = b4mUnits[b4mUnitsIndex(unit)],
+    f = (u && u.fatigue) || 0;
+  return Math.min(FATIGUE.max, f + ("wipe" === mode ? SWEEP_FATIGUE_PER_STRENGTH * (band.strength || 1) : DRIVE_OFF_FATIGUE));
+}
+// Carries out the sweep; returns what happened, for the banner
+function sweepPartisans(unit, mode) {
+  const band = unit.position && partisanAt(unit.position);
+  if (!band) return "";
+  const u = b4mUnits[b4mUnitsIndex(unit)],
+    before = (u && u.fatigue) || 0,
+    s = band.strength || 1,
+    after = sweepFatigue(unit, band, mode);
+  u && (u.fatigue = after);
+  let note;
+  if ("wipe" === mode)
+    ((band.strength = 0),
+      (note = L(
+        "The " + unitName(unit) + " combs the forest and destroys the band. Fatigue " + before + " → " + after + " (" + fatigueLevelName(after) + ").",
+        unitName(unit) + "搜遍森林，消灭了这支游击队。疲劳 " + before + " → " + after + "（" + fatigueLevelName(after) + "）。",
+      )));
+  else {
+    band.strength = s - 1;
+    const refuge = band.strength > 0 ? partisanRefuge(band) : null;
+    refuge ? ((band.x = refuge.x), (band.y = refuge.y)) : (band.strength = 0);
+    note =
+      L("The " + unitName(unit) + " drives the band off: ", unitName(unit) + "驱散了游击队：") +
+      (refuge
+        ? L(
+            "it loses 1 strength (now " + band.strength + ") and slips away into the forest.",
+            "游击队损失 1 点力量（剩 " + band.strength + " 点），逃进了森林。",
+          )
+        : s > 1
+          ? L("with nowhere to hide, it scatters.", "游击队无处藏身，被打散了。")
+          : L("the band, already weak, scatters.", "本已弱小的游击队被打散了。")) +
+      L(" Fatigue " + before + " → " + after + ".", "疲劳 " + before + " → " + after + "。");
+  }
+  ((partisans = partisans.filter(function (e) {
+    return null == e.strength || e.strength > 0;
+  })),
+    drawPartisans(),
+    scheduleStatusRefresh());
+  return note;
+}
+function sweepBanner(note) {
+  showEventBanner('<img src="img/german_marker.png" />' + L("Anti-partisan sweep", "清剿游击队") + "<span>" + note + "</span>", 6e3);
+}
+// The German commander chooses how to deal with the band; the computer, and units retreating or
+// advancing after combat, drive it off unless a full sweep would leave the unit no worse than tired
+function partisanSweep(unit) {
+  const band = unit && unit.position && partisanAt(unit.position);
+  if (!band) return;
+  const human = "" === playAIAs || "german" !== playAIAs;
+  if (!human || "movement" !== currentTurn.phase || "german" !== currentTurn.army)
+    return void sweepBanner(sweepPartisans(unit, fatigueLevel({ fatigue: sweepFatigue(unit, band, "wipe") }) <= 1 ? "wipe" : "drive"));
+  showSweepChoice(unit, band);
+}
+function showSweepChoice(unit, band) {
+  const u = b4mUnits[b4mUnitsIndex(unit)],
+    f = (u && u.fatigue) || 0,
+    s = band.strength || 1,
+    wipe = sweepFatigue(unit, band, "wipe"),
+    drive = sweepFatigue(unit, band, "drive"),
+    refuge = s > 1 ? partisanRefuge(band) : null,
+    box = document.createElement("div");
+  ((box.id = "sweep_choice"),
+    (box.innerHTML =
+      '<div class="sweep_box"><div class="sweep_head"><img src="img/german_marker.png" /><span>' +
+      L("Anti-partisan sweep", "清剿游击队") +
+      '</span></div><div class="sweep_text">' +
+      L(
+        "The " + unitName(unit) + " runs into a partisan band of strength " + s + " in the forest. Its fatigue now: " + f + " (" + fatigueLevelName(f) + ").",
+        unitName(unit) + "在森林里撞上一支力量为 " + s + " 的游击队。它现在的疲劳：" + f + "（" + fatigueLevelName(f) + "）。",
+      ) +
+      '</div><div class="sweep_options"><button data-mode="wipe"><span class="sweep_label">' +
+      L("Full sweep", "全面清剿") +
+      "</span><small>" +
+      L("The band is destroyed.", "消灭这支游击队。") +
+      "<br />" +
+      L(
+        "Fatigue +" + (wipe - f) + ": " + f + " → " + wipe + " (" + fatigueLevelName(wipe) + ").",
+        "疲劳 +" + (wipe - f) + "：" + f + " → " + wipe + "（" + fatigueLevelName(wipe) + "）。",
+      ) +
+      '</small></button><button data-mode="drive"><span class="sweep_label">' +
+      L("Drive them off", "驱散") +
+      "</span><small>" +
+      (refuge
+        ? L(
+            "The band loses 1 strength (" + s + " → " + (s - 1) + ") and slips away into the forest.",
+            "游击队损失 1 点力量（" + s + " → " + (s - 1) + "），逃进附近的森林。",
+          )
+        : s > 1
+          ? L("The band has nowhere to hide: it scatters.", "游击队附近无处藏身：会被打散。")
+          : L("The band, strength 1, scatters.", "游击队只有 1 点力量：会被打散。")) +
+      "<br />" +
+      L(
+        "Fatigue +" + (drive - f) + ": " + f + " → " + drive + " (" + fatigueLevelName(drive) + ").",
+        "疲劳 +" + (drive - f) + "：" + f + " → " + drive + "（" + fatigueLevelName(drive) + "）。",
+      ) +
+      "</small></button></div></div>"),
+    // the choice is made here: clicks do not reach the map
+    box.addEventListener("click", function (e) {
+      e.stopPropagation();
+      const b = e.target.closest && e.target.closest("[data-mode]");
+      b && (box.remove(), sweepBanner(sweepPartisans(unit, b.dataset.mode)));
+    }),
+    document.body.appendChild(box));
 }
 // ---------------------------------------------------------------- Victory points, stand-fast order and chronicle
 const CITY_VP = { "10,2": 5, "10,6": 3 },
@@ -1557,6 +1873,7 @@ function turnReportExtra() {
     '<div style="text-align: left;">- ' +
     lossesText() +
     "</div>" +
+    moraleHtml() +
     decisionsHtml() +
     chronicleHtml(currentTurn.turn)
   );
@@ -1661,7 +1978,7 @@ function partisanRising(hex) {
     success = roll <= need,
     name = cityNameOf(hex.x + "," + hex.y, "the town", "这座城镇");
   for (const band of risingBands(hex)) ((band.acted = !0), success || (band.strength = (band.strength || 1) - 1));
-  (success && ((hex.control = "soviet"), liberationBonus++, partisanTowns.push({ x: hex.x, y: hex.y })),
+  (success && (cityChangedHands(hex, hex.control, "soviet"), (hex.control = "soviet"), liberationBonus++, partisanTowns.push({ x: hex.x, y: hex.y })),
     (partisans = partisans.filter(function (band) {
       return band.strength > 0;
     })),
@@ -1905,10 +2222,10 @@ function soundUra() {
 // squeal of the idlers and the rumble of the hull. The column comes closer, passes and goes away.
 let rollingUntil = 0;
 // ---------------------------------------------------------------- Recorded tanks
-// Real tanks, cut from films on Wikimedia Commons: a Panther driving past at the Saumur tank museum and
-// the original Maybach engine of Tiger 131 at Bovington starting.
+// A real tank, cut from a film on Wikimedia Commons: the original Maybach V12 of Tiger 131 at Bovington,
+// starting and then running hard. Only parts with no human voice in them are used.
 const RECORDINGS = {
-  panther: "audio/panzer_panther.wav",
+  run: "audio/panzer_tiger_run.wav",
   tigerStart: "audio/panzer_tiger_start.wav",
 };
 let panzerEnginesTurn = 0;
@@ -1949,19 +2266,19 @@ function playPass(ctx, buffer, t0, length, level, options) {
     source.connect(tone).connect(gain).connect(audioOut),
     source.start(t0, offset, span));
 }
-// German panzers: the Panther of Saumur; the first column to move in a turn starts its engines first
+// German panzers: the Maybach engine of Tiger 131; the first column to move in a turn starts its engines first
 function soundPanzer(ctx, t0, winter, mud) {
   if (ctx.currentTime < rollingUntil) return;
   loadRecordings(ctx);
   const recordings = ctx.recordings;
-  if (!recordings.panther) return soundPanzerSynth(ctx, t0, winter, mud);
+  if (!recordings.run) return soundPanzerSynth(ctx, t0, winter, mud);
   let start = t0;
   (recordings.tigerStart &&
     panzerEnginesTurn !== currentTurn.turn &&
     ((panzerEnginesTurn = currentTurn.turn),
-    playPass(ctx, recordings.tigerStart, t0, 3.6, 0.8, { offset: 0, fadeIn: 0.02, fadeOut: 1.2 }),
+    playPass(ctx, recordings.tigerStart, t0, 3.6, 0.8, { offset: 0, fadeIn: 0.05, fadeOut: 1.2 }),
     (start = t0 + 1.4)),
-    playPass(ctx, recordings.panther, start, 3.4, 1.3, {
+    playPass(ctx, recordings.run, start, 3.4, 1.1, {
       fadeIn: 0.7,
       fadeOut: 1.1,
       rate: mud ? 0.88 : 1,
@@ -2295,6 +2612,10 @@ function battleLossesSince(e) {
 function finalizeBattleLosses() {
   if (!battleSnapshot) return;
   const e = battleLossesSince(battleSnapshot);
+  for (const s of battleSnapshot) {
+    const u = b4mUnits[b4mUnitsIndex(s)];
+    u && s.steps > 0 && 0 === unitSteps(u) && unitDestroyed(u);
+  }
   ((casualties.german += e.german), (casualties.soviet += e.soviet), (battleSnapshot = null), refreshLossesDisplay());
 }
 function currentLosses() {
@@ -2555,6 +2876,7 @@ const HISTORY_EVENTS = [
           }
           return L("Snow keeps the Luftwaffe on the ground: the troops march straight to the front.", "大雪让德国空军无法起飞：部队直接开赴前线。");
         },
+        morale: [["soviet", 2, "the parade on Red Square", "红场阅兵"]],
       },
       { id: "cancel", label: "Cancel the parade", order: "Take no risk with the garrison.", effects: ["No effect."] },
     ],
@@ -2702,6 +3024,7 @@ const HISTORY_EVENTS = [
         id: "attack",
         label: "Вперёд! Attack",
         order: "The counteroffensive begins.",
+        morale: [["soviet", 1, "the counteroffensive", "大反攻"]],
         effects: function () {
           const plan = SPECIAL_ARRIVALS[WINTER_START];
           return [
@@ -2774,6 +3097,7 @@ const HISTORY_EVENTS = [
         apply: function () {
           addFatigueToArmy("german", -2);
         },
+        morale: [["german", -1, "pulling back against Hitler's order", "违抗希特勒的命令后撤"]],
       },
     ],
     ai: "obey",
@@ -2807,7 +3131,8 @@ const HISTORY_EVENTS = [
         id: "press",
         label: "За Родину! Press on",
         order: "The offensive goes on.",
-        effects: ["No change to the rules: the offensive goes on."],
+        effects: ["The whole country hears of the victory."],
+        morale: [["soviet", 2, "the bulletin of 13 December", "12 月 13 日的公报"]],
       },
     ],
     ai: "press",
@@ -2827,7 +3152,7 @@ function optionText(event, option, field) {
   return twin && void 0 !== twin[field] ? twin[field] : option[field];
 }
 function optionEffects(event, option) {
-  return (textOf(optionText(event, option, "effects")) || []).filter(Boolean);
+  return (textOf(optionText(event, option, "effects")) || []).concat(moraleEffects(option)).filter(Boolean);
 }
 function optionAvailable(option) {
   return !option.available || option.available();
@@ -2856,7 +3181,7 @@ function applyDecision(event, optionId, deferred) {
   const option = event.options.find(function (o) {
     return o.id === optionId;
   });
-  decisions[event.id] = optionId;
+  ((decisions[event.id] = optionId), applyDecisionMorale(event, option));
   // a decision taken before a Replacement Phase takes effect after the fatigue of the turn start
   if (deferred && option.apply) return ((decisions._pending = event.id), { option: option, outcome: "" });
   const outcome = option.apply ? option.apply() : "";
@@ -2904,6 +3229,24 @@ function quoteHtml(quote) {
     "</div></blockquote>"
   );
 }
+// The Soviet documents carry the masthead of every Soviet newspaper and the hammer and sickle, and end on
+// a wartime slogan of the newspapers of 1941
+function sovietMasthead() {
+  return (
+    '<div class="soviet_masthead"><span class="mh_emblem">\u262d</span><span class="mh_text">Пролетарии всех стран, соединяйтесь!</span><span class="mh_emblem">\u262d</span></div><div class="mh_translation">' +
+    L("Workers of all countries, unite!", "全世界无产者，联合起来！") +
+    "</div>"
+  );
+}
+function sloganHtml(slogan) {
+  return slogan
+    ? '<div class="soviet_slogan"><div class="slogan_original">' +
+        slogan.original +
+        '</div><div class="slogan_translation">' +
+        L(slogan.en, slogan.zh) +
+        "</div></div>"
+    : "";
+}
 // The dispatch takes the whole screen: the historical photograph on one side when there is one, the
 // document on the other; orders as buttons, their effect shown when pointed at (first tap on a touch
 // screen), then what was actually done in 1941
@@ -2941,9 +3284,13 @@ function showDispatch(event, decide, next) {
     event.army +
     " " +
     (event.kind || "order") +
-    '"><div class="dispatch_inner"><div class="dispatch_head"><img src="img/' +
-    event.army +
-    '_marker.png" /><div class="dispatch_office"><div class="office_original">' +
+    '"><div class="dispatch_inner">' +
+    ("soviet" === event.army ? sovietMasthead() : "") +
+    '<div class="dispatch_head">' +
+    ("soviet" === event.army
+      ? '<div class="soviet_emblem"><span class="se_star">\u2605</span><span class="se_hs">\u262d</span></div>'
+      : '<img src="img/' + event.army + '_marker.png" />') +
+    '<div class="dispatch_office"><div class="office_original">' +
     event.office +
     '</div><div class="office_en">' +
     ev(event, "officeEn") +
@@ -2967,7 +3314,9 @@ function showDispatch(event, decide, next) {
     L("Effect on the game", "对游戏的影响") +
     '</div><ul><li class="estimate_hint">' +
     L("Point at an order to see what it does.", "把鼠标放在命令上，查看它对游戏的影响。") +
-    '</li></ul></div><div class="dispatch_outcome"></div></div></div></div>';
+    '</li></ul></div><div class="dispatch_outcome"></div>' +
+    ("soviet" === event.army ? sloganHtml(event.slogan) : "") +
+    "</div></div></div>";
   const card = overlay.querySelector(".dispatch"),
     orders = overlay.querySelector(".dispatch_orders"),
     estimate = overlay.querySelector(".dispatch_estimate ul");
@@ -3265,7 +3614,7 @@ const DISPATCH_ZH = {
       "列维坦在话筒前宣读一份特别公报。自 6 月以来，电台第一次宣布德军遭到[[一场大败]]：包围和夺取莫斯科的计划已经破产，德军的两翼集团被击溃，丢下装备后撤，城镇一个接一个获得解放。",
     ],
     quotes: [{ translation: "注意，这里是莫斯科！最新消息：[[德军包围和夺取莫斯科的计划破产。]]", source: "苏联情报局公报，1941 年 12 月 13 日" }],
-    options: { press: { label: "За Родину！继续进攻", order: "攻势继续。", effects: ["规则没有变化：攻势继续。"] } },
+    options: { press: { label: "За Родину！继续进攻", order: "攻势继续。", effects: ["全国都听到了胜利的消息。"] } },
     history: "这份公报在电台播出，并配上西方面军将领们的照片刊登在各家报纸上。它宣告了红军在这场战争中的[[第一次大胜利]]。",
   },
 };
@@ -3378,6 +3727,9 @@ function cleanAndSaveBeforeNewPhase(e) {
     (b4mSave.cityStocks = JSON.parse(JSON.stringify(cityStocks))),
     (b4mSave.partisanGuides = partisanGuides.slice()),
     (b4mSave.partisanTowns = partisanTowns.slice()),
+    (b4mSave.morale = { soviet: morale.soviet, german: morale.german }),
+    (b4mSave.moraleLog = moraleLog.slice()),
+    (b4mSave.moraleLosses = Object.assign({}, moraleLosses)),
     window.localStorage.setItem("b4mSave", JSON.stringify(b4mSave))),
     hexHighlights.clearRect(0, 0, canvasHexHighlights.width, canvasHexHighlights.height),
     countersHighlights.clearRect(
@@ -3444,6 +3796,7 @@ function drawUnit(e, t, n, i) {
             "soviet" === t.army &&
             "soviet" === currentTurn.army &&
             cityLiberated(n, b4mUnits[e]),
+          cityChangedHands(n, n.control, t.army),
           (n.control = t.army),
           "german" === t.army && partisanTowns.length > 0 && drawPartisans());
         break;
@@ -3502,7 +3855,7 @@ document.addEventListener(
 function keepCityControl(e, t) {
   const n = grid.get(e),
     i = n && n.control;
-  (t(), n && n.city && "none" !== n.city && (n.control = i));
+  (cityMoraleQuiet++, t(), cityMoraleQuiet--, n && n.city && "none" !== n.city && (n.control = i));
 }
 function moveUnit(e, t, n, retreat) {
   // Copy the route now: a caller may later change the objects it passed (resolveNextBattle reuses
@@ -3528,7 +3881,7 @@ function moveUnit(e, t, n, retreat) {
               80,
               80,
             ),
-          "german" === e.army && removePartisanAt(e.position),
+          "german" === e.army && partisanSweep(e),
           clearInterval(a),
           finishUnitMove(s))
         : (clearUnit(board, e, o.x - 40, o.y - 40),
@@ -3583,13 +3936,14 @@ function drawPositionedUnits() {
       canvasCountersHighlights.height,
     ),
     board.clearRect(0, 0, canvasBoard.width > 1250 ? 1250 : canvasBoard.width, canvasBoard.height));
+  cityMoraleQuiet++;
   for (let e = 0; e < b4mUnits.length; e++)
     if (b4mUnits[e].position) {
       let t = Hex(b4mUnits[e].position),
         n = t.center().add(t.toPoint());
       drawUnit(board, b4mUnits[e], n.x - 30, n.y - 30);
     }
-  drawPartisans();
+  (cityMoraleQuiet--, drawPartisans());
 }
 function drawAvailableUnits(e, t) {
   if (t && t.length > 0) {
@@ -3652,6 +4006,8 @@ function computeBattleOdds() {
       })
         ? 1
         : 0;
+    // the morale of the attacking army: +1 column when high, -1 when strained or shaken
+    battle.moraleMod = battle.attackingUnits.length > 0 ? moraleColumns(battle.attackingUnits[0].army) : 0;
     let o = Math.floor(i / d);
     (o > 6 && (o = 6),
       (battle.attackingStrength = i),
@@ -3659,7 +4015,7 @@ function computeBattleOdds() {
       (battle.attackFatigueLoss = f),
       (battle.defendFatigueLoss = s - d),
       (battle.modifiers = t),
-      (battle.battleOdds = Math.min(6, o - t.length + battle.partisanBonus)));
+      (battle.battleOdds = Math.min(6, o - t.length + battle.partisanBonus + battle.moraleMod)));
   }
 }
 function refreshBattles() {
@@ -3868,7 +4224,7 @@ function setTurnInfo() {
   }
   document.getElementById("turn_info_title").innerText = L(e, turnTitleZh(currentTurn.turn));
   const w = document.getElementById("turn_info_weather");
-  (w && (w.innerText = L(WEATHER[currentTurn.turn], WEATHER_ZH[currentTurn.turn]) || ""), drawSeason());
+  (w && (w.innerText = L(WEATHER[currentTurn.turn], WEATHER_ZH[currentTurn.turn]) || ""), drawSeason(), refreshMoraleBar());
 }
 function turn1GermanSetupPhase() {
   ((currentTurn = { turn: 1, army: "german", phase: "setup", subphase: "" }),
@@ -4399,7 +4755,7 @@ function takeVacatedCity() {
   if (!e || "soviet" !== t || !e.city || "none" === e.city || "german" !== e.control) return;
   const n = b4mUnits[b4mUnitsIndex(currentBattle.defendingUnit)];
   if (n && n.position && n.position.x === e.x && n.position.y === e.y && defenderRetreating !== currentBattle) return;
-  ((e.control = "soviet"), cityLiberated(e, null));
+  (cityChangedHands(e, e.control, "soviet"), (e.control = "soviet"), cityLiberated(e, null));
 }
 function handleRetreatSelection(e) {
   let t = grid.get(e);
@@ -6700,6 +7056,9 @@ function continueFromSave() {
   ((railCuts = (b4mSave.railCuts || []).slice()), (partisanGuides = (b4mSave.partisanGuides || []).slice()));
   b4mSave.cityStocks && (cityStocks = JSON.parse(JSON.stringify(b4mSave.cityStocks)));
   partisanTowns = (b4mSave.partisanTowns || []).slice();
+  morale = b4mSave.morale ? { soviet: b4mSave.morale.soviet, german: b4mSave.morale.german } : { soviet: 4, german: 8 };
+  moraleLog = (b4mSave.moraleLog || []).slice();
+  moraleLosses = Object.assign({}, b4mSave.moraleLosses || {});
   liberationBonus = b4mSave.liberationBonus || 0;
   decisions = b4mSave.decisions ? JSON.parse(JSON.stringify(b4mSave.decisions)) : {};
   casualties = b4mSave.casualties ? { german: b4mSave.casualties.german || 0, soviet: b4mSave.casualties.soviet || 0 } : { german: 0, soviet: 0 };
@@ -6717,7 +7076,9 @@ function continueFromSave() {
     (document.getElementById("turn_info").style.display = "block"),
     (document.getElementById("layer_toolbar").style.display = "block"),
     setTurnInfo(),
+    cityMoraleQuiet++,
     drawPositionedUnits(),
+    cityMoraleQuiet--,
     window[b4mSave.function_name]());
 }
 function restartPhase() {
@@ -7224,7 +7585,7 @@ function zhTranslate(root) {
   root.title && /[A-Za-z]{3}/.test(root.title) && ((t) => t !== root.title && (zhChanges.push([root, "title", root.title, t]), (root.title = t)))(zhText(root.title));
   // a short sentence with inline marks (a number in bold, an icon) is translated as a whole
   const kids = Array.from(root.children);
-  if (kids.length && kids.length < 8 && root.innerHTML.length < 1500 && kids.every(function (k) { return ZH_INLINE.test(k.nodeName) && !k.children.length; })) {
+  if (kids.length && kids.length < 8 && root.innerHTML.length < 1500 && kids.every(function (k) { return ZH_INLINE.test(k.nodeName) && !k.children.length && !k.id && !k.onclick; })) {
     const html = root.innerHTML,
       t = zhText(html);
     if (t !== html) return (zhChanges.push([root, "html", html, t]), void (root.innerHTML = t));

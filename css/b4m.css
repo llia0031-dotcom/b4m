@@ -162,6 +162,150 @@ input[type=checkbox] {
     cursor: pointer;
 }
 
+/* ---- Morale: two gauges of ten cells under the date */
+#turn_info_morale {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    margin-top: 2px;
+    font-size: 0.8em;
+}
+
+#turn_info_morale:empty {
+    display: none;
+}
+
+.morale_side {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    white-space: nowrap;
+}
+
+.morale_side img {
+    height: 13px;
+}
+
+.morale_value {
+    min-width: 1.1em;
+    font-weight: bold;
+}
+
+.morale_cells {
+    display: inline-flex;
+    gap: 1px;
+}
+
+.morale_cells i {
+    display: inline-block;
+    width: 4px;
+    height: 9px;
+    background: rgba(255, 255, 255, 0.22);
+}
+
+.morale_side.band0 .morale_cells i.on { background: #e24b4a; }
+.morale_side.band1 .morale_cells i.on { background: #ef9f27; }
+.morale_side.band2 .morale_cells i.on { background: #d8e6f5; }
+.morale_side.band3 .morale_cells i.on { background: #97c459; }
+
+#turn_info_morale.flash .morale_side {
+    animation: morale_flash 1.2s ease-out;
+}
+
+@keyframes morale_flash {
+    0% { filter: brightness(2.2); }
+    100% { filter: none; }
+}
+
+.modifier_badge.morale.up {
+    background-color: #c0dd97;
+    color: #173404;
+}
+
+.modifier_badge.morale.down {
+    background-color: #f7c1c1;
+    color: #501313;
+}
+
+.morale_log {
+    margin: 2px 0 0 12px;
+    font-size: 0.9em;
+}
+
+.morale_log .up { color: #c0dd97; }
+.morale_log .down { color: #f7c1c1; }
+
+/* ---- Anti-partisan sweep: the German commander's choice */
+#sweep_choice {
+    position: fixed;
+    z-index: 150;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    background: rgba(0, 0, 0, 0.45);
+}
+
+.sweep_box {
+    max-width: 460px;
+    padding: 14px 18px 16px 18px;
+    background: #e9e4d6;
+    color: #2b2a26;
+    border: 2px solid #3b3b3b;
+    border-radius: 6px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6);
+}
+
+.sweep_head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: bold;
+    font-size: 1.15em;
+    padding-bottom: 6px;
+    margin-bottom: 8px;
+    border-bottom: 2px solid #3b3b3b;
+}
+
+.sweep_head img {
+    height: 22px;
+}
+
+.sweep_options {
+    display: flex;
+    gap: 10px;
+    margin-top: 12px;
+}
+
+.sweep_options button {
+    flex: 1;
+    cursor: pointer;
+    text-align: left;
+    padding: 8px 10px;
+    font: inherit;
+    color: #f2efe6;
+    background: linear-gradient(#55575a, #36383b);
+    border: 1px solid #1d1e20;
+    border-radius: 5px;
+}
+
+.sweep_options button:hover {
+    background: linear-gradient(#6a6d70, #45474a);
+}
+
+.sweep_label {
+    display: block;
+    font-weight: bold;
+    margin-bottom: 4px;
+}
+
+.sweep_options small {
+    display: block;
+    line-height: 1.35;
+    color: #dcd8cc;
+}
+
 /* ---- Command decisions: a dispatch on the commander's desk */
 #decision_overlay {
     display: none;
@@ -677,6 +821,111 @@ input[type=checkbox] {
     #decision_overlay .dispatch {
         padding: 3vh 4vw;
     }
+}
+
+/* ---- the Soviet documents: masthead, emblem, slogan, the colours of the posters */
+.soviet_masthead {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    padding: 6px 0 2px 0;
+    color: #a3121a;
+    font-family: "Arial Narrow", "Arial", sans-serif;
+    font-weight: bold;
+    font-size: 1.05em;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+}
+
+.mh_emblem {
+    font-size: 1.5em;
+    color: #c4161c;
+}
+
+.mh_translation {
+    text-align: center;
+    font-size: 0.78em;
+    font-style: italic;
+    color: #7d1014;
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid #c4161c;
+}
+
+.dispatch.radio .soviet_masthead, .dispatch.radio .mh_emblem {
+    color: #ff4d4d;
+}
+
+.dispatch.radio .mh_translation {
+    color: #f2c9a0;
+}
+
+.soviet_emblem {
+    position: relative;
+    flex: none;
+    width: 46px;
+    height: 46px;
+    line-height: 46px;
+    text-align: center;
+}
+
+.se_star {
+    position: absolute;
+    inset: 0;
+    font-size: 50px;
+    line-height: 44px;
+    color: #c4161c;
+    text-shadow: 0 0 1px #5a0a0d;
+}
+
+.se_hs {
+    position: absolute;
+    inset: 0;
+    font-size: 17px;
+    line-height: 48px;
+    color: #f2c14e;
+}
+
+.dispatch.soviet .dispatch_head {
+    border-bottom-color: #c4161c;
+}
+
+.dispatch.soviet .dispatch_title {
+    color: #6b0d11;
+}
+
+.dispatch.soviet .dispatch_option {
+    background: linear-gradient(#b3161e, #86101a);
+    color: #fff4dc;
+}
+
+.dispatch.soviet .option_label {
+    color: #ffe08a;
+    letter-spacing: 0.02em;
+}
+
+.soviet_slogan {
+    margin-top: 22px;
+    padding: 12px 10px 10px 10px;
+    text-align: center;
+    background: #b3161e;
+    color: #ffe08a;
+    border: 2px solid #6b0d11;
+}
+
+.slogan_original {
+    font-family: "Arial Narrow", "Arial", sans-serif;
+    font-weight: bold;
+    font-size: 1.35em;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.slogan_translation {
+    font-size: 0.85em;
+    color: #fff4dc;
+    margin-top: 2px;
 }
 
 .combat_losses {

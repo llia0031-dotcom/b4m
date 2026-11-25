@@ -2,7 +2,7 @@
 // Handles offline caching and resource serving
 
 // Cache version - increment this to force cache refresh
-const CACHE_VERSION = 'b4m-v1.9.0';
+const CACHE_VERSION = 'b4m-v1.9.1';
 const CACHE_NAME = `battle-for-moscow-${CACHE_VERSION}`;
 
 // All resources to precache for offline functionality
@@ -66,8 +66,8 @@ const PRECACHE_URLS = [
 
   // March of the Defenders of Moscow, played when the counteroffensive begins
   'audio/moscow_defenders.mp3',
-  // real tank recordings: a Panther driving, the engine of Tiger 131 starting
-  'audio/panzer_panther.wav',
+  // real tank recording: the engine of Tiger 131, starting and running
+  'audio/panzer_tiger_run.wav',
   'audio/panzer_tiger_start.wav',
 
   // Font Awesome, kept locally so the copy works offline
