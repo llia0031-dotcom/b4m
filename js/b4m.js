@@ -1129,6 +1129,192 @@ const SMOLENSK = { x: 1, y: 4 },
   VYAZMA_RAILHEAD_TURN = 4,
   RAILHEAD_RANGE = 6,
   RAILHEAD_RANGE_MUD = 4;
+// ---------------------------------------------------------------- Moscow, the distribution station of the fronts
+// Ten railway lines met in Moscow; most supplies for the Western Front were sent there first and distributed
+// from its stations ("in fact Moscow was the distribution station", I. V. Kovalev). The government left for
+// Kuibyshev on 15 October 1941 and 498 factories were evacuated, but the front depots stayed in and around
+// Moscow, with 57 hospitals in the city. Its defences make it the hardest city to take; the evacuation trains
+// filled the railways in October; if it fell, the stations further east would still work, and the Germans
+// would find the factories and depots blown up, as the State Defence Committee had ordered.
+const MOSCOW = { x: 10, y: 2 },
+  MOSCOW_DEPOT_RANGE = 2,
+  EVACUATION_RAIL_LIMIT = 2;
+function moscowLost() {
+  return "soviet" !== grid.get(MOSCOW).control;
+}
+// Russian units 1 or 2 hexes from a Russian Moscow in communication: supplied straight from its depots
+function moscowDepotsReach(hex, ctx) {
+  const m = grid.get(MOSCOW),
+    d = m.distance(hex);
+  return "soviet" === m.control && d >= 1 && d <= MOSCOW_DEPOT_RANGE && (ctx || supplyContext()).soviet(m);
+}
+// The battle being fought is against the Russian garrison of Moscow
+function moscowGarrison() {
+  const d = currentBattle && currentBattle.defendingUnit;
+  return !!d && "soviet" === d.army && "moscow" === grid.get(d.position).city;
+}
+// Turns 3 and 4: the evacuation trains fill the railways, and few Russian units can move by rail
+function evacuationRailLimited() {
+  return "soviet" === currentTurn.army && (3 === currentTurn.turn || 4 === currentTurn.turn);
+}
+// ---------------------------------------------------------------- Air superiority and interdiction
+// Turns 1-2: Luftflotte 2 holds the sky (more than 4,000 sorties in the first five days of Typhoon; on 10 October
+// 537 sorties against the Western Front breaking out of the Vyazma pocket). Turns 3-4: the German forward
+// airfields sink in the mud while the Soviets fly from the permanent airfields around Moscow. Turn 5: rough
+// parity, part of Luftflotte 2 leaves for the Mediterranean and the Soviets gather some 1,000 aircraft around
+// Moscow. Turns 6-7: the balance tips to the Soviets. Turns 8-9: the Soviet air force holds the sky (about 1,000
+// aircraft against some 600; Soviet accounts speak of operational air superiority from 5 December, and the
+// retreating German columns jammed on the roads are bombed day and night).
+// At the start of a side's turn, each of its units that moved since its previous turn (marching, by rail or in
+// retreat) is bombed on a die roll up to the enemy air strength less the cover it finds: 2 fatigue points.
+const AIR_STRENGTH = {
+    1: { german: 3, soviet: 1 },
+    2: { german: 3, soviet: 1 },
+    3: { german: 1, soviet: 2 },
+    4: { german: 1, soviet: 2 },
+    5: { german: 2, soviet: 2 },
+    6: { german: 1, soviet: 2 },
+    7: { german: 1, soviet: 2 },
+    8: { german: 1, soviet: 3 },
+    9: { german: 1, soviet: 4 },
+  },
+  INTERDICTION_FATIGUE = 2;
+let airHits = [];
+function airStrength(army) {
+  const a = AIR_STRENGTH[currentTurn.turn];
+  return a ? a[army] : 0;
+}
+function airSuperiority() {
+  const g = airStrength("german"),
+    s = airStrength("soviet");
+  return g > s ? "german" : s > g ? "soviet" : null;
+}
+function moscowAirUmbrella(hex) {
+  const m = grid.get(MOSCOW);
+  return "soviet" === m.control && m.distance(hex) <= 2;
+}
+// The cover a unit finds against the enemy aircraft: forests, towns and, for the Russians, the defence lines
+// hide it (1); major cities and, for the Russians, the air defence of Moscow within 2 hexes of it (the 6th
+// Fighter Corps and the guns) protect it better (2); the Russian garrison of Moscow is out of their reach
+function airCover(army, hex) {
+  if ("soviet" === army && "moscow" === hex.city && "soviet" === hex.control) return 99;
+  let c = 0;
+  ("forest" === hex.terrain || (hex.city && "none" !== hex.city) || ("soviet" === army && "fortification" === hex.terrain)) && (c = 1);
+  isMajorCity(hex) && (c = 2);
+  "soviet" === army && moscowAirUmbrella(hex) && (c = 2);
+  return c;
+}
+function airHitNumber(army, hex) {
+  return Math.max(0, airStrength("soviet" === army ? "german" : "soviet") - airCover(army, hex));
+}
+// A unit that moved since its previous turn faces the enemy aircraft: the fatigue a hit costs it
+function airAttack(army, hex, unit) {
+  const need = unit.moved ? airHitNumber(army, hex) : 0;
+  if (need < 1 || Math.floor(6 * Math.random()) + 1 > need) return 0;
+  return ((unit.bombed = { turn: currentTurn.turn, by: "soviet" === army ? "german" : "soviet" }), airHits.push(unit), INTERDICTION_FATIGUE);
+}
+// The sound of the air attack: the dive of the Ju 87 or the attack of the Il-2 (recordings, when present)
+function playAirAttack(by) {
+  const ctx = audioReady();
+  if (!ctx || !ctx.recordings) return;
+  const b = ctx.recordings["german" === by ? "stuka" : "shturmovik"];
+  if (!b) return;
+  if ("german" === by) return void playPass(ctx, b, ctx.currentTime + 0.05, Math.min(b.duration - 0.1, 7), 1, { offset: 0, fadeIn: 0.15, fadeOut: 1.5 });
+  // the shturmovik flies over at low level: it comes, roars overhead and goes, its pitch falling as it passes
+  const src = ctx.createBufferSource(),
+    g = ctx.createGain(),
+    t0 = ctx.currentTime + 0.05,
+    len = Math.min(b.duration - 0.6, 6.5);
+  ((src.buffer = b),
+    src.playbackRate.setValueAtTime(1.1, t0),
+    src.playbackRate.setValueAtTime(1.1, t0 + 0.45 * len),
+    src.playbackRate.linearRampToValueAtTime(0.88, t0 + 0.6 * len),
+    g.gain.setValueAtTime(0.04, t0),
+    g.gain.exponentialRampToValueAtTime(1.3, t0 + 0.5 * len),
+    g.gain.exponentialRampToValueAtTime(0.03, t0 + len),
+    g.gain.linearRampToValueAtTime(0, t0 + len + 0.05),
+    src.connect(g).connect(audioOut),
+    src.start(t0, 0.1),
+    src.stop(t0 + len + 0.1));
+}
+function announceAirAttacks(army) {
+  if (!airHits.length) return;
+  const by = "soviet" === army ? "german" : "soviet",
+    n = airHits.length,
+    names = airHits.map(function (u) {
+      return unitName(u);
+    });
+  (playAirAttack(by),
+    showEventBanner(
+      '<small class="banner_kicker">' +
+        ("german" === by ? "Воздух!" : "Tiefflieger!") +
+        '</small><img src="img/' +
+        by +
+        '_marker.png" />' +
+        ("german" === by
+          ? L("Luftwaffe attack: " + n + " Russian column" + (n > 1 ? "s" : "") + " bombed", "德国空军空袭：" + n + " 支苏军纵队被炸")
+          : L("Soviet air attack: " + n + " German column" + (n > 1 ? "s" : "") + " bombed", "苏联空军空袭：" + n + " 支德军纵队被炸")) +
+        "<span>" +
+        names.join(L(", ", "、")) +
+        L(": +" + INTERDICTION_FATIGUE + " fatigue each.", "：各 +" + INTERDICTION_FATIGUE + " 疲劳。") +
+        "</span>",
+      6e3,
+    ),
+    (airHits = []));
+}
+// The mark of a unit bombed at the start of this turn: a burst with the falling bomb, and the marking of the
+// aircraft that dropped it (the black cross of the Luftwaffe or the red star of the Soviet air force)
+function drawBombedIcon(c, x, y, by) {
+  (c.save(), c.translate(x, y), c.beginPath());
+  for (let k = 0; k < 16; k++) {
+    const a = (k * Math.PI) / 8 - Math.PI / 2,
+      r = k % 2 ? 6 : 11;
+    c.lineTo(r * Math.cos(a), r * Math.sin(a));
+  }
+  (c.closePath(), (c.fillStyle = "#f2a516"), c.fill(), (c.lineWidth = 1.5), (c.strokeStyle = "#3a0a0c"), c.stroke(), c.beginPath());
+  for (let k = 0; k < 16; k++) {
+    const a = (k * Math.PI) / 8 - Math.PI / 2 + 0.2,
+      r = k % 2 ? 3 : 6.5;
+    c.lineTo(r * Math.cos(a), r * Math.sin(a));
+  }
+  (c.closePath(),
+    (c.fillStyle = "#d8261c"),
+    c.fill(),
+    // the bomb, falling into the burst
+    c.save(),
+    c.translate(8, -10),
+    c.rotate(0.6),
+    (c.fillStyle = "#161010"),
+    c.beginPath(),
+    c.ellipse(0, 1.5, 2.6, 4.8, 0, 0, 2 * Math.PI),
+    c.fill(),
+    c.fillRect(-2.6, -5.5, 5.2, 2),
+    c.restore(),
+    // the marking of the aircraft (on the right: the left half lies under the counter)
+    c.translate(9, 9));
+  "german" === by
+    ? ((c.fillStyle = "#ffffff"), c.fillRect(-4.5, -1.8, 9, 3.6), c.fillRect(-1.8, -4.5, 3.6, 9), (c.fillStyle = "#161010"), c.fillRect(-3.5, -0.9, 7, 1.8), c.fillRect(-0.9, -3.5, 1.8, 7))
+    : (piStar(c, 0, 0, 4.6), (c.fillStyle = "#d8261c"), c.fill(), (c.lineWidth = 0.8), (c.strokeStyle = "#ffffff"), c.stroke());
+  c.restore();
+}
+function refreshAirInfo() {
+  const e = document.getElementById("turn_info_air");
+  if (!e || !currentTurn || !currentTurn.turn) return;
+  const who = airSuperiority() || "contested",
+    g = airStrength("german"),
+    s = airStrength("soviet");
+  ((e.className = "air_" + who),
+    (e.innerText =
+      ("german" === who
+        ? L("Air: German superiority", "制空权：德军")
+        : "soviet" === who
+          ? L("Air: Soviet superiority", "制空权：苏军")
+          : L("Air: contested", "制空权：双方争夺")) + L(" (" + g + " to " + s + ")", "（" + g + " 对 " + s + "）")),
+    (e.title = L(
+      "Air strength: Luftwaffe " + g + ", Soviet air force " + s + ". At the start of a side's turn, each of its units that moved since its previous turn is bombed on a die roll up to the enemy strength less its cover, and gains 2 fatigue. Cover: forest, town and, for the Russians, a defence line 1; major city and, for the Russians, within 2 hexes of Moscow 2; the Russian garrison of Moscow is never bombed.",
+      "空中力量：德国空军 " + g + "，苏联空军 " + s + "。每方回合开始时，自上一回合以来移动过的部队，掷骰点数不超过“敌方空中力量减掩护”就被炸，+2 疲劳。掩护：森林、城镇、苏军在防线上为 1；大城市、苏军在莫斯科 2 格内为 2；莫斯科城里的苏军不会被炸。",
+    )));
+}
 // Moscow, Tula and Smolensk: the cities that defend as major cities
 function isMajorCity(h) {
   return !!h && ("major" === h.city || "moscow" === h.city || "base" === h.city);
@@ -1282,9 +1468,10 @@ function refreshStatusMarkers() {
     for (const [pos, label] of [
       [SMOLENSK, lost ? L("Supply base lost", "补给基地已失") : L("Supply base · railhead", "补给基地 · 铁路终点站")],
       [VYAZMA, L("Railhead", "铁路终点站")],
+      [MOSCOW, L("Distribution station", "分配站")],
     ]) {
       const h = grid.get(pos);
-      if (pos === VYAZMA && heads.indexOf(h) < 0) continue;
+      if ((pos === VYAZMA && heads.indexOf(h) < 0) || (pos === MOSCOW && moscowLost())) continue;
       const r = h.center().add(h.toPoint());
       (n.save(), (n.font = "bold 11px Arial, sans-serif"), (n.textAlign = "center"), (n.textBaseline = "middle"));
       const s = n.measureText(label).width + 10;
@@ -1333,12 +1520,20 @@ function refreshStatusMarkers() {
         n.fillText(o, i.x, i.y - 36),
         n.restore());
     }
+  // Units bombed from the air at the start of this turn
+  for (const e of b4mUnits)
+    if (e.position && e.bombed && e.bombed.turn === currentTurn.turn) {
+      const t = grid.get(e.position),
+        i = t.center().add(t.toPoint());
+      // (the status canvas lies under the counters: the mark sits just right of the counter)
+      drawBombedIcon(n, i.x + 39, i.y - 18, e.bombed.by);
+    }
 }
 function scheduleStatusRefresh() {
   (clearTimeout(lossesTimer),
     (lossesTimer = setTimeout(refreshLossesDisplay, 300)),
-    (supplyView || fatigueView || menView) &&
-      (clearTimeout(statusRefreshTimer), (statusRefreshTimer = setTimeout(refreshStatusMarkers, 400))));
+    clearTimeout(statusRefreshTimer),
+    (statusRefreshTimer = setTimeout(refreshStatusMarkers, 400)));
 }
 const LAYER_KEYS = { supply: "b4mLayerSupply", fatigue: "b4mLayerFatigue", men: "b4mLayerMen" };
 function setLayer(e, t) {
@@ -1462,6 +1657,9 @@ const FATIGUE = {
     // in a town of its side; in Moscow, Tula and Smolensk, with their barracks, hospitals and depots
     city: 1,
     majorCity: 2,
+    // Moscow, with its depots and 57 hospitals; and the units supplied straight from its depots
+    moscow: 3,
+    moscowDepots: 1,
     liberation: 4,
   },
   CITY_NAMES = {
@@ -1532,6 +1730,7 @@ function inTheRear(hex, army) {
 // (the "fought" and "moved" marks cover the side's previous turn and the enemy turn that followed)
 function processTurnFatigue(e) {
   const t = supplyContext();
+  airHits = [];
   // At the start of the German turn: old rail cuts are repaired, and security sweeps wear down
   // the partisan bands that are next to German units
   "german" === e &&
@@ -1576,12 +1775,17 @@ function processTurnFatigue(e) {
         (n.fought || (r -= (n.moved ? FATIGUE.idle : FATIGUE.rest) + (inTheRear(i, e) ? FATIGUE.rear : 0)),
         "none" !== i.city &&
           i.control === e &&
-          (r -= isMajorCity(i) ? FATIGUE.majorCity : FATIGUE.city)),
+          // the Germans in Moscow find the factories and depots blown up: no city recovery
+          !("moscow" === i.city && "german" === e) &&
+          (r -= "moscow" === i.city ? FATIGUE.moscow : isMajorCity(i) ? FATIGUE.majorCity : FATIGUE.city),
+        "soviet" === e && moscowDepotsReach(i, t) && (r -= FATIGUE.moscowDepots)),
+      // the enemy air force hunts the columns that moved
+      (r += airAttack(e, i, n)),
       (n.fatigue = Math.max(0, Math.min(FATIGUE.max, (n.fatigue || 0) + r))),
       (n.fought = !1),
       (n.moved = !1));
   }
-  scheduleStatusRefresh();
+  (announceAirAttacks(e), scheduleStatusRefresh());
 }
 // Fatigue in a battle, just before its result is applied. Returns the result to apply
 // (a broken defender turns DR into DRL) and a note for the battle log.
@@ -1590,6 +1794,9 @@ function applyBattleFatigue(e) {
     n = "";
   if ("DR" === t && 3 === fatigueLevel(b4mUnits[b4mUnitsIndex(currentBattle.defendingUnit)]))
     ((t = "DRL"), (n += "The defender is broken by fatigue: its retreat costs it a step. "));
+  // the Russian garrison of Moscow does not retreat: a DR has no effect
+  else if ("DR" === t && moscowGarrison())
+    ((t = "NE"), (n += L("The garrison of Moscow holds its ground: the DR has no effect. ", "莫斯科守军寸步不退：DR 无效。")));
   if ("DE" === t || "DRL" === t) {
     const e = currentBattle.attackingUnits
       .map(function (e) {
@@ -1674,6 +1881,16 @@ function modifiersHtml(e) {
   return (
     e.partisanBonus &&
       (t += '<span class="modifier_badge partisan" title="Partisans guide the attack">Partisans +1</span> '),
+    e.moscowDefence &&
+      (t +=
+        '<span class="modifier_badge moscow" title="' +
+        L(
+          "The defences of the capital: the defence lines on its approaches and in the city, barricades, the workers' battalions and the state of siege of 19 October 1941. An attack on the Russian garrison of Moscow loses a second odds column, and the garrison never retreats.",
+          "首都的防御：城郊和城内的防线、街垒、工人营，以及 1941 年 10 月 19 日宣布的戒严。进攻莫斯科的苏军守军再减 1 栏，而且守军决不后退。",
+        ) +
+        '">' +
+        L("Moscow \u22121", "莫斯科 \u22121") +
+        "</span> "),
     t
   );
 }
@@ -2282,6 +2499,11 @@ let rollingUntil = 0;
 const RECORDINGS = {
   run: "audio/panzer_tiger_run.wav",
   tigerStart: "audio/panzer_tiger_start.wav",
+  // a Ju 87 diving, its siren rising to the scream: cut from a 1940 film on Wikimedia Commons ("Ju 87 Stuka attack")
+  stuka: "audio/stuka_dive.wav",
+  // the AM-38 engine of an Il-2 running at about 2,100 rpm: cut from the 1943 Soviet Air Force research institute
+  // film «Эксплоатация самолета ИЛ-2» on Wikimedia Commons
+  shturmovik: "audio/il2_engine.wav",
 };
 let panzerEnginesTurn = 0;
 // Loaded once per audio context, as soon as the sound is woken up by a click
@@ -4155,7 +4377,9 @@ function computeBattleOdds() {
       (battle.attackFatigueLoss = f),
       (battle.defendFatigueLoss = s - d),
       (battle.modifiers = t),
-      (battle.battleOdds = Math.min(6, o - t.length + battle.partisanBonus)));
+      // the defences of the capital: an attack on the Russian garrison of Moscow loses a second column
+      (battle.moscowDefence = "moscow" === e.city && "soviet" === battle.defendingUnit.army ? 1 : 0),
+      (battle.battleOdds = Math.min(6, o - t.length + battle.partisanBonus - battle.moscowDefence)));
   }
 }
 function refreshBattles() {
@@ -4364,7 +4588,7 @@ function setTurnInfo() {
   }
   document.getElementById("turn_info_title").innerText = L(e, turnTitleZh(currentTurn.turn));
   const w = document.getElementById("turn_info_weather");
-  (w && (w.innerText = L(WEATHER[currentTurn.turn], WEATHER_ZH[currentTurn.turn]) || ""), drawSeason());
+  (w && (w.innerText = L(WEATHER[currentTurn.turn], WEATHER_ZH[currentTurn.turn]) || ""), drawSeason(), refreshAirInfo());
 }
 function turn1GermanSetupPhase() {
   // the detachments fighting behind the German lines since the summer
@@ -5318,7 +5542,10 @@ function resolveNextBattle(e) {
               (b4mUnits[b4mUnitsIndex(currentDefendingUnit)].strength = "reduced"),
               clearUnit(board, currentDefendingUnit, i.x - 40, i.y - 40),
               drawUnit(board, currentDefendingUnit, i.x - 30, i.y - 30),
-              findRetreat(advanceAfterCombat)));
+              moscowGarrison()
+                ? ((d.innerText += L(" But the garrison of Moscow does not retreat.", "但莫斯科守军不撤退。")),
+                  (document.querySelector(".table_battle div.next_battle_button").style.display = "inline-block"))
+                : findRetreat(advanceAfterCombat)));
         break;
       case "DE":
         ((d.innerText = "The defending unit is eliminated."),
@@ -5338,7 +5565,9 @@ function resolveNextBattle(e) {
               (b4mUnits[b4mUnitsIndex(currentDefendingUnit)].strength = "reduced"),
               clearUnit(board, currentDefendingUnit, i.x - 40, i.y - 40),
               drawUnit(board, currentDefendingUnit, i.x - 30, i.y - 30),
-              findRetreat(matchLoss)));
+              moscowGarrison()
+                ? ((d.innerText = L("Exchange! The garrison of Moscow does not retreat.", "交换！莫斯科守军不撤退。")), matchLoss())
+                : findRetreat(matchLoss)));
         break;
       case "AL":
         if (
@@ -6445,7 +6674,8 @@ function replacementPhase(e) {
           0,
           (3 === currentTurn.turn || 4 === currentTurn.turn ? 4 : 5) +
             takeLiberationBonus() +
-            decisionReplacements(currentTurn.turn, "soviet"),
+            decisionReplacements(currentTurn.turn, "soviet") -
+            (moscowLost() ? 1 : 0),
         )
       : smolenskBaseLost()
         ? 0
@@ -6475,6 +6705,12 @@ function replacementPhase(e) {
         (document.getElementById("next_step_replacement").onclick = specialMovementPhase));
   };
   n();
+  "soviet" === currentTurn.army &&
+    moscowLost() &&
+    (document.getElementById("step_replacement_tip").innerText += L(
+      " Moscow, the distribution station of the fronts, is lost: one replacement step less. The stations further east (Ivanovo, Vladimir, Ryazan) and the evacuated industry still work.",
+      "前线的分配站莫斯科已经失守：补充兵少 1 个。更东边的分配站（伊万诺沃、弗拉基米尔、梁赞）和东迁的工业还在运转。",
+    ));
   "german" === currentTurn.army &&
     smolenskBaseLost() &&
     (document.getElementById("step_replacement_tip").innerText += L(
@@ -6856,7 +7092,13 @@ function specialMovementPhase(e) {
       "img/" + currentTurn.army + "_turn.png"));
   const t =
     "soviet" === currentTurn.army
-      ? "All units that begin this phase on a rail line may move along it."
+      ? "All units that begin this phase on a rail line may move along it." +
+        (evacuationRailLimited()
+          ? L(
+              " The railways are full of evacuation trains: at most " + EVACUATION_RAIL_LIMIT + " units may move by rail this turn.",
+              "铁路上挤满了疏散列车：本回合最多 " + EVACUATION_RAIL_LIMIT + " 支部队能沿铁路机动。",
+            )
+          : "")
       : "All armor/panzer units may move.";
   ("" === playAIAs || playAIAs !== currentTurn.army
     ? ((document.getElementById("step_special_movement_tip").innerText =
@@ -6881,7 +7123,8 @@ function specialMovementPhase(e) {
     (handleSpecialMovementClick = function (e) {
       const t = Grid.pointToHex(e.offsetX, e.offsetY);
       "soviet" === currentTurn.army
-        ? handleMovement(t, getValidRailDestinations)
+        ? (hexSelected || !evacuationRailLimited() || hasMoved.length < EVACUATION_RAIL_LIMIT) &&
+          handleMovement(t, getValidRailDestinations)
         : handleMovement(t, getValidPanzerDestinations);
     }));
   "" === playAIAs || playAIAs !== currentTurn.army
@@ -7068,6 +7311,7 @@ function specialMovementPhase(e) {
                 }
                 return e;
               })();
+        "soviet" === currentTurn.army && evacuationRailLimited() && e.splice(EVACUATION_RAIL_LIMIT);
         if (0 === e.length)
           document.getElementById("step_special_movement_tip").innerText =
             t + " But the enemy has decided not to use this capability during this phase.";

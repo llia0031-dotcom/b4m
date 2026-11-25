@@ -119,6 +119,11 @@ input[type=checkbox] {
     white-space: nowrap;
 }
 
+.modifier_badge.moscow {
+    background-color: #c8102e;
+    color: #fff4dc;
+}
+
 .modifier_badge.partisan {
     background-color: #c0dd97;
     color: #173404;
@@ -151,6 +156,15 @@ input[type=checkbox] {
     font-size: 0.9em;
     color: #dddddd;
 }
+
+#turn_info_air {
+    display: block;
+    font-size: 0.78em;
+}
+
+#turn_info_air.air_german { color: #d9d4c4; }
+#turn_info_air.air_soviet { color: #ffb0a6; }
+#turn_info_air.air_contested { color: #a9b6c2; }
 
 #turn_info_weather {
     display: block;

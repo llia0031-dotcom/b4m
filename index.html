@@ -64,6 +64,7 @@
     <div id="turn_info" style="display: none;">
       <span id="turn_info_title"></span>
       <span id="turn_info_weather"></span>
+      <span id="turn_info_air"></span>
       <div id="turn_report" style="display: none;"></div>
     </div>
     <div id="layer_toolbar" style="display: none;"><span class="layer_title">Layers</span><label title="Show the units cut off from their map edge (key S)"><input type="checkbox" id="layer_supply"> Supply<span id="supply_view_count"></span></label><label title="Show unit fatigue (key F)"><input type="checkbox" id="layer_fatigue"> Fatigue</label><label title="Show the estimated manpower of each unit (key P)"><input type="checkbox" id="layer_men"> Men</label><label title="Sound effects on or off (key M)"><input type="checkbox" id="layer_sound" checked> Sound</label><label class="lang_switch" title="中文 / English"><input type="checkbox" id="layer_zh"> 中文</label></div>
@@ -307,7 +308,7 @@
       <p>Tick a box in the <strong>Layers</strong> bar at the top left to show a status on the map; nothing is shown while the boxes are unticked. <strong>Supply</strong>: every unit cut off from its map edge (not in communication) gets a red dashed frame and its hex is shaded, and the bar counts them for both sides. <strong>Fatigue</strong>: a tired unit gets a bar of three segments under it, one filled segment per fatigue level. Press <strong>S</strong> or <strong>F</strong> to switch these layers on or off.</p>
       <div id="help_men" class="help_section_title">Manpower, Losses and Sound</div>
       <p>The rules give a German corps about 25,000 soldiers and a Russian army about 40,000; this version counts the 1st Shock Army as 50,000 and a Guards cavalry corps as 15,000. Every step lost costs half of a unit's men. During a Combat Phase the losses of the battles fought so far are shown under the battle table; the losses of the whole campaign and their ratio are shown in the turn report (click the turn bar) and at the end of the game; tick <strong>Men</strong> in the Layers bar (key P) to see the estimated manpower of each unit on the map.</p>
-      <p>Sound effects (key M to switch them off) are synthesised in the browser: the German attacks open with a battery of 15 cm heavy howitzers, the Russian ones with 76 mm divisional guns, the 1st Shock Army with a Katyusha salvo, and in winter the Russian infantry charges with a "Ura!". Moving infantry marches (on snow in winter), panzers are a real recording (the original Maybach engine of Tiger 131 at Bovington, starting and running), and cavalry gallops. When the counteroffensive begins on turn 8, a 1941 recording of the March of the Defenders of Moscow (music by B. Mokrousov, words by A. Surkov) is played.</p>
+      <p>Sound effects (key M to switch them off) are synthesised in the browser: the German attacks open with a battery of 15 cm heavy howitzers, the Russian ones with 76 mm divisional guns, the 1st Shock Army with a Katyusha salvo, and in winter the Russian infantry charges with a "Ura!". Moving infantry marches (on snow in winter), panzers are a real recording (the original Maybach engine of Tiger 131 at Bovington, starting and running), and cavalry gallops. A Luftwaffe air attack plays a Ju 87 diving with its siren, cut from a 1940 film; a Soviet air attack plays the AM-38 engine of an Il-2 shturmovik flying over at low level, cut from a 1943 film of the Soviet Air Force research institute. When the counteroffensive begins on turn 8, a 1941 recording of the March of the Defenders of Moscow (music by B. Mokrousov, words by A. Surkov) is played.</p>
       <div id="help_fatigue" class="help_section_title">Fatigue and Supply</div>
       <p>Units get tired when they fight, and even more when they are cut off from their map edge. Fatigue is counted in points; every 4 points is one level (at most level 3). A turn is one to two weeks: a unit that attacks every turn is tired after 4 turns and exhausted after 8, like the German divisions of Operation Typhoon by December.</p>
       <ul>
@@ -321,12 +322,29 @@
       <p>In the battle table, a side weakened by fatigue shows its full strength struck through, then, in orange, the strength it really fights with (point at it for the details): for example two exhausted armies of 4 attacking show <s>8</s> 4, and a broken army of 10 defending shows <s>10</s> 4 (2/5 of 10). The odds are worked out with the reduced strength, so fatigue changes the odds only when it pushes them under a column.</p>
       <h4>Stocks of the major cities</h4>
       <p>Moscow (up to 4 stock points) and Tula (up to 3) stockpile supplies for their garrison: at the start of the owner's turn the city gains 1 stock point if it is in communication and no enemy unit is within 2 hexes. Both start the game full. A garrison cut off in such a city lives on the stocks: as long as they last, it gains only +1 fatigue per turn (+2 if completely surrounded) and uses 1 stock point per turn (2 if completely surrounded). A city that changes hands loses its stocks. The Supply layer shows the stocks next to the city, a completely surrounded unit with a solid red frame, and a garrison living on its stocks with an orange frame.</p>
+      <h4>Air superiority and interdiction</h4>
+      <p>The strength of each air force over the Moscow direction is shown under the date in the turn bar (point at it for the details). At the start of a side's turn, each of its units that moved since its previous turn (marching, by rail or in retreat) faces the enemy aircraft: on a die roll up to the enemy air strength less the cover it finds, it is bombed and gains 2 fatigue (a burst marks it for the turn). Cover: a forest, a town and, for the Russians, a defence line give 1; a major city and, for the Russians, the air defence of Moscow within 2 hexes of it give 2; the Russian garrison of Moscow is never bombed.</p>
+      <ul>
+        <li><strong>Turns 1 and 2: Luftwaffe 3, Soviet 1.</strong> Luftflotte 2 flew more than 4,000 sorties in the first five days of Typhoon; on 10 October 537 sorties struck the Western Front breaking out of the Vyazma pocket.</li>
+        <li><strong>Turns 3 and 4: Luftwaffe 1, Soviet 2.</strong> The German forward airfields sank in the mud, while the Soviet air force flew from the permanent airfields around Moscow.</li>
+        <li><strong>Turn 5: 2 and 2.</strong> Part of Luftflotte 2 left for the Mediterranean in mid-November; the Soviets gathered some 1,000 aircraft around Moscow.</li>
+        <li><strong>Turns 6 and 7: Luftwaffe 1, Soviet 2.</strong> Only VIII Fliegerkorps was left with Army Group Centre.</li>
+        <li><strong>Turn 8: Luftwaffe 1, Soviet 3; turn 9: Luftwaffe 1, Soviet 4.</strong> Some 1,000 Soviet aircraft against about 600 at the start of the counteroffensive; Soviet accounts speak of operational air superiority from 5 December, and the retreating German columns jammed on the roads were bombed day and night.</li>
+      </ul>
       <h4>Smolensk, the German supply base</h4>
       <p>The German standard-gauge railway reached Smolensk on 16 August 1941, and Smolensk remained the only standard-gauge forward base of Army Group Centre: the trains unloaded there and trucks carried everything on to the front, 250 to 300 km by November. The army group needed 30 to 32 supply trains a day; in November some 16 to 20 reached Smolensk. Smolensk is a class of its own:</p>
       <ul>
         <li>It defends like a major city (the attack loses one odds column; a full-strength defender turns a DR into a step loss and does not retreat). German units in it gain no winter fatigue and recover as in Moscow or Tula. It is worth 3 victory points, and partisans cannot rise in it.</li>
         <li><strong>Railheads</strong>: Smolensk, and from turn 4 (1 November; the converted line was used as far as Vyazma from 23 October) Vyazma, while it is German-held and in communication. A German unit more than 6 hexes from the nearest railhead (4 in the mud of turns 3 and 4) cannot recover fatigue at the start of its turn: the truck columns cannot keep up. The Supply layer frames these units in gold dashes and labels the railheads.</li>
         <li>While Smolensk is lost or cut off from the west map edge, no German unit recovers fatigue and the Germans get no replacements, until it is retaken or reconnected.</li>
+      </ul>
+      <h4>Moscow, the distribution station of the fronts</h4>
+      <p>Ten railway lines met in Moscow, and most of the supplies for the Western Front were sent there first and distributed from its stations: "in fact Moscow was the distribution station", wrote I. V. Kovalev. On 15 October 1941 the government and the People's Commissariat of Defence left for Kuibyshev and the General Staff for Arzamas, 498 factories were evacuated, and stations further east (Ivanovo, Vladimir, Ryazan) took part of the load; but the front depots stayed in and around Moscow, with 57 hospitals in the city. Moscow is a class of its own:</p>
+      <ul>
+        <li><strong>The defences of the capital</strong>: an attack on the Russian garrison of Moscow loses two odds columns instead of one, and the garrison never retreats: a DR has no effect, and a DRL or an exchange costs it a step without a retreat.</li>
+        <li><strong>Depots and hospitals</strong>: while Moscow is Russian and in communication, Russian units in it recover 3 more fatigue points instead of 2, and Russian units 1 or 2 hexes from it recover 1 more point.</li>
+        <li><strong>The great evacuation</strong>: on turns 3 and 4 the railways are full of evacuation trains (up to 80% of the traffic on the Gorky line): at most 2 Russian units may move by rail in the Rail Movement Phase.</li>
+        <li><strong>If Moscow falls</strong>: the Russians get one replacement step less each turn (the stations further east and the evacuated industry still work), and the Germans find the factories and depots blown up, as the State Defence Committee had ordered on 15 October: German units in Moscow get no city recovery.</li>
       </ul>
       <h4>Liberated cities</h4>
       <p>A city changes hands when an enemy unit enters it; a unit retreating through a city does not take it. German control lasts only while the Germans hold the city: as soon as a Russian attack eliminates or drives out its German garrison, the city is Russian again, even if no Russian unit advances into it, and the Germans can no longer bring replacements into it. When the Russians take a German-held city during the Russian turn, the city is liberated: the Russians get 1 extra replacement step in their next Replacement Phase and the liberating unit loses one level of fatigue.</p>
@@ -417,7 +435,7 @@
       <p>勾选左上角<strong>图层</strong>栏里的方框，地图上才会显示对应的状态；不勾选时什么都不显示。<strong>补给</strong>：所有与己方地图边缘失去联系（不在交通线上）的部队都会加上红色虚线框，所在格子变暗，栏里会统计双方被切断的部队数。<strong>疲劳</strong>：疲劳的部队下面有一条三格的疲劳条。按 <strong>S</strong> 或 <strong>F</strong> 键也能开关这两个图层。</p>
       <div id="zh_men" class="help_section_title">兵力、战损与声音</div>
       <p>规则书把一个德军军算作约 25,000 人，一个苏军集团军约 40,000 人；本版本把突击第 1 集团军算作 50,000 人，一个近卫骑兵军算作 15,000 人。每损失一级，就损失该部队一半的兵力。战斗阶段中，战斗表下方显示本轮已打的战斗造成的损失；整场战役的累计损失和战损比显示在回合报告（点击回合栏）和终局画面里；勾选图层栏里的<strong>兵力</strong>（P 键），可以在地图上看到每支部队的估计兵力。</p>
-      <p>音效（M 键开关）：德军进攻开场是一个 15 厘米重榴弹炮连的齐射，苏军是 76 毫米师属火炮，突击第 1 集团军是喀秋莎齐射，冬季苏军步兵冲锋时会喊“乌拉！”。步兵移动时是齐步行军声（冬季是踩雪声），装甲部队是真实录音（博文顿博物馆虎式 131 号原装迈巴赫发动机的点火和运转），骑兵是马蹄声。第 8 回合反攻开始时，播放 1941 年录制的《莫斯科保卫者之歌》（B. 莫克罗乌索夫作曲，A. 苏尔科夫作词）。</p>
+      <p>音效（M 键开关）：德军进攻开场是一个 15 厘米重榴弹炮连的齐射，苏军是 76 毫米师属火炮，突击第 1 集团军是喀秋莎齐射，冬季苏军步兵冲锋时会喊“乌拉！”。步兵移动时是齐步行军声（冬季是踩雪声），装甲部队是真实录音（博文顿博物馆虎式 131 号原装迈巴赫发动机的点火和运转），骑兵是马蹄声。德国空军空袭时，播放 1940 年影片里斯图卡（Ju 87）开着警报俯冲的真实声音；苏联空军空袭时，播放伊尔-2 强击机低空掠过的声音，用的是 1943 年苏联空军科学研究所影片里 AM-38 发动机的真实录音。第 8 回合反攻开始时，播放 1941 年录制的《莫斯科保卫者之歌》（B. 莫克罗乌索夫作曲，A. 苏尔科夫作词）。</p>
       <div id="zh_fatigue" class="help_section_title">疲劳与补给</div>
       <p>部队打仗会疲劳，被切断与己方地图边缘的联系时疲劳得更快。疲劳按点数计算，每 4 点为一级（最高 3 级）。一个回合相当于一到两周：每回合都进攻的部队，4 个回合后疲劳，8 个回合后疲惫，就像“台风”行动的德军各师到 12 月时那样。</p>
       <ul>
@@ -431,12 +449,29 @@
       <p>在战斗表里，因疲劳而削弱的一方会把原兵力划掉，后面用橙色显示实际参战的兵力（鼠标放上去看详细说明）：例如两个疲惫的 4 兵力集团军进攻时显示 <s>8</s> 4，一个崩溃的 10 兵力集团军防守时显示 <s>10</s> 4（10 的 2/5）。比例按削弱后的兵力计算，所以只有当疲劳让比例掉到下一栏时，才会影响战斗比例。</p>
       <h4>大城市的储备</h4>
       <p>莫斯科（最多 4 点储备）和图拉（最多 3 点）为守军囤积物资：在控制方回合开始时，如果城市在交通线上、且 2 格内没有敌军，就增加 1 点储备。游戏开始时两城都是满的。被切断在这类城市里的守军靠储备生活：只要储备还在，每回合只加 +1 疲劳（被完全包围时 +2），并消耗 1 点储备（被完全包围时 2 点）。城市易手时储备清零。补给图层会在城市旁显示储备，用红色实线框标出被完全包围的部队，用橙色框标出靠储备生活的守军。</p>
+      <h4>制空权与空中遮断</h4>
+      <p>双方在莫斯科方向的空中力量显示在回合栏的日期下面（鼠标放上去看详情）。每方回合开始时，凡是自上一回合以来移动过（行军、铁路机动或撤退）的部队都要面对敌机：掷一个骰子，点数不超过“敌方空中力量减去部队得到的掩护”就被炸，+2 疲劳（本回合部队上会标一个爆炸图标）。掩护：森林、城镇、苏军在防线上为 1；大城市、苏军在莫斯科 2 格内（莫斯科防空）为 2；莫斯科城里的苏军不会被炸。</p>
+      <ul>
+        <li><strong>第 1、2 回合：德国空军 3，苏联空军 1。</strong>台风行动头五天，第 2 航空队出动 4000 多架次；10 月 10 日出动 537 架次，攻击从维亚济马包围圈突围的西方面军。</li>
+        <li><strong>第 3、4 回合：德国空军 1，苏联空军 2。</strong>德军前进机场陷在泥泞里，苏联空军则从莫斯科周围的永久机场起飞。</li>
+        <li><strong>第 5 回合：2 对 2。</strong>11 月中旬第 2 航空队部分兵力调往地中海；苏军在莫斯科周围集中了约 1000 架飞机。</li>
+        <li><strong>第 6、7 回合：德国空军 1，苏联空军 2。</strong>中央集团军群只剩第 8 航空军。</li>
+        <li><strong>第 8 回合：德国空军 1，苏联空军 3；第 9 回合：德国空军 1，苏联空军 4。</strong>反攻开始时苏军约 1000 架飞机对德军约 600 架；苏方文献称 12 月 5 日起夺得战役制空权，撤退中堵在路上的德军纵队日夜遭到轰炸。</li>
+      </ul>
       <h4>斯摩棱斯克：德军补给基地</h4>
       <p>1941 年 8 月 16 日，德国标准轨距铁路修到斯摩棱斯克。此后它一直是中央集团军群唯一的标准轨前进基地：火车在这里卸车，再由卡车把一切运往前线，到 11 月要运 250 到 300 公里。集团军群每天需要 30 到 32 列补给列车，11 月实际到斯摩棱斯克的只有约 16 到 20 列。斯摩棱斯克单独成一档：</p>
       <ul>
         <li>防守按大城市算（进攻方战斗比例减 1 栏，满编守军遇到 DR 改为损失一级、不撤退）。德军在城里冬天不加疲劳，恢复按莫斯科、图拉算。值 3 个胜利点，游击队不能在城里起义。</li>
         <li><strong>铁路终点站</strong>：斯摩棱斯克；第 4 回合（11 月 1 日；改轨的铁路 10 月 23 日起通到维亚济马）起还有维亚济马，前提是它在德军手里并且在交通线上。离最近的铁路终点站超过 6 格（第 3、4 回合泥泞时超过 4 格）的德军，回合开始时不能恢复疲劳：卡车运不过来。补给图层用金色虚线框标出这些部队，并标出铁路终点站。</li>
         <li>斯摩棱斯克失守或与西边地图边缘的联系被切断期间，所有德军都不能恢复疲劳，德军也没有补充兵，直到夺回或重新接通。</li>
+      </ul>
+      <h4>莫斯科：前线的分配站</h4>
+      <p>十条铁路在莫斯科交汇，西方面军的大部分补给先运到莫斯科，再从这里的各个车站分发出去。科瓦廖夫写道：“实际上莫斯科就是分配站。”1941 年 10 月 15 日，政府和国防人民委员部迁往古比雪夫，总参谋部迁往阿尔扎马斯，498 个工厂疏散，更东边的车站（伊万诺沃、弗拉基米尔、梁赞）分担了一部分转运；但方面军的仓库仍留在莫斯科城内和周边，城里开设了 57 所医院。莫斯科单独成一档：</p>
+      <ul>
+        <li><strong>首都的防御</strong>：进攻莫斯科的苏军守军要减 2 栏而不是 1 栏，而且守军决不后退：DR 无效，DRL 或交换只损失一级、不撤退。</li>
+        <li><strong>仓库和医院</strong>：莫斯科在苏军手里并且在交通线上时，城里的苏军每回合额外恢复 3 点疲劳（而不是 2 点），离莫斯科 1–2 格的苏军每回合多恢复 1 点。</li>
+        <li><strong>大疏散</strong>：第 3、4 回合铁路上挤满疏散列车（高尔基方向的车流里疏散货物最多占 80%），铁路机动阶段最多只有 2 支苏军部队能沿铁路机动。</li>
+        <li><strong>莫斯科失守</strong>：苏军每回合少 1 个补充兵（更东边的分配站和东迁的工业还在运转）；德军进城后，按国防委员会 10 月 15 日的命令，工厂和仓库已被炸毁：德军在莫斯科城里得不到城市的恢复加成。</li>
       </ul>
       <h4>解放城市</h4>
       <p>敌方部队进入一座城市，这座城市就易手；撤退时路过的城市不会因此易手。德军只有在守住城市时才控制它：一旦苏军的进攻消灭或赶走了德军守军，这座城市立即回到苏军手中，即使没有苏军部队推进进去，德军也不能再在那里补充兵力。在苏军回合中夺回德军占领的城市，就是解放：苏军在下一个补充阶段多得 1 个补充兵步数，解放它的部队疲劳降一级。</p>

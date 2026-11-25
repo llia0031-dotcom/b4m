@@ -2,7 +2,7 @@
 // Handles offline caching and resource serving
 
 // Cache version - increment this to force cache refresh
-const CACHE_VERSION = 'b4m-v1.9.5';
+const CACHE_VERSION = 'b4m-v1.9.6';
 const CACHE_NAME = `battle-for-moscow-${CACHE_VERSION}`;
 
 // All resources to precache for offline functionality
@@ -69,6 +69,10 @@ const PRECACHE_URLS = [
   // real tank recording: the engine of Tiger 131, starting and running
   'audio/panzer_tiger_run.wav',
   'audio/panzer_tiger_start.wav',
+  // a Ju 87 diving with its siren, from a 1940 film
+  'audio/stuka_dive.wav',
+  // the AM-38 engine of an Il-2, from a 1943 Soviet Air Force film
+  'audio/il2_engine.wav',
 
   // Font Awesome, kept locally so the copy works offline
   'css/font-awesome.min.css',
