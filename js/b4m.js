@@ -8607,78 +8607,8 @@ function finalResults(e) {
       i = e.control;
       break;
     }
-  if (tournamentMode) {
-    let e = grid.get({ x: 10, y: 6 }).control;
-    "german" === i && "german" === e
-      ? ((o = "german"),
-        (r = 3),
-        (t = '<img src="img/german_marker.png" /><span>German Decisive Victory!</span>'),
-        (n =
-          "The German Army wins <strong>3 points</strong> because it controls Moscow and Tula at the end of Game Turn " + LAST_TURN + "."))
-      : "german" === i && "soviet" === e
-        ? ((o = "german"),
-          (r = 2),
-          (t = '<img src="img/german_marker.png" /><span>German Major Victory!</span>'),
-          (n =
-            "The German Army wins <strong>2 points</strong> because it controls Moscow at the end of Game Turn " + LAST_TURN + ", while the Red Army still controls Tula."))
-        : "soviet" !== i || "german" !== e || isInCommunication(grid.get({ x: 10, y: 2 }), "soviet")
-          ? "soviet" === i &&
-            "german" === e &&
-            isInCommunication(grid.get({ x: 10, y: 2 }), "soviet")
-            ? ((o = "soviet"),
-              (r = 1),
-              (t = '<img src="img/soviet_marker.png" /><span>Russian Minor Victory!</span>'),
-              (n =
-                "The Red Army wins <strong>1 point</strong> because it controls Moscow at the end of Game Turn " + LAST_TURN + ", and the city is in communication, while the German Army controls Tula."))
-            : "soviet" !== i ||
-                "soviet" !== e ||
-                (isInCommunication(grid.get({ x: 10, y: 2 }), "soviet") &&
-                  isInCommunication(grid.get({ x: 10, y: 6 }), "soviet"))
-              ? "soviet" === i &&
-                "soviet" === e &&
-                isInCommunication(grid.get({ x: 10, y: 2 }), "soviet") &&
-                isInCommunication(grid.get({ x: 10, y: 6 }), "soviet") &&
-                ((o = "soviet"),
-                (r = 3),
-                (t = '<img src="img/soviet_marker.png" /><span>Russian Decisive Victory!</span>'),
-                (n =
-                  "The Red Army wins <strong>3 points</strong> because it controls Moscow and Tula at the end of Game Turn " + LAST_TURN + ", and both cities are in communication."))
-              : ((o = "soviet"),
-                (r = 2),
-                (t = '<img src="img/soviet_marker.png" /><span>Russian Major Victory!</span>'),
-                (n =
-                  "The Red Army wins <strong>2 points</strong> because it controls Moscow and Tula at the end of Game Turn " + LAST_TURN + ", but either or both cities are not in communication."))
-          : ((o = "german"),
-            (r = 1),
-            (t = '<img src="img/german_marker.png" /><span>German Minor Victory!</span>'),
-            (n =
-              "The German Army wins <strong>1 point</strong> because it controls Tula at the end of Game Turn " + LAST_TURN + ", while the Red Army still controls Moscow, but Moscow is not in communication."));
-    const a = b4mUnits.reduce(function (e, t) {
-      let n = 0;
-      return (
-        "german" === t.army &&
-          "tank" === t.type &&
-          t.position &&
-          ("full" === t.strength ? (n = 2) : "reduced" === t.strength && (n = 1)),
-        e + n
-      );
-    }, 0);
-    a >= 12
-      ? (n +=
-          "german" === o
-            ? "<br />The Germans get an extra point because they have 12 or more Panzer steps on the map at the end of the game, bringing their total to <strong>" +
-              (r + 1) +
-              " points</strong>."
-            : "<br />Although they lost, the Germans get <strong>1 point</strong> because they have 12 or more Panzer steps on the map at the end of the game.")
-      : a <= 7 &&
-        (n +=
-          "soviet" === o
-            ? "<br />The Red Army gets an extra point because the Germans have 7 or fewer Panzer steps on the map at the end of the game, bringing the Red Army's total to <strong>" +
-              (r + 1) +
-              " points</strong>."
-            : "<br />Although they lost, the Red Army gets <strong>1 point</strong> because the Germans have 7 or fewer Panzer steps on the map at the end of the game.");
-  } else {
-    // standard rules: victory points compared with the historical result
+  // victory points compared with the historical result
+  {
     const e = standardResult();
     ((t = e.title), (n = e.text));
   }
@@ -8687,9 +8617,7 @@ function finalResults(e) {
   // the result on the whole screen, in the paper of the side at the table, with its music
   const plain = String(t).replace(/<[^>]+>/g, "").trim(),
     lossesLine = isZh() ? zhText(lossesText()) + "。" : lossesText() + ".";
-  tournamentMode
-    ? showEnding(tournamentGrade(o, r), isZh() ? zhText(plain) : plain, (isZh() ? zhText(n) : n) + "<br /><br />" + lossesLine)
-    : showEnding(standardGrade(), plain, standardResult().details + "<br /><br />" + lossesLine);
+  showEnding(standardGrade(), plain, standardResult().details + "<br /><br />" + lossesLine);
 }
 // ---------------------------------------------------------------- The end of the game, on the whole screen
 // The result is announced in the paper of the side at the table (for two players at one screen, the side that
@@ -8829,9 +8757,6 @@ function standardGrade() {
           : i >= -2
             ? "germanWin"
             : "germanMajor";
-}
-function tournamentGrade(winner, points) {
-  return "german" === winner ? (points >= 2 ? "germanDecisive" : "germanWin") : points >= 3 ? "sovietDecisive" : "sovietWin";
 }
 function showEnding(grade, resultLabel, details) {
   const paper = "" !== playAIAs ? ("soviet" === playAIAs ? "german" : "soviet") : 0 === grade.indexOf("german") ? "german" : "soviet",
@@ -9342,16 +9267,8 @@ window.addEventListener("load", function () {
     document
       .getElementById("next_human_vs_german_button")
       .addEventListener("click", startGameVsGermanAI, !0),
-    "yes" === window.localStorage.getItem("b4mTournamentMode") &&
-      ((document.getElementById("tournament_mode").checked = !0), (tournamentMode = !0)),
-    document.getElementById("tournament_mode").addEventListener(
-      "click",
-      function () {
-        (window.localStorage.setItem("b4mTournamentMode", this.checked ? "yes" : "no"),
-          (tournamentMode = this.checked));
-      },
-      !0,
-    ));
+    // the tournament rules are gone: forget a choice made in an older version
+    window.localStorage.removeItem("b4mTournamentMode"));
 });
 // ---------------------------------------------------------------- Chinese interface
 // The game writes its interface in English. In Chinese mode every text it shows is translated as it

@@ -261,16 +261,6 @@ html[lang="zh-CN"] #splash_chronicle .chron_head {
     font-family: inherit;
 }
 
-#splash_tournament {
-    margin-top: 14px;
-    font-size: 0.95em;
-    text-shadow: 0 1px 4px #000;
-}
-
-#splash_tournament label, #splash_tournament a {
-    color: #f1e6d0;
-}
-
 @media (max-width: 800px) {
     .splash_side {
         position: static;
