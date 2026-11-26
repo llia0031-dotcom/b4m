@@ -900,64 +900,51 @@ function hammerAndSickle(e, x, y, s, col) {
     e.fillRect(-17, -7, 34, 13),
     e.restore());
 }
+// A partisan band: a counter of the Red Army in the same look as the armies, crimson and gold, with the gold
+// hammer and sickle, the NATO symbol of an infantry unit marked as partisans (п/о, a partisan detachment) and the
+// strength of the band
 function drawPartisanMarker(e, t, n, i, s) {
-  const o = 1.6 * i,
+  const o = 1.5 * i,
     r = t - o / 2,
-    a = n - o / 2;
-  (e.save(),
-    e.translate(r, a),
-    e.scale(o / 100, o / 100),
-    // the badge: the red of the Soviet flag with the gold hammer and sickle
-    e.beginPath(),
-    e.roundRect(2, 2, 96, 96, 10),
-    (e.fillStyle = "#c8102e"),
+    a = n - o / 2,
+    gold = "#f4cf5c";
+  (e.save(), e.translate(r, a), e.scale(o / 120, o / 120), e.beginPath(), e.roundRect(2, 2, 116, 116, 9));
+  const g = e.createLinearGradient(0, 0, 120, 120);
+  (g.addColorStop(0, "#bc2228"),
+    g.addColorStop(1, "#a8141c"),
+    (e.fillStyle = g),
     e.fill(),
-    (e.lineWidth = 4),
-    (e.strokeStyle = "#3a0a0c"),
+    (e.lineWidth = 2.5),
+    (e.strokeStyle = "rgba(0,0,0,0.5)"),
     e.stroke(),
-    hammerAndSickle(e, 5, 6, 24, "#f2c230"),
-    // the partisan in black: the outline first, then the fill, so that only the outer edge shows
-    (e.lineCap = "round"),
-    (e.lineJoin = "round"),
-    (e.strokeStyle = "#161010"));
-  for (const f of [piBody, piBoots, piCrown, piFur]) (f(e), (e.lineWidth = 4.4), e.stroke());
-  (piRifle(e, 2.8),
-    piBody(e),
-    (e.fillStyle = "#161010"),
-    e.fill(),
-    piBoots(e),
-    e.fill(),
-    piCuffs(e),
-    (e.strokeStyle = "#5a4e48"),
-    (e.lineWidth = 1.3),
-    e.stroke(),
-    (e.strokeStyle = "#161010"),
-    piRifle(e, 0),
-    piCrown(e),
-    e.fill(),
-    piFur(e),
-    (e.fillStyle = "#5a4e48"),
-    e.fill(),
-    (e.strokeStyle = "#3a322e"));
-  for (const x of [37, 41, 45, 49]) piSeg(e, 0.9, x, 14.5, x - 1.5, 23);
-  (piStar(e, 56.5, 18.5, 4.2),
-    (e.fillStyle = "#ff2a35"),
-    e.fill(),
-    (e.strokeStyle = "#7a0008"),
-    (e.lineWidth = 0.8),
-    e.stroke());
-  s &&
-    ((e.fillStyle = "#f2c230"),
-    e.fillRect(68, 66, 26, 28),
-    (e.strokeStyle = "#3a0a0c"),
-    (e.lineWidth = 2),
-    e.strokeRect(68, 66, 26, 28),
-    (e.fillStyle = "#3a0a0c"),
-    (e.font = "bold 24px Arial, sans-serif"),
+    hammerAndSickle(e, 87, 4, 27, gold),
+    (e.fillStyle = gold),
+    (e.font = "bold 15px 'Bahnschrift Condensed', 'Arial Narrow', Arial, sans-serif"),
     (e.textAlign = "center"),
+    (e.textBaseline = "alphabetic"),
+    e.fillText("ПАРТИЗАНЫ", 48, 26),
+    (e.lineWidth = 3.8),
+    (e.strokeStyle = gold),
+    e.strokeRect(29, 33, 46, 28),
+    e.beginPath(),
+    e.moveTo(29, 33),
+    e.lineTo(75, 61),
+    e.moveTo(75, 33),
+    e.lineTo(29, 61),
+    e.stroke(),
+    e.save(),
+    e.translate(88, 47),
+    e.rotate(-Math.PI / 2),
+    (e.font = "bold 16px 'Bahnschrift SemiBold Condensed', 'Arial Narrow', Arial, sans-serif"),
     (e.textBaseline = "middle"),
-    e.fillText(String(s), 81, 81));
-  e.restore();
+    e.fillText("п/о", 0, 0),
+    e.restore(),
+    s &&
+      ((e.font = "bold 40px 'Bahnschrift SemiBold Condensed', 'Arial Narrow', Arial, sans-serif"),
+      (e.textAlign = "center"),
+      (e.textBaseline = "alphabetic"),
+      e.fillText(String(s), 60, 106)),
+    e.restore());
 }
 function drawPartisans() {
   const e = document.getElementById("partisan_markers");
@@ -1181,7 +1168,6 @@ const AIR_STRENGTH = {
     9: { german: 1, soviet: 4 },
   },
   INTERDICTION_FATIGUE = 2;
-let airHits = [];
 function airStrength(army) {
   const a = AIR_STRENGTH[currentTurn.turn];
   return a ? a[army] : 0;
@@ -1220,18 +1206,15 @@ function airInterdiction(unit, route, retreat) {
   let need = 0;
   for (const p of route) need = Math.max(need, airHitNumber(u.army, grid.get(p)));
   if (need < 1 || Math.floor(6 * Math.random()) + 1 > need) return;
-  const by = "soviet" === u.army ? "german" : "soviet",
-    key = currentTurn.turn + u.army + currentTurn.phase;
+  const by = "soviet" === u.army ? "german" : "soviet";
+  // the mark stays on the counter until the end of this phase
   (addFatigue(u, INTERDICTION_FATIGUE),
-    (u.bombed = { turn: currentTurn.turn, by: by }),
-    airHitsKey !== key && ((airHitsKey = key), (airHits = [])),
-    airHits.push(unitName(u) + (retreat ? L(" (in retreat)", "（撤退中）") : "")),
+    (u.bombed = { turn: currentTurn.turn, army: currentTurn.army, phase: currentTurn.phase, by: by }),
     playAirAttack(by),
-    announceAirAttacks(by),
+    announceAirAttack(by, u, retreat),
     scheduleStatusRefresh());
 }
-let airHitsKey = "",
-  airSoundUntil = 0;
+let airSoundUntil = 0;
 // The sound of the air attack: the dive of the Ju 87 or the Il-2 flying over (one at a time)
 function playAirAttack(by) {
   const ctx = audioReady();
@@ -1257,9 +1240,9 @@ function playAirAttack(by) {
     src.start(t0, 0.1),
     src.stop(t0 + len + 0.1));
 }
-// The banner lists the columns bombed so far in this movement phase
-function announceAirAttacks(by) {
-  const n = airHits.length;
+// Each air attack is announced as it happens: which unit was bombed, and what it cost it
+function announceAirAttack(by, u, retreat) {
+  const name = unitName(u);
   showEventBanner(
     '<small class="banner_kicker">' +
       ("german" === by ? "Воздух!" : "Tiefflieger!") +
@@ -1267,18 +1250,15 @@ function announceAirAttacks(by) {
       by +
       '_marker.png" />' +
       ("german" === by
-        ? L("Luftwaffe attack: " + n + " Russian column" + (n > 1 ? "s" : "") + " bombed on the move", "德国空军空袭：" + n + " 支苏军纵队在运动中被炸")
-        : L("Soviet air attack: " + n + " German column" + (n > 1 ? "s" : "") + " bombed on the move", "苏联空军空袭：" + n + " 支德军纵队在运动中被炸")) +
+        ? L("Luftwaffe attack: the " + name + " is bombed " + (retreat ? "in its retreat" : "on the move"), "德国空军空袭：" + name + (retreat ? "在撤退中" : "在运动中") + "被炸")
+        : L("Soviet air attack: the " + name + " is bombed " + (retreat ? "in its retreat" : "on the move"), "苏联空军空袭：" + name + (retreat ? "在撤退中" : "在运动中") + "被炸")) +
       "<span>" +
-      airHits.join(L(", ", "、")) +
-      (n > 1
-        ? L(": +" + INTERDICTION_FATIGUE + " fatigue each.", "：各 +" + INTERDICTION_FATIGUE + " 疲劳。")
-        : L(": +" + INTERDICTION_FATIGUE + " fatigue.", "：+" + INTERDICTION_FATIGUE + " 疲劳。")) +
+      L("+" + INTERDICTION_FATIGUE + " fatigue.", "+" + INTERDICTION_FATIGUE + " 疲劳。") +
       "</span>",
-    6e3,
+    5e3,
   );
 }
-// The mark of a unit bombed in this turn: a burst with the falling bomb, and the marking of the
+// The mark of a unit bombed in this phase: a burst with the falling bomb, and the marking of the
 // aircraft that dropped it (the black cross of the Luftwaffe or the red star of the Soviet air force)
 function drawBombedIcon(c, x, y, by) {
   (c.save(), c.translate(x, y), c.beginPath());
@@ -1536,15 +1516,22 @@ function refreshStatusMarkers() {
         n.fillText(o, i.x, i.y - 36),
         n.restore());
     }
-  // Units bombed from the air in this turn
+  // Units bombed from the air in this phase (the mark goes when the phase ends)
   for (const e of b4mUnits)
-    if (e.position && e.bombed && e.bombed.turn === currentTurn.turn) {
+    if (e.position && e.bombed && e.bombed.turn === currentTurn.turn && e.bombed.army === currentTurn.army && e.bombed.phase === currentTurn.phase) {
       const t = grid.get(e.position),
         i = t.center().add(t.toPoint());
       // (the status canvas lies under the counters: the mark sits just right of the counter)
       drawBombedIcon(n, i.x + 39, i.y - 18, e.bombed.by);
     }
 }
+// when the phase changes, the marks of the phase that ended are cleared
+let statusPhaseKey = "";
+setInterval(function () {
+  const k = currentTurn.turn + "/" + currentTurn.army + "/" + currentTurn.phase,
+    c = document.getElementById("status_markers");
+  k !== statusPhaseKey && ((statusPhaseKey = k), c && c.width && refreshStatusMarkers());
+}, 500);
 function scheduleStatusRefresh() {
   (clearTimeout(lossesTimer),
     (lossesTimer = setTimeout(refreshLossesDisplay, 300)),
@@ -1956,6 +1943,159 @@ let cityChangeQuiet = 0;
 function cityChangedHands(hex, from, to) {
   if (cityChangeQuiet || !from || !to || from === to) return;
   stayBehindTownChanged(hex, to);
+  // the fall of Moscow is announced on the whole screen, once
+  "moscow" === hex.city && "soviet" === from && "german" === to && !decisions.moscowFall &&
+    ((decisions.moscowFall = currentTurn.turn), setTimeout(showMoscowFall, 900));
+}
+// ---------------------------------------------------------------- The fall of Moscow
+// It did not happen. Had it happened, both sides had their orders ready: the State Defence Committee had ordered
+// on 15 October that the factories, depots and the metro be blown up if the enemy reached the gates of the city,
+// and the German high command had laid down on 12 October that no capitulation of Moscow would be accepted.
+// The event shows the dispatch of the side you play (both, one after the other, for two players at one screen).
+const MOSCOW_FALL_DATES = ["", "2 October", "10 October", "17 October", "1 November", "16 November", "23 November", "1 December", "5 December", "15 December"];
+function moscowFallRules(side) {
+  return "german" === side
+    ? [
+        "Moscow counts 5 victory points for the side that holds it at the end.",
+        "While Moscow is in German hands, the Red Army gets [[1 replacement step less]] each turn.",
+        "The factories and depots were blown up: [[German units in Moscow recover no fatigue]] from the city.",
+        "The air defence of Moscow and its depots no longer serve the Russians.",
+      ]
+    : [
+        "Moscow counts 5 victory points for the side that holds it at the end: [[take it back]].",
+        "While the city is lost, you get [[1 replacement step less]] each turn.",
+        "The Germans in Moscow recover no fatigue from the city: the factories and depots are blown up.",
+        "The air defence of Moscow and its depots no longer cover your units.",
+      ];
+}
+function moscowFallRulesZh(side) {
+  return "german" === side
+    ? [
+        "莫斯科在终局时为控制方计 5 胜利点。",
+        "莫斯科在德军手中期间，红军每回合[[少 1 级补充兵]]。",
+        "工厂和仓库已被炸毁：[[城中的德军不能靠城市恢复疲劳]]。",
+        "莫斯科的防空和仓库不再为苏军所用。",
+      ]
+    : [
+        "莫斯科在终局时为控制方计 5 胜利点：[[一定要夺回来]]。",
+        "失守期间，你每回合[[少 1 级补充兵]]。",
+        "城中的德军不能靠城市恢复疲劳：工厂和仓库都已炸毁。",
+        "莫斯科的防空和仓库不再掩护你的部队。",
+      ];
+}
+function moscowFallEvent(side) {
+  const turn = currentTurn.turn,
+    date = MOSCOW_FALL_DATES[turn] + " 1941",
+    dateZh = TURN_DATES_ZH[turn];
+  return "soviet" === side
+    ? {
+        id: "moscowFall",
+        army: "soviet",
+        kind: "order",
+        office: "Государственный Комитет Обороны",
+        officeEn: "State Defence Committee, Moscow",
+        stamp: "Совершенно секретно",
+        slogan: { original: "Наше дело правое. Враг будет разбит. Победа будет за нами!", en: "Our cause is just. The enemy will be beaten. Victory will be ours!", zh: "我们的事业是正义的。敌人必将被击溃。胜利必将属于我们！" },
+        photo: { src: "img/splash_kremlin_1941.jpg", caption: "Searchlights and tracer over the Kremlin, 1941", captionZh: "1941 年，克里姆林宫上空的探照灯和曳光弹" },
+        place: "Moscow",
+        date: date,
+        title: "The enemy is in Moscow",
+        text: [
+          "German troops have broken into [[the capital of the Soviet state]]. The garrison fought street by street; as the enemy reached the gates of the city the sappers of the NKVD carried out the order of the State Defence Committee and [[blew up the factories, the depots and the machinery of the metro]].",
+          "The Government and the People's Commissariat of Defence work from Kuibyshev. The front stands east of the city. [[Not a step back]] from the new line: the capital must be taken back.",
+        ],
+        quotes: [
+          {
+            original: "В случае появления войск противника у ворот Москвы поручить НКВД — т. Берия и т. Щербакову произвести взрыв предприятий, складов и учреждений, которые нельзя будет эвакуировать, а также все электрооборудование метро (исключая водопровод и канализацию).",
+            translation: "Should enemy troops appear at the gates of Moscow, the NKVD (comrades Beria and Shcherbakov) is charged with blowing up the factories, depots and institutions that cannot be evacuated, and all the electrical equipment of the metro (except the water supply and the sewers).",
+            source: "Resolution No. 801 of the State Defence Committee «On the evacuation of the capital of the USSR, Moscow», 15 October 1941, point 4",
+          },
+        ],
+        options: [{ id: "fight", label: "Отстоять Родину! Fight on", order: "Hold the line east of the capital and take it back.", effects: moscowFallRules("soviet") }],
+        history: "In 1941 Moscow did not fall. The Germans came within [[25 to 30 km of the Kremlin]], at Krasnaya Polyana and on the Moscow-Volga canal; on 5 and 6 December the counter-offensive of the Kalinin, Western and South-Western Fronts drove them back. The charges laid under the factories and in the metro were never fired.",
+        zh: {
+          officeEn: "苏联国防委员会，莫斯科",
+          place: "莫斯科",
+          date: dateZh,
+          title: "敌人进了莫斯科",
+          text: [
+            "德军突入了[[苏维埃国家的首都]]。守军逐街抵抗；敌人一到城门口，内务部的工兵就执行了国防委员会的命令，[[炸毁了工厂、仓库和地铁的电气设备]]。",
+            "政府和国防人民委员部在古比雪夫办公。战线就在城东。新防线上[[一步也不许后退]]：首都一定要夺回来。",
+          ],
+          quotes: [
+            {
+              translation: "如敌军出现在莫斯科城下，责成内务人民委员部——贝利亚同志和谢尔巴科夫同志——炸毁无法疏散的工厂、仓库和机关，以及地铁的全部电气设备（供水和下水道除外）。",
+              source: "苏联国防委员会第 801 号决定《关于疏散苏联首都莫斯科》第 4 条，1941 年 10 月 15 日",
+            },
+          ],
+          options: { fight: { label: "Отстоять Родину！保卫祖国", order: "守住首都以东的战线，把首都夺回来。", effects: moscowFallRulesZh("soviet") } },
+          history: "1941 年莫斯科并没有陷落。德军最近推进到离克里姆林宫[[25 至 30 公里]]的克拉斯纳亚波良纳和莫斯科—伏尔加运河一线；12 月 5、6 日，加里宁方面军、西方面军和西南方面军转入反攻，把他们打了回去。埋在工厂和地铁里的炸药一直没有引爆。",
+        },
+      }
+    : {
+        id: "moscowFall",
+        army: "german",
+        kind: "order",
+        office: "Oberkommando des Heeres",
+        officeEn: "German Army High Command",
+        stamp: "Geheime Kommandosache",
+        place: "Moskau",
+        date: date,
+        title: "Moscow is taken",
+        text: [
+          "The leading divisions of Army Group Centre have fought their way into Moscow. The city has not surrendered: [[the Russians blew up the factories, the depots and the metro]] before they gave it up, and the garrison fought on in the streets.",
+          "The Red Army holds a new front east of the city. The troops are worn out and the winter is coming: [[the campaign is not over]].",
+        ],
+        quotes: [
+          {
+            original: "Фюрер вновь решил, что капитуляция Москвы не должна быть принята, даже если она будет предложена противником.",
+            translation: "The Führer has decided once again that a capitulation of Moscow is not to be accepted, even if the enemy offers it.",
+            source: "Directive of the OKH to Army Group Centre, 12 October 1941 (Russian text quoted by A. M. Samsonov, «Крах фашистской агрессии 1939–1945», 1980, ch. 7)",
+          },
+          {
+            original: "Heute ist nun der Beginn der letzten großen Entscheidungsschlacht dieses Jahres.",
+            translation: "Today, then, is the beginning of the last great decisive battle of this year.",
+            source: "Hitler, order of the day to the soldiers of the Eastern Front, 2 October 1941",
+          },
+        ],
+        options: [{ id: "advance", label: "Weiter nach Osten! Press on", order: "Occupy the city and keep the front moving east.", effects: moscowFallRules("german") }],
+        history: "In 1941 Moscow did not fall. The German spearheads came within [[25 to 30 km of the Kremlin]] at the end of November; on 5 and 6 December the Soviet counter-offensive began, and by January Army Group Centre had been thrown back 100 to 250 km.",
+        zh: {
+          officeEn: "德国陆军总司令部",
+          place: "莫斯科",
+          date: dateZh,
+          title: "莫斯科已被攻占",
+          text: [
+            "中央集团军群的先头师已打进莫斯科。这座城市没有投降：俄国人撤出前[[炸毁了工厂、仓库和地铁]]，守军仍在街巷里抵抗。",
+            "红军在城东建立了新的战线。部队已经精疲力竭，冬天就要来了：[[战局还没有结束]]。",
+          ],
+          quotes: [
+            {
+              translation: "元首再次决定，即使敌方提出，也不接受莫斯科的投降。",
+              source: "德国陆军总司令部给中央集团军群的指示，1941 年 10 月 12 日（俄译本引自 А. М. 萨姆索诺夫《法西斯侵略的破产（1939—1945）》，1980 年，第 7 章）",
+            },
+            { translation: "今天，今年最后一场伟大的决战就此开始。", source: "希特勒《告东线士兵书》，1941 年 10 月 2 日" },
+          ],
+          options: { advance: { label: "Weiter nach Osten！继续向东", order: "占领城市，让战线继续东推。", effects: moscowFallRulesZh("german") } },
+          history: "1941 年莫斯科并没有陷落。11 月底德军先头部队推进到离克里姆林宫[[25 至 30 公里]]的地方；12 月 5、6 日苏军转入反攻，到 1 月，中央集团军群被击退了 100 至 250 公里。",
+        },
+      };
+}
+function showMoscowFall() {
+  const sides = "" === playAIAs ? ["german", "soviet"] : ["soviet" === playAIAs ? "german" : "soviet"],
+    step = function (k) {
+      k < sides.length &&
+        showDispatch(
+          moscowFallEvent(sides[k]),
+          function () {
+            return { outcome: "" };
+          },
+          function () {
+            step(k + 1);
+          },
+        );
+    };
+  step(0);
 }
 // A German unit entering a band's hex sweeps it. The German commander chooses: a full sweep combs the
 // forest until the band is destroyed, at a heavy cost in fatigue (4 points for each strength point of
@@ -2992,6 +3132,15 @@ const CHART_A = { x: 1262, y: 290 },
   CHART_B = { x: 2400, y: 290 },
   CHART_W = 1120,
   BOARD_WIDTH = 3540;
+// The map's canvases are drawn at the resolution of the screen, so that the counters and the charts stay sharp on
+// high-density displays: the canvas has more pixels than its size on the page, and its drawing is scaled to match.
+function screenScale() {
+  return Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+}
+function sizeCanvas(c, w, h) {
+  const r = screenScale();
+  return ((c.width = Math.round(w * r)), (c.height = Math.round(h * r)), (c.style.width = w + "px"), (c.style.height = h + "px"), c.getContext("2d").setTransform(r, 0, 0, r, 0, 0), c);
+}
 function chartStyle() {
   return "german" === playAIAs ? "soviet" : "soviet" === playAIAs ? "german" : "nato";
 }
@@ -3132,9 +3281,11 @@ function chartHexSample(ctx, x, y, w, hx, hy, marks) {
 }
 // Sheet A: the terrain effects and the combat results
 function renderChartSheetA(look) {
-  const cv = document.createElement("canvas");
-  ((cv.width = CHART_W), (cv.height = 840));
+  const cv = document.createElement("canvas"),
+    k = screenScale();
+  ((cv.width = CHART_W * k), (cv.height = 840 * k));
   const ctx = cv.getContext("2d");
+  ctx.scale(k, k);
   ((ctx.fillStyle = look.paper), ctx.fillRect(0, 0, cv.width, cv.height));
   const none = L("No effect", "无影响"),
     icon = function (hx, hy, marks) {
@@ -3206,14 +3357,16 @@ function renderChartSheetA(look) {
   for (const t of rules) yc += chartText(ctx, look, "• " + t, 722, yc, 392, 12) + 5;
   const used = Math.max(y, yc) + 10;
   const out = document.createElement("canvas");
-  ((out.width = CHART_W), (out.height = used), out.getContext("2d").drawImage(cv, 0, 0));
+  ((out.width = CHART_W * k), (out.height = used * k), out.getContext("2d").drawImage(cv, 0, 0));
   return out;
 }
 // Sheet B: air power, fatigue and the turns
 function renderChartSheetB(look) {
-  const cv = document.createElement("canvas");
-  ((cv.width = CHART_W), (cv.height = 840));
+  const cv = document.createElement("canvas"),
+    k = screenScale();
+  ((cv.width = CHART_W * k), (cv.height = 840 * k));
   const ctx = cv.getContext("2d");
+  ctx.scale(k, k);
   ((ctx.fillStyle = look.paper), ctx.fillRect(0, 0, cv.width, cv.height));
   // air
   let ya = chartHead(ctx, look, 0, 0, 360, "air");
@@ -3268,7 +3421,7 @@ function renderChartSheetB(look) {
   yt += chartText(ctx, look, "• " + L("Victory points: Moscow 5, Tula 3, Smolensk 3, other towns 1.", "胜利点：莫斯科 5，图拉 3，斯摩棱斯克 3，其他城镇 1。"), 776, yt, 340, 12) + 5;
   const used = Math.max(ya, yf, yt) + 10;
   const out = document.createElement("canvas");
-  ((out.width = CHART_W), (out.height = used), out.getContext("2d").drawImage(cv, 0, 0));
+  ((out.width = CHART_W * k), (out.height = used * k), out.getContext("2d").drawImage(cv, 0, 0));
   return out;
 }
 // the charts on the board, and the same charts in the help
@@ -3280,8 +3433,9 @@ function drawBoardCharts() {
     b = renderChartSheetB(look);
   if ("undefined" != typeof board && board) {
     board.clearRect(1250, 280, BOARD_WIDTH - 1250, 1139 - 280);
-    board.drawImage(a, CHART_A.x, CHART_A.y);
-    board.drawImage(b, CHART_B.x, CHART_B.y);
+    const k = screenScale();
+    board.drawImage(a, CHART_A.x, CHART_A.y, a.width / k, a.height / k);
+    board.drawImage(b, CHART_B.x, CHART_B.y, b.width / k, b.height / k);
   }
   const ua = a.toDataURL("image/png"),
     ub = b.toDataURL("image/png");
@@ -4517,6 +4671,34 @@ function highlightHex(e, t, n) {
     e.fill(),
     e.stroke());
 }
+// The hexes a unit can move to: a pale gold wash and, inside the hex, a gold rim on a dark one, so that it reads
+// on the cream Soviet sheet, the white German one and the painted landscape alike
+function highlightMoveHex(e, t) {
+  const i = t.corners().map((p) => p.add(t.toPoint())),
+    c = t.center().add(t.toPoint()),
+    path = function (k) {
+      e.beginPath();
+      i.forEach(function (p, n) {
+        const x = c.x + (p.x - c.x) * k,
+          y = c.y + (p.y - c.y) * k;
+        n ? e.lineTo(x, y) : e.moveTo(x, y);
+      });
+      e.closePath();
+    };
+  (e.save(),
+    path(0.97),
+    (e.fillStyle = "rgba(255, 206, 84, 0.22)"),
+    e.fill(),
+    path(0.86),
+    (e.lineJoin = "round"),
+    (e.lineWidth = 4.2),
+    (e.strokeStyle = "rgba(40, 30, 10, 0.55)"),
+    e.stroke(),
+    (e.lineWidth = 2.2),
+    (e.strokeStyle = "rgba(255, 196, 50, 0.98)"),
+    e.stroke(),
+    e.restore());
+}
 function clearHex(e, t) {
   ((e.globalCompositeOperation = "destination-out"),
     highlightHex(e, t, "black"),
@@ -5183,7 +5365,7 @@ function redeploymentPhase(e) {
   const i = function (e) {
       "off" === e.terrain ||
         lookupUnit(e) ||
-        highlightHex(hexHighlights, e, "rgba(255, 255, 255, 0.35)");
+        highlightMoveHex(hexHighlights, e);
     },
     o = function (e) {
       const o = Hex(grid.get(e)),
@@ -6085,7 +6267,7 @@ function handleMovement(e, t) {
       let t = lookupUnit(grid.get(r[e]));
       (t && t.army === currentTurn.army) ||
         isPendingDestination(r[e]) ||
-        (available.push(r[e]), highlightHex(hexHighlights, r[e], "rgba(255, 255, 255, 0.35)"));
+        (available.push(r[e]), highlightMoveHex(hexHighlights, r[e]));
     }
   }
 }
@@ -8025,22 +8207,16 @@ function startGame() {
   if (
     (document.body.removeChild(t),
     (canvasBoard = document.getElementById("board")),
-    (canvasBoard.width = Math.max(window.innerWidth, document.getElementById("map").width, BOARD_WIDTH)),
-    (canvasBoard.height = document.getElementById("map").height),
+    sizeCanvas(canvasBoard, Math.max(window.innerWidth, document.getElementById("map").width, BOARD_WIDTH), document.getElementById("map").height),
     (board = canvasBoard.getContext("2d")),
     (canvasHexHighlights = document.getElementById("hex_highlights")),
-    (canvasHexHighlights.width = document.getElementById("map").width),
-    (canvasHexHighlights.height = document.getElementById("map").height),
+    sizeCanvas(canvasHexHighlights, document.getElementById("map").width, document.getElementById("map").height),
     (hexHighlights = canvasHexHighlights.getContext("2d")),
     (canvasCountersHighlights = document.getElementById("counters_highlights")),
-    (canvasCountersHighlights.width = document.getElementById("map").width),
-    (canvasCountersHighlights.height = document.getElementById("map").height),
-    (document.getElementById("season_overlay").width = document.getElementById("map").width),
-    (document.getElementById("season_overlay").height = document.getElementById("map").height),
-    (document.getElementById("partisan_markers").width = document.getElementById("map").width),
-    (document.getElementById("partisan_markers").height = document.getElementById("map").height),
-    (document.getElementById("status_markers").width = document.getElementById("map").width),
-    (document.getElementById("status_markers").height = document.getElementById("map").height),
+    sizeCanvas(canvasCountersHighlights, document.getElementById("map").width, document.getElementById("map").height),
+    sizeCanvas(document.getElementById("season_overlay"), document.getElementById("map").width, document.getElementById("map").height),
+    sizeCanvas(document.getElementById("partisan_markers"), document.getElementById("map").width, document.getElementById("map").height),
+    sizeCanvas(document.getElementById("status_markers"), document.getElementById("map").width, document.getElementById("map").height),
     (countersHighlights = canvasCountersHighlights.getContext("2d")),
     true)
   )
