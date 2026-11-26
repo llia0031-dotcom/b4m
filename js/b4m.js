@@ -1981,7 +1981,7 @@ function cityChangedHands(hex, from, to) {
     setTimeout(function () {
       showDepotTaken(depot);
     }, 900));
-  // a Soviet town taken by the Germans (Moscow has its own dispatch)
+  // the first Soviet town taken by the Germans (Moscow has its own dispatch)
   "soviet" === from && "german" === to && "moscow" !== hex.city && townOccupied(hex);
 }
 // ---------------------------------------------------------------- The fall of Moscow
@@ -2794,10 +2794,11 @@ function crusadeEvent() {
     },
   };
 }
-// -------- a Soviet town taken by the Germans: the communiqué of the Wehrmacht on a banner, with a song of the
-// "Ostland" (the colonisation of the East), the two songs in turn; the music does not restart while one plays
-let ostlandTurn = 0;
+// -------- the first Soviet town the Germans take in a game: the communiqué of the Wehrmacht on a banner, with a song
+// of the "Ostland" (the colonisation of the East); the two songs take turns from one game to the next
 function townOccupied(hex) {
+  if (decisions.townOccupied) return;
+  decisions.townOccupied = currentTurn.turn;
   const n = cityNameOf(hex.x + "," + hex.y, "a town", "一座城镇");
   showEventBanner(
     '<small class="banner_kicker">Das Oberkommando der Wehrmacht gibt bekannt</small><img src="img/german_marker.png" />' +
@@ -2810,8 +2811,11 @@ function townOccupied(hex) {
       "</span>",
     6e3,
   );
-  if (endingAudio && !endingAudio.paused && /ostland/.test(endingAudio.dataset.src || "")) return;
-  playEndingMusic(0 === ostlandTurn++ % 2 ? "audio/ostland_reiten.webm" : "audio/ostland_ritt.webm");
+  let k = 0;
+  try {
+    ((k = +(window.localStorage.getItem("b4mOstlandSong") || 0)), window.localStorage.setItem("b4mOstlandSong", String(1 - k)));
+  } catch (e) {}
+  playEndingMusic(0 === k ? "audio/ostland_reiten.webm" : "audio/ostland_ritt.webm");
 }
 // A German unit entering a band's hex sweeps it. The German commander chooses: a full sweep combs the
 // forest until the band is destroyed, at a heavy cost in fatigue (4 points for each strength point of
