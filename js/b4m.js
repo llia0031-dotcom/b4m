@@ -1753,6 +1753,7 @@ function inTheRear(hex, army) {
 // (the "fought" and "moved" marks cover the side's previous turn and the enemy turn that followed)
 function processTurnFatigue(e) {
   "soviet" === e && tulaCheck(!0);
+  "german" === e && crusadeCheck();
   const t = supplyContext();
   // At the start of the German turn: old rail cuts are repaired, and security sweeps wear down
   // the partisan bands that are next to German units
@@ -1980,6 +1981,8 @@ function cityChangedHands(hex, from, to) {
     setTimeout(function () {
       showDepotTaken(depot);
     }, 900));
+  // a Soviet town taken by the Germans (Moscow has its own dispatch)
+  "soviet" === from && "german" === to && "moscow" !== hex.city && townOccupied(hex);
 }
 // ---------------------------------------------------------------- The fall of Moscow
 // Both sides had their orders ready: the State Defence Committee had ordered
@@ -2099,7 +2102,7 @@ function moscowFallEvent(side) {
     : {
         id: "moscowFall",
         army: "german",
-        musicSrc: "audio/erika.webm",
+        musicSrc: "audio/russlandlied.webm",
         outcomeTitle: ["What happens next", "接下来发生了什么"],
         kind: "order",
         office: "Oberkommando des Heeres",
@@ -2304,6 +2307,7 @@ function depotEvent(d, side) {
     : {
         id: "depot",
         army: "german",
+        musicSrc: "audio/lili_marleen.webm",
         kind: "order",
         office: "Oberkommando des Heeres",
         officeEn: "German Army High Command, Quartermaster General",
@@ -2440,6 +2444,7 @@ function moscowRetakenEvent(side) {
     : {
         id: "moscowRetaken",
         army: "german",
+        musicSrc: "audio/lili_marleen.webm",
         kind: "order",
         office: "Oberkommando des Heeres",
         officeEn: "German Army High Command",
@@ -2569,6 +2574,7 @@ function tulaEvent(side) {
     : {
         id: "tulaRelieved",
         army: "german",
+        musicSrc: "audio/lili_marleen.webm",
         kind: "order",
         office: "Panzerarmeeoberkommando 2",
         officeEn: "Second Panzer Army headquarters",
@@ -2742,6 +2748,70 @@ function shockArmyEvent() {
           history: "列车在夜里卸车；天亮之前，火炮已经挖好阵地，用雪伪装起来。炮手们等着命令，[[命令一定会来]]。",
         },
       };
+}
+// -------- the "European crusade against Bolshevism": at the start of the German turn 6 (23 November) the French
+// Legion of volunteers against Bolshevism (Infantry Regiment 638) comes up to the front west of Moscow, the only
+// foreign unit to fight in the battle; the Spanish Blue Division fights on the Volkhov. A German dispatch, once.
+function crusadeCheck() {
+  6 === currentTurn.turn &&
+    !decisions.crusade &&
+    ((decisions.crusade = currentTurn.turn),
+    setTimeout(function () {
+      showSideDispatches(crusadeEvent, ["german"]);
+    }, 900));
+}
+function crusadeEvent() {
+  const date = eventDate();
+  return {
+    id: "crusade",
+    army: "german",
+    kind: "order",
+    musicSrc: "audio/division_azul.webm",
+    office: "Oberkommando des Heeres",
+    officeEn: "German Army High Command",
+    stamp: "Geheime Kommandosache",
+    place: "Moskau",
+    date: date.en,
+    title: "The European crusade",
+    text: [
+      "Propaganda calls the war in the East [[a European crusade against Bolshevism]]. The French Legion of volunteers against Bolshevism, Infantry Regiment 638 of the Wehrmacht, is coming up to the front west of Moscow under the 7th Infantry Division: the only foreign unit in the battle for the capital. In the north the Spanish Blue Division holds the Volkhov.",
+      "Badly equipped, without winter clothing, the volunteers go into the line in the hardest frost of the year, in the snowbound woods west of Moscow, [[at twenty degrees of frost and below]].",
+    ],
+    options: [{ id: "noted", label: "Zur Kenntnis. Noted", order: "Put the legion into the line.", effects: [] }],
+    outcomeTitle: ["What happens next", "接下来发生了什么"],
+    history: "The legion attacks in the snow at the beginning of December. Within days it has lost [[a large part of its men to fire and frostbite]], and it is pulled out of the line before the Soviet counter-offensive breaks.",
+    zh: {
+      officeEn: "德国陆军总司令部",
+      place: "莫斯科",
+      date: date.zh,
+      title: "欧洲十字军",
+      text: [
+        "宣传把东方的战争叫作[[讨伐布尔什维主义的欧洲十字军]]。法国反布尔什维主义志愿军团，即国防军第 638 步兵团，正在第 7 步兵师指挥下开到莫斯科以西的前线：它是这场首都争夺战里唯一的外国部队。北面，西班牙蓝色师守着沃尔霍夫河。",
+        "这些志愿兵装备很差，没有冬装，在一年里最冷的时候开进战线，开进莫斯科以西积雪的森林，[[气温在零下二十度以下]]。",
+      ],
+      options: { noted: { label: "Zur Kenntnis！已知悉", order: "把军团投入战线。", effects: [] } },
+      history: "12 月初，军团在雪地里发起进攻。几天之内，它就因[[战火和冻伤损失了大批人员]]，在苏军反攻打响之前被撤下了战线。",
+    },
+  };
+}
+// -------- a Soviet town taken by the Germans: the communiqué of the Wehrmacht on a banner, with a song of the
+// "Ostland" (the colonisation of the East), the two songs in turn; the music does not restart while one plays
+let ostlandTurn = 0;
+function townOccupied(hex) {
+  const n = cityNameOf(hex.x + "," + hex.y, "a town", "一座城镇");
+  showEventBanner(
+    '<small class="banner_kicker">Das Oberkommando der Wehrmacht gibt bekannt</small><img src="img/german_marker.png" />' +
+      L("German troops have taken " + n + ".", "德军占领了" + n + "。") +
+      "<span>" +
+      L(
+        "The occupation authorities follow the troops: registration of the inhabitants, requisitions of grain and cattle, forced labour, the hunt for Party members and Jews; notices and gallows go up in the square.",
+        "占领当局跟着部队进城：登记居民，征收粮食和牲畜，强征劳工，搜捕党员和犹太人；广场上贴出了告示，竖起了绞架。",
+      ) +
+      "</span>",
+    6e3,
+  );
+  if (endingAudio && !endingAudio.paused && /ostland/.test(endingAudio.dataset.src || "")) return;
+  playEndingMusic(0 === ostlandTurn++ % 2 ? "audio/ostland_reiten.webm" : "audio/ostland_ritt.webm");
 }
 // A German unit entering a band's hex sweeps it. The German commander chooses: a full sweep combs the
 // forest until the band is destroyed, at a heavy cost in fatigue (4 points for each strength point of
@@ -8718,19 +8788,44 @@ function endingMusic(paper, grade, won) {
       : "sovietWin" === grade
         ? "audio/nightingales.webm"
         : "historical" === grade
-          ? "audio/moscow_defenders.mp3"
+          ? "audio/rzhev.webm"
           : "audio/dark_night.webm"
     : won
       ? "audio/ss_feindesland.mp3"
-      : "audio/rising_sun_blues.mp3";
+      : "historical" === grade
+        ? "audio/lili_marleen.webm"
+        : "sovietWin" === grade
+          ? "audio/moorsoldaten.webm"
+          : "audio/rising_sun_blues.mp3";
 }
 let endingAudio = null;
+// Georgia Turner's field recording of 1937 is much quieter than the others: it is raised through the audio graph,
+// with a limiter for the clicks of the disc
+const QUIET_RECORDINGS = { rising_sun_blues: 3 };
 function playEndingMusic(src) {
   (stopAnthem(), endingAudio && endingAudio.pause());
   if (!soundOn || !src) return;
   endingAudio = new Audio();
-  // the 1937 field recording of Georgia Turner is much quieter than the others
-  endingAudio.volume = /rising_sun/.test(src) ? 1 : 0.75;
+  endingAudio.dataset.src = src;
+  const quiet = Object.keys(QUIET_RECORDINGS).find(function (k) {
+      return src.indexOf(k) > -1;
+    }),
+    ctx = quiet ? audioReady() : null;
+  endingAudio.volume = quiet ? 1 : 0.75;
+  if (ctx)
+    try {
+      const source = ctx.createMediaElementSource(endingAudio),
+        gain = ctx.createGain(),
+        limiter = ctx.createDynamicsCompressor();
+      ((gain.gain.value = QUIET_RECORDINGS[quiet]),
+        (limiter.threshold.value = -6),
+        (limiter.ratio.value = 12),
+        (limiter.attack.value = 0.003),
+        (limiter.release.value = 0.2),
+        source.connect(gain),
+        gain.connect(limiter),
+        limiter.connect(ctx.destination));
+    } catch (e) {}
   fetch(src)
     .then(function (response) {
       return response.ok ? response.blob() : Promise.reject();
