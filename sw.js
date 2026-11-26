@@ -2,7 +2,7 @@
 // Handles offline caching and resource serving
 
 // Cache version - increment this to force cache refresh
-const CACHE_VERSION = 'b4m-v1.10.6';
+const CACHE_VERSION = 'b4m-v1.10.7';
 const CACHE_NAME = `battle-for-moscow-${CACHE_VERSION}`;
 
 // All resources to precache for offline functionality
@@ -44,6 +44,7 @@ const PRECACHE_URLS = [
   'img/frame.png',
   'img/german_marker.png',
   'img/german_turn.png',
+  'img/german_turn_hd.png',
   'img/counters_germans.png',
   'img/help_add_battles.png',
   'img/help_view_cities.png',
@@ -54,6 +55,7 @@ const PRECACHE_URLS = [
   'img/sample_military_units.png',
   'img/soviet_marker.png',
   'img/soviet_turn.png',
+  'img/soviet_turn_hd.png',
   'img/counters_soviets.png',
   'img/counters_soviets_cavalry.png',
   'img/partisans_borovsk_1941.jpg',
