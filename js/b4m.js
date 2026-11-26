@@ -2797,12 +2797,26 @@ function crusadeEvent() {
     },
   };
 }
-// -------- the first Soviet town the Germans take in a game: the communiqué of the Wehrmacht on a banner, with a song
-// of the "Ostland" (the colonisation of the East); the two songs take turns from one game to the next
+// -------- the first Soviet town the Germans take in a game: for the German player (or two players) the communiqué of
+// the Wehrmacht on a banner, with a song of the "Ostland" (the colonisation of the East), the two songs taking turns
+// from one game to the next; for the Russian player the bulletin of the Soviet Information Bureau, without music
 function townOccupied(hex) {
   if (decisions.townOccupied) return;
   decisions.townOccupied = currentTurn.turn;
   const n = cityNameOf(hex.x + "," + hex.y, "a town", "一座城镇");
+  // the Russian player hears it from the Soviet Information Bureau, with no German song
+  if ("german" === playAIAs)
+    return void showEventBanner(
+      '<small class="banner_kicker">От Советского Информбюро</small><img src="img/soviet_marker.png" />' +
+        L("After stubborn fighting our troops have abandoned " + n + ".", "经过顽强战斗，我军撤出了" + n + "。") +
+        "<span>" +
+        L(
+          "Behind our troops come the occupiers' gallows, requisitions and round-ups. The enemy will pay for every town: death to the German occupiers!",
+          "跟在我军身后进城的是占领者的绞架、征粮和搜捕。敌人要为每一座城镇付出代价：德国占领者必亡！",
+        ) +
+        "</span>",
+      6e3,
+    );
   showEventBanner(
     '<small class="banner_kicker">Das Oberkommando der Wehrmacht gibt bekannt</small><img src="img/german_marker.png" />' +
       L("German troops have taken " + n + ".", "德军占领了" + n + "。") +
