@@ -785,7 +785,8 @@ function raiseStayBehind() {
       notes.push(L(g.en, g.zh)));
   }
   notes.length &&
-    (drawPartisans(),
+    (partisanWarStarts(),
+    drawPartisans(),
     showEventBanner(
       '<small class="banner_kicker">Все, как один, на защиту Отчизны!</small><img src="img/soviet_marker.png" />' +
         L("The stay-behind groups go into the forests", "留守的游击队进入森林") +
@@ -1124,12 +1125,12 @@ const SMOLENSK = { x: 1, y: 4 },
 // Ten railway lines met in Moscow; most supplies for the Western Front were sent there first and distributed
 // from its stations ("in essence Moscow was the regulating station", I. V. Kovalev). The government left for
 // Kuibyshev on 15 October 1941 and 498 factories were evacuated, but the front depots stayed in and around
-// Moscow, with 57 hospitals in the city. Its defences make it the hardest city to take; the evacuation trains
-// filled the railways in October; if it fell, the stations further east would still work, and the Germans
-// would find the factories and depots blown up, as the State Defence Committee had ordered.
+// Moscow, with 57 hospitals in the city. Its defences make it the hardest city to take; if it fell, the Germans
+// would find the factories and depots blown up, as the State Defence Committee had ordered. (The evacuation
+// trains filled the lines to the east, Gorky and Moscow-Ryazan, and held back the reserves coming from the rear;
+// within the front the railways still moved 10 to 12 troop trains a day, Kovalev: no limit on rail movement.)
 const MOSCOW = { x: 10, y: 2 },
-  MOSCOW_DEPOT_RANGE = 2,
-  EVACUATION_RAIL_LIMIT = 2;
+  MOSCOW_DEPOT_RANGE = 2;
 function moscowLost() {
   return "soviet" !== grid.get(MOSCOW).control;
 }
@@ -1149,10 +1150,6 @@ function moscowDepotsReach(hex, ctx) {
 function moscowGarrison() {
   const d = currentBattle && currentBattle.defendingUnit;
   return !!d && "soviet" === d.army && "moscow" === grid.get(d.position).city && !moscowRuined();
-}
-// Turns 3 and 4: the evacuation trains fill the railways, and few Russian units can move by rail
-function evacuationRailLimited() {
-  return "soviet" === currentTurn.army && (3 === currentTurn.turn || 4 === currentTurn.turn);
 }
 // ---------------------------------------------------------------- Air superiority and interdiction
 // Turns 1-2: Luftflotte 2 holds the sky (more than 4,000 sorties in the first five days of Typhoon; on 10 October
@@ -1755,6 +1752,7 @@ function inTheRear(hex, army) {
 // Start of a side's turn: supply, winter and rest change the fatigue of its units
 // (the "fought" and "moved" marks cover the side's previous turn and the enemy turn that followed)
 function processTurnFatigue(e) {
+  "soviet" === e && tulaCheck(!0);
   const t = supplyContext();
   // At the start of the German turn: old rail cuts are repaired, and security sweeps wear down
   // the partisan bands that are next to German units
@@ -1971,9 +1969,20 @@ function cityChangedHands(hex, from, to) {
   // the fall of Moscow is announced on the whole screen, once
   "moscow" === hex.city && "soviet" === from && "german" === to && !decisions.moscowFall &&
     ((decisions.moscowFall = currentTurn.turn), setTimeout(showMoscowFall, 900));
+  // the Red Army retakes Moscow, once
+  "moscow" === hex.city && "german" === from && "soviet" === to && decisions.moscowFall && !decisions.moscowRetaken &&
+    ((decisions.moscowRetaken = currentTurn.turn), setTimeout(showMoscowRetaken, 900));
+  // a German depot falls to the Red Army, once each
+  const depot = "german" === from && "soviet" === to ? depotAt(hex) : null;
+  depot &&
+    !decisions["depot_" + depot.id] &&
+    ((decisions["depot_" + depot.id] = currentTurn.turn),
+    setTimeout(function () {
+      showDepotTaken(depot);
+    }, 900));
 }
 // ---------------------------------------------------------------- The fall of Moscow
-// It did not happen. Had it happened, both sides had their orders ready: the State Defence Committee had ordered
+// Both sides had their orders ready: the State Defence Committee had ordered
 // on 15 October that the factories, depots and the metro be blown up if the enemy reached the gates of the city,
 // and the German high command had laid down on 12 October that no capitulation of Moscow would be accepted.
 // The event shows the dispatch of the side you play (both, one after the other, for two players at one screen).
@@ -2016,6 +2025,7 @@ function moscowFallEvent(side) {
     ? {
         id: "moscowFall",
         army: "soviet",
+        outcomeTitle: ["What happens next", "接下来发生了什么"],
         kind: "order",
         office: "Государственный Комитет Обороны",
         officeEn: "State Defence Committee, Moscow",
@@ -2053,7 +2063,7 @@ function moscowFallEvent(side) {
           },
         ],
         options: [{ id: "fight", label: "Отстоять Родину! Fight on", order: "Hold the line east of the capital and take it back.", effects: moscowFallRules("soviet") }],
-        history: "In 1941 Moscow did not fall. The Germans came within [[25 to 30 km of the Kremlin]], at Krasnaya Polyana and on the Moscow-Volga canal; on 5 and 6 December the counter-offensive of the Kalinin, Western and South-Western Fronts drove them back. The charges laid under the factories and in the metro were never fired. What awaited the capital was seen in the Moscow region, held by the occupiers for some weeks or up to three months: they [[burned Istra]] and ruined Naro-Fominsk, Vereya, Ruza and Borovsk, blew up the New Jerusalem monastery, burned the Borodino museum, looted Tolstoy's Yasnaya Polyana, and [[destroyed 640 villages of the region completely]] (Samsonov, ch. 7).",
+        history: "The occupiers set about what they decided in July. The city is sealed off, and whoever tries to cross the lines is shot. Gallows stand on the squares of Moscow with placards on the hanged; the SS commandos go from house to house with their lists of Communists, Komsomol members and Jews, and shoot them in the courtyards and at the edge of the city. There is no bread: the occupiers take the last stocks for their army, and [[hunger spreads through the cellars]]. Museums and libraries are looted, and what cannot be carried off is burned; under the bombs and shells the city burns [[district by district]]. But the capital has not bowed its head: in the ruins the destroyer battalions and the partisans fight on, and east of the city the Red Army gathers to [[take it back]].",
         zh: {
           officeEn: "苏联国防委员会，莫斯科",
           place: "莫斯科",
@@ -2083,12 +2093,14 @@ function moscowFallEvent(side) {
             },
           ],
           options: { fight: { label: "Отстоять Родину！保卫祖国", order: "守住首都以东的战线，把首都夺回来。", effects: moscowFallRulesZh("soviet") } },
-          history: "1941 年莫斯科并没有陷落。德军最近推进到离克里姆林宫[[25 至 30 公里]]的克拉斯纳亚波利亚纳和莫斯科—伏尔加运河一线；12 月 5、6 日，加里宁方面军、西方面军和西南方面军转入反攻，把他们打了回去。埋在工厂和地铁里的炸药一直没有引爆。首都会遭遇什么，看看被占领了几个星期到三个月的莫斯科州就知道：占领者[[烧毁了伊斯特拉]]，毁坏了纳罗—福明斯克、韦列亚、鲁扎、博罗夫斯克，炸毁了新耶路撒冷修道院，烧掉了博罗季诺博物馆，洗劫了托尔斯泰的庄园雅斯纳亚—波良纳，全州有[[640 个村庄被彻底毁灭]]（萨姆索诺夫，第 7 章）。",
+          history: "占领者开始执行他们七月间定下的计划。城市被封死，谁想穿过战线就被枪杀。莫斯科的广场上竖起了绞架，被绞死的人胸前挂着牌子；党卫队特别行动队拿着名单挨家挨户搜捕共产党员、共青团员和犹太人，在院子里、在城郊把他们枪杀。城里没有面包：占领者把最后的存粮拉去供给自己的军队，[[饥饿在地下室里蔓延]]。博物馆和图书馆遭到洗劫，搬不走的就烧掉；在炸弹和炮弹下，城市[[一个街区接一个街区地燃烧]]。但首都没有低头：歼击营和游击队在废墟里继续战斗，红军正在城东集结，要[[把首都夺回来]]。",
         },
       }
     : {
         id: "moscowFall",
         army: "german",
+        musicSrc: "audio/erika.webm",
+        outcomeTitle: ["What happens next", "接下来发生了什么"],
         kind: "order",
         office: "Oberkommando des Heeres",
         officeEn: "German Army High Command",
@@ -2124,7 +2136,7 @@ function moscowFallEvent(side) {
           },
         ],
         options: [{ id: "advance", label: "Weiter nach Osten! Press on", order: "Occupy the city and keep the front moving east.", effects: moscowFallRules("german") }],
-        history: "In 1941 Moscow did not fall. The German spearheads came within [[25 to 30 km of the Kremlin]] at the end of November; on 5 and 6 December the Soviet counter-offensive began, and by January Army Group Centre had been thrown back 100 to 250 km. The Vorkommando Moskau never reached the city: from June to August 1941 it shot people in the Smolensk area, among them [[38 Jews of the new Smolensk ghetto]] (Ereignismeldung UdSSR No. 73, 4 September 1941). In the Moscow region, held for some weeks or up to three months, the occupiers [[burned Istra]], blew up the New Jerusalem monastery and destroyed 640 villages completely (Soviet figures, Samsonov, ch. 7).",
+        history: "The orders are carried out. The city is sealed off; columns of civilians trying to get out are [[driven back by machine-gun fire]]. The Vorkommando Moskau works through the files of the NKVD and the Party and shoots those on its lists; gallows go up on the squares. The stocks of the city go to the troops, and the population is left to [[the famine the planners had counted on]]. The Luftwaffe and the heavy artillery level the city district by district. Meanwhile the Red Army holds a new front to the east, destroyer battalions fight on in the ruins, and the frost sets in: [[the troops in the rubble of Moscow find no shelter]].",
         zh: {
           officeEn: "德国陆军总司令部",
           place: "莫斯科",
@@ -2151,7 +2163,7 @@ function moscowFallEvent(side) {
             { translation: "今天，今年最后一场伟大的决战就此开始。", source: "希特勒《告东线士兵书》，1941 年 10 月 2 日" },
           ],
           options: { advance: { label: "Weiter nach Osten！继续向东", order: "占领城市，让战线继续东推。", effects: moscowFallRulesZh("german") } },
-          history: "1941 年莫斯科并没有陷落。11 月底德军先头部队推进到离克里姆林宫[[25 至 30 公里]]的地方；12 月 5、6 日苏军转入反攻，到 1 月，中央集团军群被击退了 100 至 250 公里。“莫斯科先遣队”始终没能进城：1941 年 6 月到 8 月，它在斯摩棱斯克一带枪杀平民，其中有[[新设的斯摩棱斯克犹太隔离区里的 38 名犹太人]]（《苏联事件报告》第 73 号，1941 年 9 月 4 日）。在被占领了几个星期到三个月的莫斯科州，占领者[[烧毁了伊斯特拉]]，炸毁了新耶路撒冷修道院，全州有 640 个村庄被彻底毁灭（苏方统计，萨姆索诺夫，第 7 章）。",
+          history: "命令开始执行。城市被封锁，想出城的平民队伍被[[机枪火力打了回去]]。“莫斯科先遣队”逐份清查内务部和党的档案，按名单枪杀；广场上竖起了绞架。城里的存粮全部拨给部队，居民被留给[[计划者们早已算好的饥荒]]。空军和重炮一个街区接一个街区地把城市夷平。与此同时，红军在城东守着新的战线，苏军歼击营在废墟里继续战斗，严寒降临：[[莫斯科瓦砾堆里的部队找不到栖身之处]]。",
         },
       };
 }
@@ -2170,6 +2182,595 @@ function showMoscowFall() {
         );
     };
   step(0);
+}
+// ---------------------------------------------------------------- Turning points: the German depots, Moscow retaken, Tula relieved
+// Each is announced once, on the whole screen, to the side(s) at the table: the side that acted first for two
+// players at one screen. The effects are applied when the dispatch is shown, and counted under its last section.
+const DEPOT_LOSS_FATIGUE = 2,
+  MOSCOW_RETAKEN_RELIEF = 2,
+  MOSCOW_LOST_FATIGUE = 1,
+  TULA = { x: 10, y: 6 },
+  DEPOTS = [
+    {
+      id: "smolensk",
+      pos: { x: 1, y: 4 },
+      ru: "Smolensk",
+      de: "Smolensk",
+      zh: "斯摩棱斯克",
+      roleEn: "[[the main supply base of the German army group]] before Moscow",
+      roleZh: "[[德军集团军群在莫斯科方向的主要补给基地]]",
+    },
+    { id: "roslavl", pos: { x: 2, y: 6 }, ru: "Roslavl", de: "Roslawl", zh: "罗斯拉夫利", roleEn: "[[the depot]] from which the enemy supplied his southern wing", roleZh: "敌人供应南翼的[[补给仓库]]" },
+    { id: "vyazma", pos: { x: 5, y: 3 }, from: VYAZMA_RAILHEAD_TURN, ru: "Vyazma", de: "Wjasma", zh: "维亚济马", roleEn: "[[the railhead]] of the line the enemy had converted to his gauge", roleZh: "敌人改轨铁路的[[卸载站]]" },
+  ];
+function depotAt(hex) {
+  return (
+    DEPOTS.find(function (d) {
+      return d.pos.x === hex.x && d.pos.y === hex.y && currentTurn.turn >= (d.from || 1);
+    }) || null
+  );
+}
+function eventDate() {
+  return { en: MOSCOW_FALL_DATES[currentTurn.turn] + " 1941", zh: TURN_DATES_ZH[currentTurn.turn] };
+}
+function showSideDispatches(build, order, outcome) {
+  const sides = "" === playAIAs ? order : ["soviet" === playAIAs ? "german" : "soviet"],
+    step = function (k) {
+      k < sides.length &&
+        showDispatch(
+          build(sides[k]),
+          function () {
+            return { outcome: outcome || "" };
+          },
+          function () {
+            step(k + 1);
+          },
+        );
+    };
+  step(0);
+}
+// -------- a German depot taken by the Red Army
+function depotRules(d) {
+  return [
+    "Captured stocks: the Russians get [[+1 replacement step]] next turn, besides the +1 of the liberation.",
+    "Russian units in " + d.ru + " and next to it [[lose 4 fatigue]]: captured food, fuel and warm clothing.",
+    "German units that drew on the depot and are now beyond the reach of every railhead [[gain " + DEPOT_LOSS_FATIGUE + " fatigue]] at once, and recover none until a railhead is within " + RAILHEAD_RANGE + " hexes (" + RAILHEAD_RANGE_MUD + " in the mud).",
+    "smolensk" === d.id ? "While Smolensk is lost or cut off, [[no German unit recovers fatigue and the Germans get no replacements]]." : "If the Germans retake " + d.ru + ", it is a railhead again.",
+  ];
+}
+function depotRulesZh(d) {
+  return [
+    "缴获库存：苏军下回合[[+1 级补充兵员]]（解放城市的 +1 另算）。",
+    d.zh + "城内和相邻格的苏军[[疲劳 −4]]：缴获了口粮、燃料和冬衣。",
+    "靠这个仓库补给、现在离所有铁路卸载站都太远的德军，立即[[疲劳 +" + DEPOT_LOSS_FATIGUE + "]]，在 " + RAILHEAD_RANGE + " 格内（泥泞时 " + RAILHEAD_RANGE_MUD + " 格）重新有铁路卸载站之前不能恢复疲劳。",
+    "smolensk" === d.id ? "斯摩棱斯克失守或被切断期间，[[所有德军都不能恢复疲劳，德军也没有补充兵员]]。" : "德军夺回" + d.zh + "后，它重新成为铁路卸载站。",
+  ];
+}
+function depotTakenEffects(d) {
+  const h = grid.get(d.pos),
+    heads = germanRailheads(),
+    range = railheadRange();
+  let ru = 0,
+    de = 0;
+  liberationBonus++;
+  for (const u of b4mUnits) {
+    if (!u.position) continue;
+    const at = grid.get(u.position);
+    "soviet" === u.army && h.distance(at) <= 1 && (addFatigue(u, -FATIGUE.perLevel), ru++);
+    "german" === u.army && h.distance(at) <= range && railheadDistance(at, heads) > range && (addFatigue(u, DEPOT_LOSS_FATIGUE), de++);
+  }
+  scheduleStatusRefresh();
+  return L(
+    "Now: " + ru + " Russian unit" + (1 === ru ? "" : "s") + " −4 fatigue; " + de + " German unit" + (1 === de ? "" : "s") + " +" + DEPOT_LOSS_FATIGUE + " fatigue; +1 Russian replacement step next turn.",
+    "现在：" + ru + " 支苏军疲劳 −4；" + de + " 支德军疲劳 +" + DEPOT_LOSS_FATIGUE + "；苏军下回合 +1 级补充兵员。",
+  );
+}
+function depotEvent(d, side) {
+  const date = eventDate();
+  return "soviet" === side
+    ? {
+        id: "depot",
+        army: "soviet",
+        kind: "radio",
+        office: "Советское Информбюро",
+        officeEn: "Soviet Information Bureau, Moscow radio",
+        stamp: "В последний час",
+        slogan: { original: "Смерть немецким оккупантам!", en: "Death to the German occupiers!", zh: "德国占领者必亡！" },
+        place: "Moscow radio",
+        date: date.en,
+        title: "The enemy's depots at " + d.ru + " are ours",
+        text: [
+          "Our troops have taken " + d.ru + ", " + d.roleEn + ". In the warehouses and on the tracks of the station the German-fascist invaders left [[fuel, shells and rations]], and the warm clothes they had taken from the population: they had no time to set them on fire.",
+          "The trophies go to the front at once: fuel for our tanks, bread and felt boots for our soldiers. Cut off from " + d.ru + ", the Hitlerite divisions are left [[without shells, fuel or bread]].",
+        ],
+        options: [{ id: "onward", label: "Вперёд! Onward", order: "Put the captured stocks to use and keep advancing.", effects: depotRules(d) }],
+        outcomeTitle: ["What happens next", "接下来发生了什么"],
+        history: "The quartermasters count the trophies while the guns move on. West of " + d.ru + " the German truck columns turn back towards the next railhead, and the divisions that drew on the depot [[go hungry]].",
+        zh: {
+          officeEn: "苏联情报局，莫斯科广播电台",
+          place: "莫斯科广播电台",
+          date: date.zh,
+          title: "我军夺取了敌人在" + d.zh + "的补给仓库",
+          text: [
+            "我军攻占了" + d.zh + "，" + d.roleZh + "。德国法西斯侵略者在仓库里和车站的线路上丢下了[[燃料、炮弹和口粮]]，还有从居民那里抢来的冬衣：他们没来得及放火烧掉。",
+            "缴获的物资马上送往前线：燃料给我们的坦克，面包和毡靴给我们的战士。失去了" + d.zh + "，希特勒匪帮的各师[[断了炮弹、燃料和口粮]]。",
+          ],
+          options: { onward: { label: "Вперёд！前进", order: "用好缴获的物资，继续进攻。", effects: depotRulesZh(d) } },
+          history: "军需人员清点战利品，大炮已经继续向前。在" + d.zh + "以西，德军的汽车运输纵队掉头开往下一个铁路卸载站，靠这个仓库补给的各师[[开始挨饿]]。",
+        },
+      }
+    : {
+        id: "depot",
+        army: "german",
+        kind: "order",
+        office: "Oberkommando des Heeres",
+        officeEn: "German Army High Command, Quartermaster General",
+        stamp: "Geheime Kommandosache",
+        place: d.de,
+        date: date.en,
+        title: "The depot at " + d.de + " is lost",
+        text: [
+          "The Russians have taken " + d.de + ". [[The depot and the railhead are lost]] with everything stored there: what could not be moved in time fell into the enemy's hands.",
+          "smolensk" === d.id
+            ? "Smolensk was the supply base of the army group: until it is retaken or reconnected, [[no unit can rest and recover, and no replacements arrive]]."
+            : "The divisions that drew on " + d.de + " must now be supplied from the next railhead, by truck columns over roads that [[can barely carry them]].",
+        ],
+        quotes: [
+          {
+            original: "С каждым днем увеличиваются трудности снабжения, осуществляемого по железным дорогам. Именно трудности снабжения являются главной причиной всех наших бедствий, ибо без горючего наши автомашины не могут передвигаться.",
+            translation: "Every day the difficulties of supply by rail grow. It is precisely the difficulties of supply that are [[the main cause of all our troubles]], for without fuel our vehicles cannot move.",
+            source: "H. Guderian, letter of 17 November 1941 (Russian edition of his memoirs, «Воспоминания солдата», 1954, ch. 6)",
+          },
+        ],
+        options: [{ id: "bring", label: "Jawohl! Understood", order: "Bring the supplies up from the next railhead.", effects: depotRules(d) }],
+        outcomeTitle: ["What happens next", "接下来发生了什么"],
+        history: "The truck columns turn back towards the next railhead and stick in the snow and the mud on the roads west of " + d.de + ". At the front the divisions [[count their last shells]].",
+        zh: {
+          officeEn: "德国陆军总司令部，军需总监",
+          place: d.zh,
+          date: date.zh,
+          title: d.zh + "的补给仓库失守",
+          text: [
+            "俄国人攻占了" + d.zh + "。[[仓库和铁路卸载站连同库存全部丢失]]：来不及运走的东西都落到了敌人手里。",
+            "smolensk" === d.id
+              ? "斯摩棱斯克是集团军群的补给基地：在夺回或重新接通之前，[[部队无法休整恢复，补充兵员也到不了]]。"
+              : "靠" + d.zh + "补给的各师，现在只能从下一个铁路卸载站，用汽车运输纵队沿着[[几乎走不动车]]的道路运送。",
+          ],
+          quotes: [
+            {
+              translation: "铁路补给的困难一天比一天大。正是补给的困难，才是[[我们一切苦难的主要原因]]，因为没有燃料，我们的车辆就动不了。",
+              source: "古德里安 1941 年 11 月 17 日的信（据其回忆录俄译本《一个士兵的回忆》，1954 年，第 6 章）",
+            },
+          ],
+          options: { bring: { label: "Jawohl！遵命", order: "从下一个铁路卸载站把补给运上来。", effects: depotRulesZh(d) } },
+          history: "汽车运输纵队掉头开往下一个铁路卸载站，在" + d.zh + "以西的道路上陷进雪和泥里。前线各师开始[[清点最后的炮弹]]。",
+        },
+      };
+}
+function showDepotTaken(d) {
+  const outcome = depotTakenEffects(d);
+  showSideDispatches(
+    function (side) {
+      return depotEvent(d, side);
+    },
+    ["soviet", "german"],
+    outcome,
+  );
+}
+// -------- Moscow retaken by the Red Army (lost by the Germans)
+function moscowRetakenRules() {
+  return [
+    "Every Russian unit [[loses " + MOSCOW_RETAKEN_RELIEF + " fatigue]] at once: the news runs along the whole front.",
+    "Every German unit [[gains " + MOSCOW_LOST_FATIGUE + " fatigue]] at once.",
+    "The Red Army no longer wears down each turn; the city stays a ruin, an ordinary town (no defences of the capital, air defence, stocks or depots).",
+    "Moscow counts 5 victory points for the Russians again.",
+  ];
+}
+function moscowRetakenRulesZh() {
+  return [
+    "苏军每支部队立即[[疲劳 −" + MOSCOW_RETAKEN_RELIEF + "]]：消息传遍了整条战线。",
+    "德军每支部队立即[[疲劳 +" + MOSCOW_LOST_FATIGUE + "]]。",
+    "苏军不再每回合加疲劳；城市仍是废墟，只算普通城镇（没有首都的防御、防空、储备和仓库）。",
+    "莫斯科重新为苏军计 5 胜利点。",
+  ];
+}
+function moscowRetakenEffects() {
+  let ru = 0,
+    de = 0;
+  for (const u of b4mUnits)
+    u.position && ("soviet" === u.army ? (addFatigue(u, -MOSCOW_RETAKEN_RELIEF), ru++) : (addFatigue(u, MOSCOW_LOST_FATIGUE), de++));
+  scheduleStatusRefresh();
+  return L(
+    "Now: " + ru + " Russian units −" + MOSCOW_RETAKEN_RELIEF + " fatigue; " + de + " German units +" + MOSCOW_LOST_FATIGUE + ".",
+    "现在：" + ru + " 支苏军疲劳 −" + MOSCOW_RETAKEN_RELIEF + "；" + de + " 支德军疲劳 +" + MOSCOW_LOST_FATIGUE + "。",
+  );
+}
+function moscowRetakenEvent(side) {
+  const date = eventDate();
+  return "soviet" === side
+    ? {
+        id: "moscowRetaken",
+        army: "soviet",
+        kind: "radio",
+        office: "Советское Информбюро",
+        officeEn: "Soviet Information Bureau, Moscow radio",
+        stamp: "В последний час",
+        slogan: { original: "Наше дело правое. Враг будет разбит. Победа будет за нами!", en: "Our cause is just. The enemy will be beaten. Victory will be ours!", zh: "我们的事业是正义的。敌人必将被击溃。胜利必将属于我们！" },
+        photo: { src: "img/splash_kremlin_1941.jpg", caption: "Searchlights and tracer over the Kremlin, 1941", captionZh: "1941 年，克里姆林宫上空的探照灯和曳光弹" },
+        place: "Moscow",
+        date: date.en,
+        title: "Moscow is ours again!",
+        text: [
+          "Our troops have driven the German-fascist invaders out of [[the capital of the Soviet state]]. The red flag flies again over the Kremlin.",
+          "The liberators walk through a dead city: [[burned districts]], blown-up bridges, gallows on the squares, the bodies of the shot in the courtyards. Every Soviet man now knows what the Hitlerites had prepared for Moscow, and [[will not forgive them]].",
+          "The enemy is falling back to the west, abandoning his equipment. [[Forward, to the west!]]",
+        ],
+        quotes: [
+          {
+            original: "Немецкие захватчики хотят иметь истребительную войну с народами СССР. Что же, если немцы хотят иметь истребительную войну, они ее получат […] Никакой пощады немецким оккупантам! Смерть немецким оккупантам!",
+            translation: "The German invaders want a war of extermination against the peoples of the USSR. Well, if the Germans want a war of extermination, they shall have it […] [[No mercy for the German occupiers! Death to the German occupiers!]]",
+            source: "J. V. Stalin, report at the ceremonial session of the Moscow Soviet, 6 November 1941 (Pravda, 7 November)",
+          },
+        ],
+        options: [{ id: "west", label: "На Запад! Westward", order: "Pursue the enemy without respite.", effects: moscowRetakenRules() }],
+        outcomeTitle: ["What happens next", "接下来发生了什么"],
+        history: "The bells are silent and the metro is dark, but Moscow is free. Sappers clear the mines from the streets, the first trains come in from the east, and the divisions of the Western Front march through the ruins [[towards the west]].",
+        zh: {
+          officeEn: "苏联情报局，莫斯科广播电台",
+          place: "莫斯科",
+          date: date.zh,
+          title: "莫斯科重新回到我们手中！",
+          text: [
+            "我军把德国法西斯侵略者赶出了[[苏维埃国家的首都]]。克里姆林宫上空重新飘扬着红旗。",
+            "解放者走过一座死城：[[被烧毁的街区]]、被炸断的桥梁、广场上的绞架、院子里被枪杀的人的尸体。现在每一个苏联人都知道希特勒分子为莫斯科准备了什么，[[决不饶恕他们]]。",
+            "敌人丢下装备向西溃退。[[向西前进！]]",
+          ],
+          quotes: [
+            {
+              translation: "德国侵略者想要对苏联各族人民进行歼灭战。好吧，如果德国人想要进行歼灭战，他们就会得到歼灭战……[[决不饶恕德国占领者！消灭德国占领者！]]",
+              source: "И. В. 斯大林在莫斯科苏维埃庆祝大会上的报告，1941 年 11 月 6 日（《真理报》11 月 7 日）",
+            },
+          ],
+          options: { west: { label: "На Запад！向西追击", order: "不停地追击敌人。", effects: moscowRetakenRulesZh() } },
+          history: "钟声沉默，地铁一片漆黑，但莫斯科自由了。工兵清除街道上的地雷，第一批列车从东面开进来，西方面军各师穿过废墟[[向西开去]]。",
+        },
+      }
+    : {
+        id: "moscowRetaken",
+        army: "german",
+        kind: "order",
+        office: "Oberkommando des Heeres",
+        officeEn: "German Army High Command",
+        stamp: "Geheime Kommandosache",
+        place: "Moskau",
+        date: date.en,
+        title: "Moscow is lost",
+        text: [
+          "The Russians have broken into Moscow; the garrison has been [[driven out of the ruins]] with heavy losses, and most of its heavy weapons stayed behind in the snow.",
+          "The capital the army group was sent to take is in enemy hands again. The troops are freezing, the trains do not come, and the enemy attacks along the whole front: [[the front must hold where it stands]].",
+        ],
+        quotes: [
+          {
+            translation: "The Fuehrer has ordered: Larger evasive movements cannot be made. They will lead to a total loss of heavy weapons and equipment. Commanding generals, commanders, and officers are to intervene in person to compel the troops to [[fanatical resistance]] in their positions without regard to enemy broken through on the flanks or to the rear.",
+            source: "Teletype to Army Group Centre, 18 December 1941 (as translated in the US Army official history)",
+          },
+        ],
+        options: [{ id: "hold", label: "Halten! Hold", order: "Hold every position west of the city.", effects: moscowRetakenRules() }],
+        outcomeTitle: ["What happens next", "接下来发生了什么"],
+        history: "Columns of exhausted men trudge west along roads choked with snow, past burning villages. Behind them the Russian cavalry and ski troops [[slip through the gaps]] in the front.",
+        zh: {
+          officeEn: "德国陆军总司令部",
+          place: "莫斯科",
+          date: date.zh,
+          title: "莫斯科失守",
+          text: [
+            "俄国人打进了莫斯科；守军伤亡惨重，[[被赶出了废墟]]，大部分重武器丢在了雪地里。",
+            "集团军群奉命夺取的首都又回到了敌人手里。部队在挨冻，火车不来，敌人在整条战线上进攻：[[战线必须原地守住]]。",
+          ],
+          quotes: [
+            {
+              translation: "元首命令：不得进行较大规模的后撤，那将导致重武器和装备的全部损失。各级指挥官和军官要亲自出面，迫使部队在阵地上进行[[狂热的抵抗]]，不管敌人是否已从侧翼或后方突破。",
+              source: "1941 年 12 月 18 日发给中央集团军群的电传（据美国陆军官方战史的英译）",
+            },
+          ],
+          options: { hold: { label: "Halten！坚守", order: "守住城西的每一个阵地。", effects: moscowRetakenRulesZh() } },
+          history: "精疲力竭的队伍沿着积雪堵塞的道路向西跋涉，经过一座座燃烧的村庄。在他们身后，俄国骑兵和滑雪部队[[从战线的缺口钻了进来]]。",
+        },
+      };
+}
+function showMoscowRetaken() {
+  const outcome = moscowRetakenEffects();
+  showSideDispatches(moscowRetakenEvent, ["soviet", "german"], outcome);
+}
+// -------- Tula holds out and is relieved: its garrison cut off at the start of a Russian turn, the city later
+// reconnected while still Russian (in 1941 the ring was never closed: 5 to 6 km were missing)
+function tulaRules() {
+  return [
+    "The units in Tula [[lose 4 fatigue]]: the siege is over.",
+    "Tula's stocks are [[full again]] (" + CITY_STOCK_CAP["10,6"] + ").",
+    "The Russians get [[+1 replacement step]] next turn.",
+  ];
+}
+function tulaRulesZh() {
+  return ["图拉城内的部队[[疲劳 −4]]：围城结束了。", "图拉的储备[[重新补满]]（" + CITY_STOCK_CAP["10,6"] + " 点）。", "苏军下回合[[+1 级补充兵员]]。"];
+}
+function tulaCheck(atTurnStart) {
+  const h = grid.get(TULA);
+  if (!h || "soviet" !== h.control || decisions.tulaRelieved) return;
+  if (!isInCommunication(h, "soviet")) {
+    const g = lookupUnit(h);
+    atTurnStart && g && "soviet" === g.army && !decisions.tulaBesieged && (decisions.tulaBesieged = currentTurn.turn);
+    return;
+  }
+  // the relief is announced during play, when a move reopens the way (not at the start of a turn, where the
+  // command decisions are shown)
+  !atTurnStart && decisions.tulaBesieged && ((decisions.tulaRelieved = currentTurn.turn), setTimeout(showTulaRelieved, 900));
+}
+function tulaRelievedEffects() {
+  const h = grid.get(TULA),
+    g = lookupUnit(h);
+  let n = 0;
+  (g && "soviet" === g.army && (addFatigue(g, -FATIGUE.perLevel), n++),
+    (cityStocks["10,6"] = { owner: "soviet", value: CITY_STOCK_CAP["10,6"] }),
+    liberationBonus++,
+    scheduleStatusRefresh());
+  return L(
+    "Now: " + n + " unit" + (1 === n ? "" : "s") + " in Tula −4 fatigue; stocks " + CITY_STOCK_CAP["10,6"] + "/" + CITY_STOCK_CAP["10,6"] + "; +1 Russian replacement step next turn.",
+    "现在：图拉城内 " + n + " 支部队疲劳 −4；储备 " + CITY_STOCK_CAP["10,6"] + "/" + CITY_STOCK_CAP["10,6"] + "；苏军下回合 +1 级补充兵员。",
+  );
+}
+function tulaEvent(side) {
+  const date = eventDate(),
+    samsonov = {
+      original: "Фашистам оставалось овладеть узкой полосой территории в 5 — 6 км, но добиться успеха они не смогли. […] Гудериану так и не удалось полностью окружить Тулу, а затем захватить ее.",
+      translation: "The fascists had only a narrow strip of ground 5 to 6 km wide left to take, but they could not succeed. […] Guderian never managed to encircle Tula completely, [[let alone take it]].",
+      source: "A. M. Samsonov, «Крах фашистской агрессии 1939–1945», 1980, ch. 7",
+    },
+    samsonovZh = {
+      translation: "法西斯只差拿下一条 5 至 6 公里宽的狭长地带，但他们没能成功。[……]古德里安始终没能完全包围图拉，[[更不用说攻占它了]]。",
+      source: "А. М. 萨姆索诺夫《法西斯侵略的破产（1939—1945）》，1980 年，第 7 章",
+    };
+  return "soviet" === side
+    ? {
+        id: "tulaRelieved",
+        army: "soviet",
+        kind: "order",
+        office: "Тульский городской комитет обороны",
+        officeEn: "Tula City Defence Committee",
+        stamp: "Совершенно секретно",
+        slogan: { original: "Смерть немецким оккупантам!", en: "Death to the German occupiers!", zh: "德国占领者必亡！" },
+        place: "Tula",
+        date: date.en,
+        title: "Tula has held out!",
+        text: [
+          "For weeks the enemy tried to take Tula: Guderian's tanks struck from the south, then went round the city to the east and the north to [[close the ring]]. The 50th Army, the Tula workers' regiment and the NKVD troops held every street.",
+          "Now the ring is broken: [[the road and the railway to Moscow are open again]]. Tula, the city of gunsmiths, has not been taken.",
+        ],
+        quotes: [samsonov],
+        options: [{ id: "stands", label: "Тула выстояла! Tula stands", order: "Rest the garrison and fill the stocks.", effects: tulaRules() }],
+        outcomeTitle: ["What happens next", "接下来发生了什么"],
+        history: "Trains come in from Moscow with shells and bread, and the wounded go out. The workshops that repaired guns and tanks all through the siege keep working, and the garrison [[sleeps for the first time in weeks]].",
+        zh: {
+          officeEn: "图拉市国防委员会",
+          place: "图拉",
+          date: date.zh,
+          title: "图拉守住了！",
+          text: [
+            "几个星期以来，敌人一直想拿下图拉：古德里安的坦克先从南面进攻，又从东面和北面绕过城市，想[[合上包围圈]]。第 50 集团军、图拉工人团和内务人民委员部部队守住了每一条街。",
+            "现在包围圈被打破了：[[通往莫斯科的公路和铁路重新畅通]]。兵工之城图拉没有被攻占。",
+          ],
+          quotes: [samsonovZh],
+          options: { stands: { label: "Тула выстояла！图拉屹立不倒", order: "让守军休整，把储备补满。", effects: tulaRulesZh() } },
+          history: "列车从莫斯科运来炮弹和面包，把伤员运出去。整个围城期间一直在修理火炮和坦克的工场继续开工，守军[[几个星期来第一次睡上了觉]]。",
+        },
+      }
+    : {
+        id: "tulaRelieved",
+        army: "german",
+        kind: "order",
+        office: "Panzerarmeeoberkommando 2",
+        officeEn: "Second Panzer Army headquarters",
+        stamp: "Geheime Kommandosache",
+        place: "Tula",
+        date: date.en,
+        title: "Tula is not taken",
+        text: [
+          "The ring around Tula could not be closed: the Russians have reopened the road and the railway to Moscow. The garrison will be relieved and resupplied, and the divisions around the city are [[worn out by weeks of attacks]].",
+        ],
+        quotes: [
+          {
+            original: "Ввиду невозможности взять Тулу с фронта генерал барон фон Гейер предложил обойти город с востока.",
+            translation: "As Tula could not be taken from the front, General Baron von Geyr proposed [[going round the city to the east]].",
+            source: "H. Guderian, «Воспоминания солдата» (Russian edition of his memoirs, 1954), ch. 6",
+          },
+        ],
+        options: [{ id: "ok", label: "Jawohl! Understood", order: "Keep the front around Tula.", effects: tulaRules() }],
+        outcomeTitle: ["What happens next", "接下来发生了什么"],
+        history: "Trains roll into Tula from Moscow. The divisions of the Second Panzer Army dig into the frozen ground around the city, [[short of fuel and of winter clothing]].",
+        zh: {
+          officeEn: "第 2 装甲集团军司令部",
+          place: "图拉",
+          date: date.zh,
+          title: "图拉没有拿下",
+          text: ["图拉周围的包围圈没能合上：俄国人重新打通了通往莫斯科的公路和铁路。守军会得到换防和补给，而城外各师已经[[被几个星期的进攻拖垮了]]。"],
+          quotes: [
+            {
+              translation: "由于无法从正面攻取图拉，盖尔·冯·施韦彭堡男爵将军建议[[从东面绕过这座城市]]。",
+              source: "古德里安《一个士兵的回忆》（俄译本，1954 年），第 6 章",
+            },
+          ],
+          options: { ok: { label: "Jawohl！遵命", order: "守住图拉周围的战线。", effects: tulaRulesZh() } },
+          history: "列车从莫斯科开进图拉。第 2 装甲集团军各师在城外冻硬的地面上挖掘工事，[[燃料和冬装都不够]]。",
+        },
+      };
+}
+function showTulaRelieved() {
+  const outcome = tulaRelievedEffects();
+  showSideDispatches(tulaEvent, ["soviet", "german"], outcome);
+}
+// -------- the partisan war: announced when the first band forms behind the German lines during the game
+function partisanWarStarts() {
+  decisions.partisanWar ||
+    ((decisions.partisanWar = currentTurn.turn),
+    setTimeout(function () {
+      showSideDispatches(partisanEvent, ["soviet", "german"]);
+    }, 900));
+}
+function partisanEvent(side) {
+  const date = eventDate();
+  return "soviet" === side
+    ? {
+        id: "partisanWar",
+        army: "soviet",
+        kind: "order",
+        musicSrc: "audio/partisans_po_dolinam.mp3",
+        office: "Московский комитет ВКП(б)",
+        officeEn: "Moscow Committee of the VKP(b)",
+        stamp: "Совершенно секретно",
+        slogan: { original: "Смерть немецким оккупантам!", en: "Death to the German occupiers!", zh: "德国占领者必亡！" },
+        place: "Moscow",
+        date: date.en,
+        title: "The partisan war flares up",
+        text: [
+          "Behind the German lines the partisans have gone into the forests: Party members, NKVD detachments, men of the destroyer battalions, collective farmers. They blow up bridges and trains, ambush the supply columns and lead our troops round the enemy's flanks.",
+          "The occupiers answer with gallows and burned villages, and every gallows sends more men into the forests. [[The ground burns under the occupiers' feet.]]",
+        ],
+        quotes: [
+          {
+            original: "В занятых врагом районах нужно создавать партизанские отряды, конные и пешие, создавать диверсионные группы для борьбы с частями вражеской армии, для разжигания партизанской войны всюду и везде…",
+            translation: "In the areas occupied by the enemy, partisan detachments, mounted and on foot, must be formed, and sabotage groups created to fight the units of the enemy army, [[to kindle partisan war everywhere]]…",
+            source: "J. V. Stalin, radio address of 3 July 1941",
+          },
+        ],
+        options: [{ id: "strike", label: "За Родину! For the Motherland", order: "Strike the enemy in his rear.", effects: [] }],
+        outcomeTitle: ["What happens next", "接下来发生了什么"],
+        history: "At night the trains of Army Group Centre go off the rails, the trucks burn on the forest roads, and the German garrisons do not leave their villages after dark. [[Every band ties down troops]] the front needs.",
+        zh: {
+          officeEn: "联共（布）莫斯科委员会",
+          place: "莫斯科",
+          date: date.zh,
+          title: "游击战争燃遍敌后",
+          text: [
+            "在德军后方，游击队员们进了森林：党员、内务人民委员部的分队、歼击营的战士、集体农庄庄员。他们炸毁桥梁和火车，伏击补给车队，引导我军绕到敌人的侧翼。",
+            "占领者用绞架和烧毁的村庄来回答，而每一座绞架都把更多的人赶进森林。[[占领者脚下的土地在燃烧。]]",
+          ],
+          quotes: [
+            {
+              translation: "在敌人占领的地区，必须组织骑兵和步兵游击队，组织破坏小组去同敌军部队作斗争，[[到处燃起游击战争]]……",
+              source: "И. В. 斯大林，1941 年 7 月 3 日广播演说",
+            },
+          ],
+          options: { strike: { label: "За Родину！为了祖国", order: "在敌人后方打击敌人。", effects: [] } },
+          history: "夜里，中央集团军群的火车一列列出轨，卡车在林间道路上燃烧，德军守备队天黑后不敢走出村子。[[每一支游击队都牵制着]]前线急需的兵力。",
+        },
+      }
+    : {
+        id: "partisanWar",
+        army: "german",
+        musicSrc: "audio/erika.webm",
+        kind: "order",
+        office: "Befehlshaber des rückwärtigen Heeresgebiets Mitte",
+        officeEn: "Commander of the Rear Area of Army Group Centre",
+        stamp: "Geheim",
+        place: "Smolensk",
+        date: date.en,
+        title: "Bands in the rear area",
+        text: [
+          "Partisan bands attack the supply columns and blow up the railways behind the front. The security divisions are far too few for the forests.",
+          "Under the order of 16 September 1941, fifty to a hundred hostages are to be shot for every German soldier killed. [[The terror only drives more men into the forests.]]",
+        ],
+        options: [{ id: "secure", label: "Jawohl! Understood", order: "Secure the railways and the supply roads.", effects: [] }],
+        outcomeTitle: ["What happens next", "接下来发生了什么"],
+        history: "Guards are doubled on the bridges and the stations, the columns drive only by day and in convoy, and still [[the trains go off the rails]].",
+        zh: {
+          officeEn: "中央集团军群后方地区司令",
+          place: "斯摩棱斯克",
+          date: date.zh,
+          title: "后方地区出现“匪帮”",
+          text: [
+            "游击队袭击补给车队，炸毁前线后方的铁路。保安师的兵力远远不够搜遍这些森林。",
+            "按 1941 年 9 月 16 日的命令，每有一名德军士兵被杀，就要处决 50 到 100 名人质。[[恐怖只把更多的人赶进了森林。]]",
+          ],
+          options: { secure: { label: "Jawohl！遵命", order: "保障铁路和补给道路的安全。", effects: [] } },
+          history: "桥梁和车站的岗哨加了一倍，车队只在白天结队行驶，可[[火车还是一列列出轨]]。",
+        },
+      };
+}
+// -------- a shock army on the map: announced the first time one appears (the 1st Shock Army, or the one the NKVD
+// brigade makes of an army at half strength)
+function shockArmyAppears() {
+  decisions.shockArmy ||
+    ((decisions.shockArmy = currentTurn.turn),
+    setTimeout(function () {
+      showSideDispatches(shockArmyEvent, ["soviet", "german"]);
+    }, 900));
+}
+function shockArmyEvent(side) {
+  const date = eventDate();
+  return "soviet" === side
+    ? {
+        id: "shockArmy",
+        army: "soviet",
+        kind: "order",
+        musicSrc: "audio/artillery_march.webm",
+        office: "Ставка Верховного Главнокомандования",
+        officeEn: "Headquarters of the Supreme High Command",
+        stamp: "Совершенно секретно",
+        slogan: { original: "Наше дело правое. Враг будет разбит. Победа будет за нами!", en: "Our cause is just. The enemy will be beaten. Victory will be ours!", zh: "我们的事业是正义的。敌人必将被击溃。胜利必将属于我们！" },
+        place: "Moscow",
+        date: date.en,
+        title: "A shock army goes into the line",
+        text: [
+          "A shock army has joined the front: an army built not to hold but [[to break the enemy's front]], with more guns, more mortars and more automatic weapons than any other, and the Katyushas of the Guards mortar units.",
+          "Its divisions come from the depths of the country, from the Urals and Siberia. Where it strikes, [[the enemy will not stand]].",
+        ],
+        options: [{ id: "fire", label: "Огонь! Fire", order: "Throw the shock army where the front must be broken.", effects: [] }],
+        outcomeTitle: ["What happens next", "接下来发生了什么"],
+        history: "The trains unload at night; by dawn the guns are dug in and camouflaged with snow. The gunners wait for the order, and [[the order will come]].",
+        zh: {
+          officeEn: "最高统帅部大本营",
+          place: "莫斯科",
+          date: date.zh,
+          title: "突击集团军开上前线",
+          text: [
+            "一个突击集团军加入了前线：它不是用来坚守的，而是用来[[突破敌人战线]]的，火炮、迫击炮和自动武器比任何集团军都多，还配有近卫火箭炮部队的“喀秋莎”。",
+            "它的各师来自祖国的纵深，来自乌拉尔和西伯利亚。它打到哪里，[[敌人就守不住哪里]]。",
+          ],
+          options: { fire: { label: "Огонь！开火", order: "把突击集团军投到必须突破战线的地方。", effects: [] } },
+          history: "列车在夜里卸车；天亮之前，火炮已经挖好阵地，用雪伪装起来。炮手们等着命令，[[命令一定会来]]。",
+        },
+      }
+    : {
+        id: "shockArmy",
+        army: "german",
+        musicSrc: "audio/erika.webm",
+        kind: "order",
+        office: "Oberkommando des Heeres, Abteilung Fremde Heere Ost",
+        officeEn: "German Army High Command, Foreign Armies East (intelligence)",
+        stamp: "Geheime Kommandosache",
+        place: "Ostpreußen",
+        date: date.en,
+        title: "A new Russian shock army",
+        text: [
+          "Prisoners and radio intercepts report a new Russian “shock army” on the central front, strong in artillery and rocket launchers.",
+          "Foreign Armies East had reckoned that the Red Army had [[no reserves left]] worth the name. The estimate must be revised.",
+        ],
+        options: [{ id: "noted", label: "Zur Kenntnis. Noted", order: "Warn the corps facing it.", effects: [] }],
+        outcomeTitle: ["What happens next", "接下来发生了什么"],
+        history: "The corps facing it dig in deeper. Their divisions are at a third of their strength, and [[there is nothing behind them]].",
+        zh: {
+          officeEn: "德国陆军总司令部东线外军处（情报）",
+          place: "东普鲁士",
+          date: date.zh,
+          title: "俄国人新出现一个突击集团军",
+          text: [
+            "俘虏和无线电截收报告：中路战线出现了一个新的俄国“突击集团军”，火炮和火箭炮很多。",
+            "东线外军处原先估计，红军已经[[没有像样的预备队了]]。这个判断必须修正。",
+          ],
+          options: { noted: { label: "Zur Kenntnis！已知悉", order: "通知当面的各军。", effects: [] } },
+          history: "当面的各军把工事挖得更深。他们的师只剩三分之一的兵力，[[身后什么都没有]]。",
+        },
+      };
 }
 // A German unit entering a band's hex sweeps it. The German commander chooses: a full sweep combs the
 // forest until the band is destroyed, at a heavy cost in fatigue (4 points for each strength point of
@@ -2411,11 +3012,7 @@ function standardResult() {
       cityVP(t) +
       "</td></tr>";
   }
-  return {
-    title: o,
-    text:
-      r +
-      "<br /><br />" +
+  const details =
       L("Victory points at the end of Game Turn " + LAST_TURN + ": ", "第 " + LAST_TURN + " 回合结束时的胜利点：") +
       "<strong>" +
       L("Red Army " + e.soviet + ", Germans " + e.german, "红军 " + e.soviet + "，德军 " + e.german) +
@@ -2425,7 +3022,15 @@ function standardResult() {
         : L(".", "。")) +
       '<table class="vp_table">' +
       a +
-      '</table><div class="chronicle_note">' +
+      "</table>";
+  return {
+    title: o,
+    details: details,
+    text:
+      r +
+      "<br /><br />" +
+      details +
+      '<div class="chronicle_note">' +
       L(
         "The battle of Moscow destroyed the myth of the invincibility of the Hitlerite army. Yet, as Marshal Vasilevsky wrote, the general offensive of the winter of 1942 did not completely destroy any of the main German groupings.",
         "莫斯科会战打破了希特勒军队不可战胜的神话。但正如华西列夫斯基元帅所写，1942 年冬季的总攻没有彻底歼灭德军的任何一个主要集团。",
@@ -3393,7 +3998,7 @@ function renderChartSheetA(look) {
     [icon(10, 2), { text: L("Moscow", "莫斯科"), bold: !0 }, none, L("2 columns left against the Soviet garrison; a DR has no effect on it. Once taken: an ordinary town, for both sides", "攻击苏军守军左移 2 栏；DR 对守军无效。一旦被攻占：双方都只按普通城镇算"), L("Garrison safe from aircraft, Soviet cover 2 within 2 hexes. Recovers " + FATIGUE.moscow + "; 5 VP. If the Germans take it, it is a ruin for good (no air defence, stocks or depots), and every Soviet unit gains " + FATIGUE.moscowLost + " fatigue a turn until it is retaken", "守军不受空袭，周围 2 格苏军对空防护 2。恢复 " + FATIGUE.moscow + "；5 胜利点。被德军攻占后永久成为废墟（没有防空、储备和仓库），夺回之前苏军全军每回合 +" + FATIGUE.moscowLost + " 疲劳")],
     [icon(7, 4), { text: L("Defence line", "防线"), bold: !0 }, none, L("1 column left for Soviet defenders only", "仅苏军防守时左移 1 栏"), L("Cover 1 for Soviet units", "苏军对空防护 1")],
     [icon(6, 4), { text: L("River", "河流"), bold: !0 }, none, L("1 column left if all the attackers are across it", "所有进攻部队都隔河时左移 1 栏"), "—"],
-    [icon(5, 2), { text: L("Railway", "铁路"), bold: !0 }, L("Russian rail movement phase (turns 3–4: at most " + EVACUATION_RAIL_LIMIT + " units, the evacuation)", "苏军铁路机动阶段（第 3–4 回合疏散，最多 " + EVACUATION_RAIL_LIMIT + " 支）"), none, L("German supply: within " + RAILHEAD_RANGE + " hexes of a railhead (" + RAILHEAD_RANGE_MUD + " in the mud): Smolensk, Roslavl, from turn " + VYAZMA_RAILHEAD_TURN + " Vyazma", "德军补给：距铁路卸载站 " + RAILHEAD_RANGE + " 格内（泥泞时 " + RAILHEAD_RANGE_MUD + " 格）：斯摩棱斯克、罗斯拉夫利，第 " + VYAZMA_RAILHEAD_TURN + " 回合起加维亚济马")],
+    [icon(5, 2), { text: L("Railway", "铁路"), bold: !0 }, L("Russian rail movement phase: any number of units", "苏军铁路机动阶段：支数不限"), none, L("German supply: within " + RAILHEAD_RANGE + " hexes of a railhead (" + RAILHEAD_RANGE_MUD + " in the mud): Smolensk, Roslavl, from turn " + VYAZMA_RAILHEAD_TURN + " Vyazma", "德军补给：距铁路卸载站 " + RAILHEAD_RANGE + " 格内（泥泞时 " + RAILHEAD_RANGE_MUD + " 格）：斯摩棱斯克、罗斯拉夫利，第 " + VYAZMA_RAILHEAD_TURN + " 回合起加维亚济马")],
     [icon(11, 8, !0), { text: L("Star or cross", "红星或十字"), bold: !0 }, none, none, L("Set-up hexes: Russian (star), German (cross)", "初始部署位置：苏军（红星）、德军（十字）")],
     [badge("3–4"), { text: L("Mud", "泥泞"), bold: !0 }, L("1 hex per move outside the rail phase", "铁路机动以外每次只能走 1 格"), L("Panzer attack strength halved", "装甲部队进攻力减半"), L("Game turns 3 and 4", "第 3、4 回合")],
     [badge(WINTER_START + "–" + LAST_TURN), { text: L("Winter", "冬季"), bold: !0 }, L("Ski troops cross forests at no extra cost", "滑雪部队穿越森林不额外消耗移动力"), L("Forests give no shift against ski troops", "森林对滑雪部队不左移"), L("Germans without winter clothing: +" + FATIGUE.winterOutsideCity + " fatigue a turn outside towns, +" + FATIGUE.winterInTown + " in towns, none in major cities", "德军若无冬装：城外每回合 +" + FATIGUE.winterOutsideCity + " 疲劳，城镇里 +" + FATIGUE.winterInTown + "，大城市里不加")],
@@ -3481,9 +4086,9 @@ function renderChartSheetB(look) {
   yf = chartTable(ctx, look, 375, yf, [70, 100, 105, 105], [L("Points", "点数"), L("State", "状态"), L("Attack", "进攻"), L("Defence", "防御")], lv.map((r) => r.map((t, i) => ({ text: t, align: "center", bold: 1 === i }))), 14, 26);
   yf += 8;
   const gain = [
-    L("Gains: battle +" + FATIGUE.attack + " (attacker) / +" + FATIGUE.defend + " (defender); bombed +" + INTERDICTION_FATIGUE + "; cut off from its map edge +" + FATIGUE.cutOff + ", +" + FATIGUE.ringed + " more if ringed (a besieged city's stocks hold it to +" + FATIGUE.siegeCutOff + "); Germans near a cut railway +" + FATIGUE.railCut + "; sweeping partisans +" + SWEEP_FATIGUE_PER_STRENGTH + " per band strength, driving them off +" + DRIVE_OFF_FATIGUE + "; every Soviet unit +" + FATIGUE.moscowLost + " a turn while Moscow is in German hands.", "增加：战斗 +" + FATIGUE.attack + "（攻方）/ +" + FATIGUE.defend + "（守方）；被空袭 +" + INTERDICTION_FATIGUE + "；交通线被切断 +" + FATIGUE.cutOff + "，被合围再 +" + FATIGUE.ringed + "（被围城市有储备物资时只 +" + FATIGUE.siegeCutOff + "）；德军靠近被切断的铁路 +" + FATIGUE.railCut + "；清剿游击队每级兵力 +" + SWEEP_FATIGUE_PER_STRENGTH + "，驱散 +" + DRIVE_OFF_FATIGUE + "；莫斯科在德军手中期间，苏军全军每回合 +" + FATIGUE.moscowLost + "。"),
+    L("Gains: battle +" + FATIGUE.attack + " (attacker) / +" + FATIGUE.defend + " (defender); bombed +" + INTERDICTION_FATIGUE + "; cut off from its map edge +" + FATIGUE.cutOff + ", +" + FATIGUE.ringed + " more if ringed (a besieged city's stocks hold it to +" + FATIGUE.siegeCutOff + "); Germans near a cut railway +" + FATIGUE.railCut + "; sweeping partisans +" + SWEEP_FATIGUE_PER_STRENGTH + " per band strength, driving them off +" + DRIVE_OFF_FATIGUE + "; every Soviet unit +" + FATIGUE.moscowLost + " a turn while Moscow is in German hands; Germans whose depot is taken +" + DEPOT_LOSS_FATIGUE + "; every German unit +" + MOSCOW_LOST_FATIGUE + " when the Russians retake Moscow.", "增加：战斗 +" + FATIGUE.attack + "（攻方）/ +" + FATIGUE.defend + "（守方）；被空袭 +" + INTERDICTION_FATIGUE + "；交通线被切断 +" + FATIGUE.cutOff + "，被合围再 +" + FATIGUE.ringed + "（被围城市有储备物资时只 +" + FATIGUE.siegeCutOff + "）；德军靠近被切断的铁路 +" + FATIGUE.railCut + "；清剿游击队每级兵力 +" + SWEEP_FATIGUE_PER_STRENGTH + "，驱散 +" + DRIVE_OFF_FATIGUE + "；莫斯科在德军手中期间，苏军全军每回合 +" + FATIGUE.moscowLost + "；补给仓库被夺，靠它补给的德军 +" + DEPOT_LOSS_FATIGUE + "；莫斯科被苏军夺回，德军全军 +" + MOSCOW_LOST_FATIGUE + "。"),
     L("Recovery each turn, if it did not fight: " + FATIGUE.rest + " at rest, " + FATIGUE.idle + " if it moved; " + FATIGUE.rear + " more in the rear (no enemy within " + FATIGUE.rearDistance + " hexes); in a town of its side " + FATIGUE.city + ", a major city " + FATIGUE.majorCity + ", Moscow " + FATIGUE.moscow + " (a town once it has fallen); Russians supplied from the Moscow depots " + FATIGUE.moscowDepots + " more (none once it has fallen).", "每回合恢复（未参战时）：原地休整 " + FATIGUE.rest + "，移动过 " + FATIGUE.idle + "；在后方（" + FATIGUE.rearDistance + " 格内无敌军）再 " + FATIGUE.rear + "；在己方城镇 " + FATIGUE.city + "，大城市 " + FATIGUE.majorCity + "，莫斯科 " + FATIGUE.moscow + "（陷落后按城镇算）；由莫斯科仓库补给的苏军再 " + FATIGUE.moscowDepots + "（陷落后没有）。"),
-    L("No recovery when cut off, raided by partisans, or for Germans beyond railhead range or while Smolensk is lost. Liberating a town: −" + FATIGUE.liberation + ".", "被切断、遭游击队袭扰时不恢复；德军超出铁路卸载站补给范围或斯摩棱斯克失守时也不恢复。解放一座城镇：−" + FATIGUE.liberation + "。"),
+    L("No recovery when cut off, raided by partisans, or for Germans beyond railhead range or while Smolensk is lost. Liberating a town: −" + FATIGUE.liberation + "; taking a German depot: −4 in and next to it; Moscow retaken: −" + MOSCOW_RETAKEN_RELIEF + " for every Soviet unit; Tula relieved: −4 in Tula.", "被切断、遭游击队袭扰时不恢复；德军超出铁路卸载站补给范围或斯摩棱斯克失守时也不恢复。解放一座城镇：−" + FATIGUE.liberation + "；夺取德军补给仓库：城内和相邻格再 −4；夺回莫斯科：苏军全军 −" + MOSCOW_RETAKEN_RELIEF + "；图拉解围：城内 −4。"),
   ];
   for (const t of gain) yf += chartText(ctx, look, "• " + t, 381, yf, 370, 14) + 6;
   // turns
@@ -3815,6 +4420,7 @@ const HISTORY_EVENTS = [
     id: "trains",
     turn: 5,
     army: "german",
+    musicSrc: "audio/erika.webm",
     office: "Oberkommando des Heeres",
     officeEn: "High Command of the Army, Quartermaster General",
     stamp: "Geheime Kommandosache",
@@ -3990,6 +4596,7 @@ const HISTORY_EVENTS = [
     id: "haltOrder",
     turn: 9,
     army: "german",
+    musicSrc: "audio/erika.webm",
     office: "Oberkommando des Heeres",
     officeEn: "High Command of the Army, teletype to Army Group Centre",
     stamp: "Geheime Kommandosache",
@@ -4076,7 +4683,7 @@ const HISTORY_EVENTS = [
         id: "press",
         label: "За Родину! Press on",
         order: "Pursue the enemy relentlessly, give him no respite!",
-        effects: ["No change to the rules: the offensive goes on."],
+        effects: [],
       },
     ],
     ai: "press",
@@ -4199,6 +4806,8 @@ function sloganHtml(slogan) {
 // document on the other; orders as buttons, their effect shown when pointed at (first tap on a touch
 // screen), then what was actually done in 1941
 function showDispatch(event, decide, next) {
+  // an event with its own music plays it as the dispatch opens
+  event.musicSrc && playEndingMusic(event.musicSrc);
   let overlay = document.getElementById("decision_overlay");
   overlay ||
     ((overlay = document.createElement("div")), (overlay.id = "decision_overlay"), document.body.appendChild(overlay));
@@ -4268,6 +4877,10 @@ function showDispatch(event, decide, next) {
   const card = overlay.querySelector(".dispatch"),
     orders = overlay.querySelector(".dispatch_orders"),
     estimate = overlay.querySelector(".dispatch_estimate ul");
+  // an order that changes nothing in the game has no box of effects
+  event.options.every(function (option) {
+    return 0 === optionEffects(event, option).length;
+  }) && (overlay.querySelector(".dispatch_estimate").style.display = "none");
   let pointerType = "mouse",
     armed = null;
   const show = function (option, button) {
@@ -4294,7 +4907,7 @@ function showDispatch(event, decide, next) {
       const outcome = overlay.querySelector(".dispatch_outcome");
       ((outcome.innerHTML =
         '<div class="outcome_title">' +
-        L("What happened in 1941", "1941 年实际发生了什么") +
+        (event.outcomeTitle ? L(event.outcomeTitle[0], event.outcomeTitle[1]) : L("What happened in 1941", "1941 年实际发生了什么")) +
         "</div>" +
         (result.outcome ? '<p class="outcome_now">' + result.outcome + "</p>" : "") +
         "<p>" +
@@ -4604,7 +5217,7 @@ const DISPATCH_ZH = {
         "source": "苏联情报局公报，1941 年 12 月 12 日发布，13 日见报"
       }
     ],
-    options: { press: { label: "За Родину！继续进攻", order: "不停地追击敌人，不给他喘息之机！", effects: ["规则没有变化：攻势继续。"] } },
+    options: { press: { label: "За Родину！继续进攻", order: "不停地追击敌人，不给他喘息之机！", effects: [] } },
     history: "这份公报配上西方面军将领们的照片，刊登在各家报纸上。它宣告了红军在卫国战争中的[[第一次伟大胜利]]。",
     historyQuote: {
       "translation": "德军包围和夺取莫斯科的计划彻底破产了。德军在莫斯科近郊遭到了失败。[[在整个卫国战争中，还没有比这更令我们欢欣的消息]]，也没有比这更重大的消息。",
@@ -4812,6 +5425,7 @@ function drawUnit(e, t, n, i) {
     for (let e = 0; e < b4mUnits.length; e++)
       if (t.id === b4mUnits[e].id) {
         b4mUnits[e].position = { x: t.position.x, y: t.position.y };
+        "shock" === b4mUnits[e].type && "setup" !== currentTurn.phase && shockArmyAppears();
         let n = grid.get(t.position);
         n &&
           n.city &&
@@ -4854,6 +5468,7 @@ function isPendingDestination(e) {
   });
 }
 function finishUnitMove(e) {
+  tulaCheck(!1);
   ((unitsMoving = Math.max(0, unitsMoving - 1)),
     e &&
       (pendingDestinations = pendingDestinations.filter(function (t) {
@@ -6853,7 +7468,7 @@ function reinforcementPhase(e) {
     unitHexes = function () {
       return allHexes()
         .filter(function (e) {
-          return e.sovietReplacement && !lookupUnit(e) && !isEZOC(e, "soviet");
+          return e.sovietReplacement && !lookupUnit(e) && !isEZOC(e, "soviet") && !(e.city && "none" !== e.city && "german" === e.control);
         })
         .sort(function (e, t) {
           return (t.rail ? t.rail.length : 0) - (e.rail ? e.rail.length : 0) || e.y - t.y;
@@ -7153,7 +7768,7 @@ function reinforcementPhase(e) {
         )
           return;
         // a new band organises itself: it acts from the next turn on
-        (partisans.push({ x: e.x, y: e.y, strength: bandStrength, acted: !0 }), partisansLeft--, drawPartisans());
+        (partisans.push({ x: e.x, y: e.y, strength: bandStrength, acted: !0 }), partisansLeft--, drawPartisans(), partisanWarStarts());
       } else {
         if ("actions" !== t) return;
         // clicking another band gives it the orders
@@ -7409,7 +8024,8 @@ function replacementPhase(e) {
         return (
           !("soviet" === currentTurn.army ? t.sovietReplacement : t.germanReplacement) ||
           lookupUnit(t) ||
-          isEZOC(t, currentTurn.army)
+          isEZOC(t, currentTurn.army) ||
+          (t.city && "none" !== t.city && t.control && t.control !== currentTurn.army)
             ? t.city &&
               "none" !== t.city &&
               t.control === currentTurn.army &&
@@ -7759,13 +8375,7 @@ function specialMovementPhase(e) {
       "img/" + currentTurn.army + "_turn_hd.png"));
   const t =
     "soviet" === currentTurn.army
-      ? "All units that begin this phase on a rail line may move along it." +
-        (evacuationRailLimited()
-          ? L(
-              " The railways are full of evacuation trains: at most " + EVACUATION_RAIL_LIMIT + " units may move by rail this turn.",
-              "铁路上挤满了疏散列车：本回合最多 " + EVACUATION_RAIL_LIMIT + " 支部队能沿铁路机动。",
-            )
-          : "")
+      ? "All units that begin this phase on a rail line may move along it."
       : "All armor/panzer units may move.";
   ("" === playAIAs || playAIAs !== currentTurn.army
     ? ((document.getElementById("step_special_movement_tip").innerText =
@@ -7790,8 +8400,7 @@ function specialMovementPhase(e) {
     (handleSpecialMovementClick = function (e) {
       const t = Grid.pointToHex(e.offsetX, e.offsetY);
       "soviet" === currentTurn.army
-        ? (hexSelected || !evacuationRailLimited() || hasMoved.length < EVACUATION_RAIL_LIMIT) &&
-          handleMovement(t, getValidRailDestinations)
+        ? handleMovement(t, getValidRailDestinations)
         : handleMovement(t, getValidPanzerDestinations);
     }));
   "" === playAIAs || playAIAs !== currentTurn.army
@@ -7978,7 +8587,6 @@ function specialMovementPhase(e) {
                 }
                 return e;
               })();
-        "soviet" === currentTurn.army && evacuationRailLimited() && e.splice(EVACUATION_RAIL_LIMIT);
         if (0 === e.length)
           document.getElementById("step_special_movement_tip").innerText =
             t + " But the enemy has decided not to use this capability during this phase.";
@@ -8106,6 +8714,221 @@ function finalResults(e) {
   }
   ((document.querySelector("#final_results > div.hud_title").innerHTML = t),
     (document.getElementById("final_results_tip").innerHTML = n + "<br /><br />" + lossesText() + "."));
+  // the result on the whole screen, in the paper of the side at the table, with its music
+  const plain = String(t).replace(/<[^>]+>/g, "").trim(),
+    lossesLine = isZh() ? zhText(lossesText()) + "。" : lossesText() + ".";
+  tournamentMode
+    ? showEnding(tournamentGrade(o, r), isZh() ? zhText(plain) : plain, (isZh() ? zhText(n) : n) + "<br /><br />" + lossesLine)
+    : showEnding(standardGrade(), plain, standardResult().details + "<br /><br />" + lossesLine);
+}
+// ---------------------------------------------------------------- The end of the game, on the whole screen
+// The result is announced in the paper of the side at the table (for two players at one screen, the side that
+// came out ahead): the Soviet Information Bureau or the communiqué of the Wehrmacht High Command, with its music.
+const ENDING_TEXTS = {
+  soviet: {
+    germanDecisive: [
+      ["Moscow is in the hands of the enemy", "莫斯科落入敌手"],
+      [
+        "The capital has fallen and has not been taken back. Behind the new front east of the city the country is forming new armies: [[the war is not over]], and the Soviet people will take Moscow back.",
+        "首都陷落了，也没能夺回来。在城东的新战线后面，全国正在组建新的集团军：[[战争还没有结束]]，苏联人民一定会把莫斯科夺回来。",
+      ],
+    ],
+    germanMajor: [
+      ["Hard days for the Motherland", "祖国的艰难日子"],
+      [
+        "Moscow stands, but the enemy holds far more of our land than in December 1941. [[Not a step back]]: the reserves of the Stavka are gathering for the next blow.",
+        "莫斯科屹立不倒，但敌人占着的国土比 1941 年 12 月多得多。[[一步也不许后退]]：大本营预备队正在为下一次打击集结。",
+      ],
+    ],
+    germanWin: [
+      ["Moscow stands, and the enemy is still near", "莫斯科屹立，敌人仍在近旁"],
+      [
+        "The capital has held, but the enemy keeps more towns than he did in December 1941. [[The fight for every town goes on.]]",
+        "首都守住了，但敌人占着的城镇比 1941 年 12 月还多。[[为每一座城镇的战斗还在继续。]]",
+      ],
+    ],
+    historical: [
+      ["The German plan to take Moscow has failed", "德军夺取莫斯科的计划破产了"],
+      [
+        "The front stands where it stood in December 1941: Moscow is saved and the German plan to take it has [[failed with a crash]], but the enemy still holds most of the towns.",
+        "战线停在 1941 年 12 月的位置：莫斯科得救了，德军夺取莫斯科的计划[[彻底破产]]，但敌人仍占着大部分城镇。",
+      ],
+    ],
+    sovietWin: [
+      ["Victory of the Red Army!", "红军的胜利！"],
+      [
+        "The Red Army has done better than in December 1941: [[more Soviet towns are freed]] from the fascist yoke.",
+        "红军打得比 1941 年 12 月还要好：[[更多的苏联城镇摆脱了法西斯的枷锁]]。",
+      ],
+    ],
+    sovietDecisive: [
+      ["Decisive victory of the Red Army!", "红军的决定性胜利！"],
+      [
+        "The German-fascist hordes have been routed far beyond what the Red Army achieved in December 1941. [[The rout that began at Moscow rolls on to the west.]]",
+        "德国法西斯匪帮被击溃的程度，远远超过 1941 年 12 月红军的实际战果。[[从莫斯科城下开始的粉碎，正滚滚向西推进。]]",
+      ],
+    ],
+  },
+  german: {
+    germanDecisive: [
+      ["Moscow is taken", "莫斯科已被攻占"],
+      [
+        "Moscow has been taken and held to the end of the battle. The city lies in ruins and its people are left to the famine; the Red Army holds a new front to the east, and [[the war in the East goes on]].",
+        "莫斯科被攻占，并一直守到会战结束。城市成了废墟，居民被丢给饥荒；红军在城东守着新的战线，[[东线的战争还在继续]]。",
+      ],
+    ],
+    germanMajor: [
+      ["The front holds far to the east", "战线远远守在东面"],
+      [
+        "Army Group Centre has held far more ground than it did in 1941. Moscow is not taken, and [[the winter has only begun]].",
+        "中央集团军群守住的地方比 1941 年多得多。莫斯科没有拿下，而[[冬天才刚刚开始]]。",
+      ],
+    ],
+    germanWin: [
+      ["The front holds", "战线守住了"],
+      ["Army Group Centre has held more than it did in 1941, but [[Moscow was not taken]].", "中央集团军群守住的地方比 1941 年多，但[[莫斯科没有拿下]]。"],
+    ],
+    historical: [
+      ["Halted before Moscow", "在莫斯科城下止步"],
+      [
+        "The offensive on Moscow has failed. The army group has been thrown back, its divisions worn out and frozen; [[Hitler takes over the command of the army himself]].",
+        "对莫斯科的攻势失败了。集团军群被击退，各师精疲力竭、冻得半死；[[希特勒亲自接管陆军指挥]]。",
+      ],
+    ],
+    sovietWin: [
+      ["Retreat in the central sector", "中路后撤"],
+      [
+        "In the central sector of the Eastern Front the troops are taking up “shorter lines”, as the communiqués put it: in truth the army group is falling back, and [[more towns are lost than in 1941]].",
+        "东线中路的部队正在按公报的说法“缩短战线”：实际上集团军群在后退，[[丢掉的城镇比 1941 年还多]]。",
+      ],
+    ],
+    sovietDecisive: [
+      ["The front of Army Group Centre is broken", "中央集团军群的战线被突破"],
+      [
+        "The Russians have broken through on a wide front; the army group has been routed far beyond what happened in 1941, and [[its heavy weapons lie abandoned in the snow]].",
+        "俄国人在宽大正面上突破；集团军群溃败的程度远超 1941 年，[[重武器丢弃在雪地里]]。",
+      ],
+    ],
+  },
+};
+// the music of the endings: the Red Army's complete victory, its narrow victory, the historical result, its defeat;
+// the German victory and defeat (a file that is not there is simply not played)
+function endingMusic(paper, grade, won) {
+  return "soviet" === paper
+    ? "sovietDecisive" === grade
+      ? "audio/defenders_hoi4.webm"
+      : "sovietWin" === grade
+        ? "audio/nightingales.webm"
+        : "historical" === grade
+          ? "audio/moscow_defenders.mp3"
+          : "audio/dark_night.webm"
+    : won
+      ? "audio/ss_feindesland.mp3"
+      : "audio/rising_sun_blues.mp3";
+}
+let endingAudio = null;
+function playEndingMusic(src) {
+  (stopAnthem(), endingAudio && endingAudio.pause());
+  if (!soundOn || !src) return;
+  endingAudio = new Audio();
+  // the 1937 field recording of Georgia Turner is much quieter than the others
+  endingAudio.volume = /rising_sun/.test(src) ? 1 : 0.75;
+  fetch(src)
+    .then(function (response) {
+      return response.ok ? response.blob() : Promise.reject();
+    })
+    .then(function (blob) {
+      endingAudio.src = URL.createObjectURL(blob);
+      const playing = endingAudio.play();
+      playing && playing.catch(function () {});
+    })
+    .catch(function () {});
+}
+function standardGrade() {
+  const e = victoryPoints(),
+    t = historicalSovietVP(LAST_TURN),
+    i = null === t ? 0 : e.soviet - t;
+  return "german" === grid.get({ x: 10, y: 2 }).control
+    ? "germanDecisive"
+    : i >= 3
+      ? "sovietDecisive"
+      : i >= 1
+        ? "sovietWin"
+        : 0 === i
+          ? "historical"
+          : i >= -2
+            ? "germanWin"
+            : "germanMajor";
+}
+function tournamentGrade(winner, points) {
+  return "german" === winner ? (points >= 2 ? "germanDecisive" : "germanWin") : points >= 3 ? "sovietDecisive" : "sovietWin";
+}
+function showEnding(grade, resultLabel, details) {
+  const paper = "" !== playAIAs ? ("soviet" === playAIAs ? "german" : "soviet") : 0 === grade.indexOf("german") ? "german" : "soviet",
+    won = 0 === grade.indexOf(paper) || ("historical" === grade && "soviet" === paper),
+    T = ENDING_TEXTS[paper][grade],
+    soviet = "soviet" === paper,
+    photo = soviet
+      ? '<figure class="dispatch_photo"><img src="img/splash_kremlin_1941.jpg" alt="" /><figcaption>' +
+        L("Searchlights and tracer over the Kremlin, 1941", "1941 年，克里姆林宫上空的探照灯和曳光弹") +
+        "</figcaption></figure>"
+      : "";
+  let overlay = document.getElementById("decision_overlay");
+  overlay || ((overlay = document.createElement("div")), (overlay.id = "decision_overlay"), document.body.appendChild(overlay));
+  overlay.innerHTML =
+    '<div class="dispatch_screen ' +
+    paper +
+    (photo ? " with_photo" : "") +
+    '">' +
+    photo +
+    '<div class="dispatch ' +
+    paper +
+    (soviet ? " radio" : " order") +
+    ' ending"><div class="dispatch_inner">' +
+    (soviet ? sovietMasthead() : "") +
+    '<div class="dispatch_head">' +
+    (soviet ? '<div class="soviet_emblem"><span class="se_star">★</span><span class="se_hs">☭</span></div>' : '<img src="img/german_marker.png" />') +
+    '<div class="dispatch_office"><div class="office_original">' +
+    (soviet ? "Советское Информбюро" : "Oberkommando der Wehrmacht") +
+    '</div><div class="office_en">' +
+    (soviet ? L("Soviet Information Bureau, Moscow radio", "苏联情报局，莫斯科广播电台") : L("Wehrmacht High Command: the daily communiqué", "德国国防军最高统帅部：每日公报")) +
+    '</div></div><div class="dispatch_stamp">' +
+    (soviet ? (won ? "В последний час" : "Сообщение") : won ? "Sondermeldung" : "Wehrmachtbericht") +
+    '</div></div><table class="dispatch_meta"><tr><th>' +
+    L("Date", "日期") +
+    "</th><td>" +
+    L(MOSCOW_FALL_DATES[LAST_TURN] + " 1941", TURN_DATES_ZH[LAST_TURN]) +
+    "</td></tr><tr><th>" +
+    L("Result", "结果") +
+    "</th><td>" +
+    resultLabel +
+    '</td></tr></table><div class="dispatch_title">' +
+    L(T[0][0], T[0][1]) +
+    '</div><div class="dispatch_text"><p>' +
+    richText(L(T[1][0], T[1][1])) +
+    '</p><div class="ending_details">' +
+    details +
+    "</div></div>" +
+    (soviet
+      ? sloganHtml(
+          won
+            ? { original: "Наше дело правое — победа будет за нами!", en: "Our cause is just: victory will be ours! (J. V. Stalin)", zh: "我们的事业是正义的——胜利必将属于我们！（И. В. 斯大林）" }
+            : { original: "Смерть немецким оккупантам!", en: "Death to the German occupiers!", zh: "德国占领者必亡！" },
+        )
+      : "") +
+    '<div class="ending_buttons"><button type="button" class="dispatch_continue ending_new">' +
+    L("New game", "新游戏") +
+    '</button><button type="button" class="dispatch_continue ending_map">' +
+    L("Look at the map", "查看地图") +
+    "</button></div></div></div></div>";
+  overlay.style.display = "block";
+  overlay.querySelector(".ending_new").onclick = function () {
+    newGame();
+  };
+  overlay.querySelector(".ending_map").onclick = function () {
+    ((overlay.style.display = "none"), (overlay.innerHTML = ""));
+  };
+  playEndingMusic(endingMusic(paper, grade, won));
 }
 function newGame() {
   (window.localStorage.removeItem("b4mSave"), window.location.reload(!0));
@@ -8820,9 +9643,9 @@ const ZH_PATTERNS = [
   [/The German Army wins (<strong>)?(\d) points?(<\/strong>)? because it controls Tula at the end of Game Turn (\d+)/g, "德军得 $1$2 分$3，因为它在第 $4 回合结束时控制着图拉"],
   [/The Red Army wins (<strong>)?(\d) points?(<\/strong>)? because it controls Moscow and Tula at the end of Game Turn (\d+)/g, "红军得 $1$2 分$3，因为它在第 $4 回合结束时控制着莫斯科和图拉"],
   [/The Red Army wins (<strong>)?(\d) points?(<\/strong>)? because it controls Moscow at the end of Game Turn (\d+)/g, "红军得 $1$2 分$3，因为它在第 $4 回合结束时控制着莫斯科"],
-  [/The Germans get an extra point because they have 12 or more Panzer steps on the map at the end of the game, bringing their total to (<strong>)?(\d+)/g, "游戏结束时德军在地图上有 12 级或更多装甲部队，多得 1 分，总分 $1$2"],
+  [/The Germans get an extra point because they have 12 or more Panzer steps on the map at the end of the game, bringing their total to (<strong>)?(\d+) points(<\/strong>)?\./g, "游戏结束时德军在地图上有 12 级或更多装甲部队，多得 1 分，总分 $1$2 分$3。"],
   [/Although they lost, the Germans get (<strong>)?1 point(<\/strong>)? because they have 12 or more Panzer steps on the map at the end of the game\./g, "虽然输了，但游戏结束时德军在地图上有 12 级或更多装甲部队，得 $11 分$2。"],
-  [/The Red Army gets an extra point because the Germans have 7 or fewer Panzer steps on the map at the end of the game, bringing the Red Army's total to (<strong>)?(\d+)/g, "游戏结束时德军在地图上的装甲部队不超过 7 级，红军多得 1 分，总分 $1$2"],
+  [/The Red Army gets an extra point because the Germans have 7 or fewer Panzer steps on the map at the end of the game, bringing the Red Army's total to (<strong>)?(\d+) points(<\/strong>)?\./g, "游戏结束时德军在地图上的装甲部队不超过 7 级，红军多得 1 分，总分 $1$2 分$3。"],
   [/Although they lost, the Red Army gets (<strong>)?1 point(<\/strong>)? because the Germans have 7 or fewer Panzer steps on the map at the end of the game\./g, "虽然输了，但游戏结束时德军在地图上的装甲部队不超过 7 级，红军得 $11 分$2。"],
   [/: (\d+) German, (\d+) Russian cut off/g, "：$1 支德军、$2 支苏军被切断"],
 ];

@@ -808,6 +808,27 @@ html[lang="zh-CN"] #splash_chronicle .chron_head {
     background: #4a3d28;
 }
 
+/* the end of the game, on the whole screen */
+.dispatch.ending .ending_details {
+    margin-top: 12px;
+}
+
+.dispatch.ending .vp_table {
+    margin: 8px 0;
+}
+
+.dispatch.ending .ending_buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin: 18px 0 6px;
+}
+
+.dispatch.ending .ending_buttons .dispatch_continue {
+    padding: 10px 26px;
+    font-size: 1.05em;
+}
+
 /* the radio bulletin */
 .dispatch.radio {
     color: #f2e6c0;
