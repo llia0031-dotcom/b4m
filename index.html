@@ -325,9 +325,9 @@
         <li><strong>Recovering</strong> (at the start of the unit's turn, only if it is in communication and not near a cut railway): -1 if it neither attacked nor was attacked since its previous turn, -2 instead if it also did not move (rest); -1 more if it is in the rear, with no enemy unit within 3 hexes (for the Germans, no partisan band within 2 hexes either); and in a city controlled by its side, -1 more in a town and -2 more in Moscow or Tula (a fallen Moscow counts as a town). A unit resting in the rear in Moscow thus loses 5 points a turn, one resting at the front 2. A replacement that brings it back to full strength removes all its fatigue, and a replacement step spent on a full-strength unit in communication clears all its fatigue: useful when no unit is off the map to be rebuilt.</li>
         <li><strong>Level 1, tired</strong>: no effect on combat yet, in attack or in defence: it is a warning.</li>
         <li><strong>Level 2, exhausted</strong>: the unit attacks at half its strength, but still defends at full strength; when a battle with exhausted attackers ends in DE or DRL, the most exhausted attacker loses 1 step as well.</li>
-        <li><strong>Level 3, broken</strong>: it cannot attack; it defends at 2/5 of its strength, and a DR result against it becomes DRL.</li>
+        <li><strong>Level 3, broken</strong>: it cannot attack; it defends at half its strength, and a DR result against it becomes DRL.</li>
       </ul>
-      <p>In the battle table, a side weakened by fatigue shows its full strength struck through, then, in orange, the strength it really fights with (point at it for the details): for example two exhausted armies of 4 attacking show <s>8</s> 4, and a broken army of 10 defending shows <s>10</s> 4 (2/5 of 10). The odds are worked out with the reduced strength, so fatigue changes the odds only when it pushes them under a column.</p>
+      <p>In the battle table, a side weakened by fatigue shows its full strength struck through, then, in orange, the strength it really fights with (point at it for the details): for example two exhausted armies of 4 attacking show <s>8</s> 4, and a broken army of 10 defending shows <s>10</s> 5 (half of 10). The odds are worked out with the reduced strength, so fatigue changes the odds only when it pushes them under a column.</p>
       <h4>Stocks of the major cities</h4>
       <p>Moscow (up to 4 stock points) and Tula (up to 3) stockpile supplies for their garrison: at the start of the owner's turn the city gains 1 stock point if it is in communication and no enemy unit is within 2 hexes. Both start the game full. A garrison cut off in such a city lives on the stocks: as long as they last, it gains only +1 fatigue per turn (+2 if completely surrounded) and uses 1 stock point per turn (2 if completely surrounded). A city that changes hands loses its stocks; Moscow, once it has fallen, has none any more. The Supply layer shows the stocks next to the city, a completely surrounded unit with a solid red frame, and a garrison living on its stocks with an orange frame.</p>
       <h4>Air superiority and interdiction</h4>
@@ -346,8 +346,8 @@
         <li><strong>Railheads</strong>: Smolensk; Roslavl, the depot behind the southern half of the front (Gomel and Vitebsk, the other two depots, lie off the map); and from turn 4 (1 November; the converted line was used as far as Vyazma from 23 October) Vyazma. Roslavl and Vyazma count while they are German-held and in communication. A German unit more than 6 hexes from the nearest railhead (4 in the mud of turns 3 and 4) cannot recover fatigue at the start of its turn: the truck columns cannot keep up. The Supply layer frames these units in gold dashes and labels the railheads.</li>
         <li>While Smolensk is lost or cut off from the west map edge, no German unit recovers fatigue and the Germans get no replacements, until it is retaken or reconnected.</li>
       </ul>
-      <h4>Moscow, the distribution station of the fronts</h4>
-      <p>Ten railway lines met in Moscow, and most of the supplies for the Western Front were sent there first and distributed from its stations: "in fact Moscow was the distribution station", wrote I. V. Kovalev. On 15 October 1941 the government and the People's Commissariat of Defence left for Kuibyshev and the General Staff for Arzamas, 498 factories were evacuated, and stations further east (Ivanovo, Vladimir, Ryazan) took part of the load; but the front depots stayed in and around Moscow, with 57 hospitals in the city. Moscow is a class of its own, until it falls:</p>
+      <h4>Moscow, the regulating station of the fronts</h4>
+      <p>Ten railway lines met in Moscow, and most of the supplies for the Western Front were sent there first and distributed from its stations: "in essence Moscow was the regulating station", wrote I. V. Kovalev. On 15 October 1941 the government and the People's Commissariat of Defence left for Kuibyshev and the General Staff for Arzamas, 498 factories were evacuated, and stations further east (Ivanovo, Vladimir, Ryazan) took part of the load; but the front depots stayed in and around Moscow, with 57 hospitals in the city. Moscow is a class of its own, until it falls:</p>
       <ul>
         <li><strong>The defences of the capital</strong>: an attack on the Russian garrison of Moscow loses two odds columns instead of one, and the garrison never retreats: a DR has no effect, and a DRL or an exchange costs it a step without a retreat.</li>
         <li><strong>Depots and hospitals</strong>: while Moscow is Russian and in communication, Russian units in it recover 3 more fatigue points instead of 2, and Russian units 1 or 2 hexes from it recover 1 more point.</li>
@@ -392,9 +392,9 @@
       <div id="help_chronicle_list"></div>
       <p style="font-size: 0.9em;">Sources: A. M. Samsonov's history of the battle of Moscow (militera.lib.ru/h/samsonov2); the General Staff study of the Moscow operation of the Western Front, 16 November 1941 - 31 January 1942, edited by B. M. Shaposhnikov (1943).</p>
       <div id="help_terrain" class="help_section_title">Terrain and Combat</div>
-      <img id="help_terrain_img" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" class="help_img terrain_chart" />
+      <div id="help_terrain_img" class="help_charts terrain_chart"></div>
       <div id="help_crt" class="help_section_title">Air Power, Fatigue and the Turns</div>
-      <img id="help_crt_img" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" class="help_img crt_chart" />
+      <div id="help_crt_img" class="help_charts crt_chart"></div>
       </div>
       <div id="help_toc_zh" class="help_zh" style="display: none;">
         <a href="#zh_sequence">回合顺序</a> |
@@ -419,8 +419,8 @@
       </ol>
       <h4>苏军回合</h4>
       <ol start="5">
-        <li><strong>苏军补充阶段</strong>：苏军获得补充兵（第 4 回合另有 1 支援军）。</li>
-        <li><strong>苏军（特殊）铁路移动阶段</strong>：本阶段开始时位于铁路上的所有苏军部队可以沿铁路移动。</li>
+        <li><strong>苏军补充阶段</strong>：苏军获得补充兵（第 4 回合另有一支增援部队）。</li>
+        <li><strong>苏军（特殊）铁路机动阶段</strong>：本阶段开始时位于铁路上的所有苏军部队可以沿铁路移动。</li>
         <li><strong>苏军战斗阶段</strong>：所有苏军部队可以进攻。</li>
         <li><strong>苏军移动阶段</strong>：所有苏军部队可以移动（包括在第 6 阶段已经沿铁路移动过的部队）。</li>
       </ol>
@@ -429,7 +429,7 @@
         <h4>……添加战斗</h4>
         <img src="img/help_add_battles.png" style="float: right; padding-left: 10px;"/>
         <p>进入战斗阶段后，点击你想进攻的敌方部队。</p>
-        <p>每点一个防守部队，所有能参加进攻的部队都会高亮，战斗比例会自动计算并显示在面板上。</p>
+        <p>每点一个防守部队，所有能参加进攻的部队都会高亮，兵力比会自动计算并显示在面板上。</p>
         <p>点击 <i class="fa fa-plus-circle" aria-hidden="true"></i> 把这场战斗加入下一步要结算的列表，然后继续选择本回合的其他战斗。</p>
       </div>
       <div style="display: inline-block;">
@@ -449,16 +449,16 @@
       <ul>
         <li><strong>地图上</strong>（疲劳图层）：每一级一格；不满一级的点数按比例填进下一格。</li>
         <li><strong>疲劳增加</strong>：每进攻一次 +1，每被进攻一次 +1（结果为 NE 时除外）；每个回合开始时如果被切断与地图边缘的联系 +3（如果被完全包围，即周围每个格子都是敌军或在敌方控制区内，再 +2）；德军部队在被游击队炸断的铁路 2 格内 +1；冬季没有冬装的德军（见“指挥决策”）在城镇外每回合 +2，在莫斯科、图拉和斯摩棱斯克以外的城镇里 +1（陷落后的莫斯科按城镇算）。莫斯科在德军手中期间，苏军每支部队在每个苏军回合开始时 +1，直到夺回莫斯科。</li>
-        <li><strong>疲劳恢复</strong>（在该部队所属一方的回合开始时，只有在交通线上、且不在被炸断的铁路附近时才恢复）：自上一回合以来既没有进攻也没有被进攻 -1；如果也没有移动（休整）则改为 -2；在后方（3 格内没有敌军部队；德军还要求 2 格内没有游击队）再 -1；在己方控制的城市里，小城镇再 -1，莫斯科和图拉再 -2（陷落后的莫斯科按城镇算）。所以在莫斯科后方休整的部队每回合恢复 5 点，在前线休整只恢复 2 点。补充兵把部队恢复到满编时，清除它的全部疲劳；一个补充兵步数用在一支有补给的满编部队上，可清除它的全部疲劳：在没有被消灭的部队需要重建时很有用。</li>
+        <li><strong>疲劳恢复</strong>（在该部队所属一方的回合开始时，只有在交通线上、且不在被炸断的铁路附近时才恢复）：自上一回合以来既没有进攻也没有被进攻 -1；如果也没有移动（休整）则改为 -2；在后方（3 格内没有敌军部队；德军还要求 2 格内没有游击队）再 -1；在己方控制的城市里，小城镇再 -1，莫斯科和图拉再 -2（陷落后的莫斯科按城镇算）。所以在莫斯科后方休整的部队每回合恢复 5 点，在前线休整只恢复 2 点。补充兵把部队恢复到满编时，清除它的全部疲劳；一级补充兵员用在一支有补给的满编部队上，可清除它的全部疲劳：在没有被消灭的部队需要重建时很有用。</li>
         <li><strong>1 级，疲劳</strong>：进攻和防守都还不受影响，只是一个警告。</li>
         <li><strong>2 级，疲惫</strong>：进攻时只有一半兵力，防守时仍是满兵力；有疲惫部队参加的进攻如果结果是 DE 或 DRL，最疲惫的进攻部队也要损失 1 级。</li>
-        <li><strong>3 级，崩溃</strong>：不能进攻；防守时只有 2/5 兵力，对它的 DR 结果变成 DRL。</li>
+        <li><strong>3 级，崩溃</strong>：不能进攻；防守时只有一半兵力，对它的 DR 结果变成 DRL。</li>
       </ul>
-      <p>在战斗表里，因疲劳而削弱的一方会把原兵力划掉，后面用橙色显示实际参战的兵力（鼠标放上去看详细说明）：例如两个疲惫的 4 兵力集团军进攻时显示 <s>8</s> 4，一个崩溃的 10 兵力集团军防守时显示 <s>10</s> 4（10 的 2/5）。比例按削弱后的兵力计算，所以只有当疲劳让比例掉到下一栏时，才会影响战斗比例。</p>
+      <p>在战斗表里，因疲劳而削弱的一方会把原兵力划掉，后面用橙色显示实际参战的兵力（鼠标放上去看详细说明）：例如两个疲惫的 4 兵力集团军进攻时显示 <s>8</s> 4，一个崩溃的 10 兵力集团军防守时显示 <s>10</s> 5（10 的一半）。比例按削弱后的兵力计算，所以只有当疲劳让比例掉到下一栏时，才会影响兵力比。</p>
       <h4>大城市的储备</h4>
       <p>莫斯科（最多 4 点储备）和图拉（最多 3 点）为守军囤积物资：在控制方回合开始时，如果城市在交通线上、且 2 格内没有敌军，就增加 1 点储备。游戏开始时两城都是满的。被切断在这类城市里的守军靠储备生活：只要储备还在，每回合只加 +1 疲劳（被完全包围时 +2），并消耗 1 点储备（被完全包围时 2 点）。城市易手时储备清零；莫斯科一旦陷落就再也没有储备。补给图层会在城市旁显示储备，用红色实线框标出被完全包围的部队，用橙色框标出靠储备生活的守军。</p>
       <h4>制空权与空中遮断</h4>
-      <p>双方在莫斯科方向的空中力量显示在回合栏的日期下面（鼠标放上去看详情）。在移动阶段（包括铁路机动和装甲部队特别移动）以及战斗后的撤退中（推进不算），每支移动的部队都要面对敌机：按它这次行军中最暴露的一格计算，掷一个骰子，点数不超过“敌方空中力量减去掩护”就被炸，当场 +2 疲劳（部队旁会标一个爆炸图标，直到这个阶段结束）。掩护：森林、城镇、苏军在防线上为 1；大城市、苏军在莫斯科 2 格内（莫斯科防空）为 2；莫斯科城里的苏军不会被炸。莫斯科一旦陷落就只算普通城镇，没有防空。</p>
+      <p>双方在莫斯科方向的空中力量显示在回合栏的日期下面（鼠标放上去看详情）。在移动阶段（包括铁路机动和装甲部队特别移动）以及战斗后的撤退中（推进不算），每支移动的部队都要面对敌机：按它这次行军中最暴露的一格计算，掷一个骰子，点数不超过“敌方空中力量减去对空防护”就被炸，当场 +2 疲劳（部队旁会标一个爆炸图标，直到这个阶段结束）。对空防护：森林、城镇、苏军在防线上为 1；大城市、苏军在莫斯科 2 格内（莫斯科防空）为 2；莫斯科城里的苏军不会被炸。莫斯科一旦陷落就只算普通城镇，没有防空。</p>
       <ul>
         <li><strong>第 1、2 回合：德国空军 3，苏联空军 1。</strong>台风行动头五天，第 2 航空队出动 4000 多架次；10 月 10 日出动 537 架次，攻击从维亚济马包围圈突围的西方面军。</li>
         <li><strong>第 3、4 回合：德国空军 1，苏联空军 2。</strong>德军前进机场陷在泥泞里，苏联空军则从莫斯科周围的永久机场起飞。</li>
@@ -467,22 +467,22 @@
         <li><strong>第 8 回合：德国空军 1，苏联空军 3；第 9 回合：德国空军 1，苏联空军 4。</strong>反攻开始时苏军约 1000 架飞机对德军约 600 架；苏方文献称 12 月 5 日起夺得战役制空权，撤退中堵在路上的德军纵队日夜遭到轰炸。</li>
       </ul>
       <h4>斯摩棱斯克：德军补给基地</h4>
-      <p>1941 年 8 月 16 日，德国标准轨距铁路修到斯摩棱斯克。此后它是中央集团军群的主要前进基地：火车在这里卸车，再由卡车把一切运往前线，到 11 月要运 250 到 300 公里。为“台风”行动，集团军群在戈梅利、罗斯拉夫利、斯摩棱斯克和维捷布斯克建了补给仓库（K. 赖因哈特）；要补满这些仓库，9 月每天需要 27 列火车，10 月 29 列，实际 9 月底和 10 月每天只到 22 列，11 月 20 列。斯摩棱斯克单独成一档：</p>
+      <p>1941 年 8 月 16 日，德国标准轨距铁路修到斯摩棱斯克。此后它是中央集团军群的主要前进基地：火车在这里卸车，再由汽车运输纵队把一切前送，到 11 月要运 250 到 300 公里。为“台风”行动，集团军群在戈梅利、罗斯拉夫利、斯摩棱斯克和维捷布斯克建了补给仓库（K. 赖因哈特）；要补满这些仓库，9 月每天需要 27 列火车，10 月 29 列，实际 9 月底和 10 月每天只到 22 列，11 月 20 列。斯摩棱斯克单独成一档：</p>
       <ul>
-        <li>防守按大城市算（进攻方战斗比例减 1 栏，满编守军遇到 DR 改为损失一级、不撤退）。德军在城里冬天不加疲劳，恢复按莫斯科、图拉算。值 3 个胜利点，游击队不能在城里起义。</li>
-        <li><strong>铁路终点站</strong>：斯摩棱斯克；罗斯拉夫利，战线南半部后方的补给仓库（另外两个仓库戈梅利和维捷布斯克在地图外）；第 4 回合（11 月 1 日；改轨的铁路 10 月 23 日起通到维亚济马）起还有维亚济马。罗斯拉夫利和维亚济马要在德军手里并且在交通线上才算。离最近的铁路终点站超过 6 格（第 3、4 回合泥泞时超过 4 格）的德军，回合开始时不能恢复疲劳：卡车运不过来。补给图层用金色虚线框标出这些部队，并标出铁路终点站。</li>
+        <li>防守按大城市算（兵力比左移 1 栏，满编守军遇到 DR 改为损失一级、不撤退）。德军在城里冬天不加疲劳，恢复按莫斯科、图拉算。值 3 个胜利点，游击队不能在城里起义。</li>
+        <li><strong>铁路卸载站</strong>：斯摩棱斯克；罗斯拉夫利，战线南半部后方的补给仓库（另外两个仓库戈梅利和维捷布斯克在地图外）；第 4 回合（11 月 1 日；改轨的铁路 10 月 23 日起通到维亚济马）起还有维亚济马。罗斯拉夫利和维亚济马要在德军手里并且在交通线上才算。离最近的铁路卸载站超过 6 格（第 3、4 回合泥泞时超过 4 格）的德军，回合开始时不能恢复疲劳：汽车运输跟不上。补给图层用金色虚线框标出这些部队，并标出铁路卸载站。</li>
         <li>斯摩棱斯克失守或与西边地图边缘的联系被切断期间，所有德军都不能恢复疲劳，德军也没有补充兵，直到夺回或重新接通。</li>
       </ul>
-      <h4>莫斯科：前线的分配站</h4>
-      <p>十条铁路在莫斯科交汇，西方面军的大部分补给先运到莫斯科，再从这里的各个车站分发出去。科瓦廖夫写道：“实际上莫斯科就是分配站。”1941 年 10 月 15 日，政府和国防人民委员部迁往古比雪夫，总参谋部迁往阿尔扎马斯，498 个工厂疏散，更东边的车站（伊万诺沃、弗拉基米尔、梁赞）分担了一部分转运；但方面军的仓库仍留在莫斯科城内和周边，城里开设了 57 所医院。莫斯科在陷落之前单独成一档：</p>
+      <h4>莫斯科：方面军调配站</h4>
+      <p>十条铁路在莫斯科交汇，西方面军的大部分补给先运到莫斯科，再从这里的各个车站分发出去。科瓦廖夫写道：“莫斯科实际上就是方面军的调配站。”1941 年 10 月 15 日，政府和国防人民委员部迁往古比雪夫，总参谋部迁往阿尔扎马斯，498 个工厂疏散，更东边的车站（伊万诺沃、弗拉基米尔、梁赞）分担了一部分转运；但方面军的仓库仍留在莫斯科城内和周边，城里开设了 57 所医院。莫斯科在陷落之前单独成一档：</p>
       <ul>
-        <li><strong>首都的防御</strong>：进攻莫斯科的苏军守军要减 2 栏而不是 1 栏，而且守军决不后退：DR 无效，DRL 或交换只损失一级、不撤退。</li>
+        <li><strong>首都的防御</strong>：进攻莫斯科的苏军守军时兵力比左移 2 栏而不是 1 栏，而且守军决不后退：DR 无效，DRL 或交换只损失一级、不撤退。</li>
         <li><strong>仓库和医院</strong>：莫斯科在苏军手里并且在交通线上时，城里的苏军每回合额外恢复 3 点疲劳（而不是 2 点），离莫斯科 1–2 格的苏军每回合多恢复 1 点。</li>
         <li><strong>大疏散</strong>：第 3、4 回合铁路上挤满疏散列车（高尔基方向的车流里疏散货物最多占 80%），铁路机动阶段最多只有 2 支苏军部队能沿铁路机动。</li>
-        <li><strong>莫斯科失守</strong>：苏军弃城前按国防委员会 10 月 15 日的命令炸毁工厂、仓库和地铁，德军进城后着手把城市夷为平地。从此莫斯科永久成为废墟，不管谁占着都只算普通城镇：没有首都的防御（不再多减 1 栏，DR 照常有效），没有防空，没有储备，没有仓库，也不再能在交通线外接收苏军补充兵。城里的德军得不到城市的恢复加成。莫斯科在德军手中期间，苏军每支部队在每个苏军回合开始时 +1 疲劳，直到夺回莫斯科。莫斯科仍值 5 个胜利点。陷落时会为双方各弹出一份全屏文书。</li>
+        <li><strong>莫斯科失守</strong>：苏军弃城前按国防委员会 10 月 15 日的命令炸毁工厂、仓库和地铁，德军进城后着手把城市夷为平地。从此莫斯科永久成为废墟，不管谁占着都只算普通城镇：没有首都的防御（兵力比不再多左移 1 栏，DR 照常有效），没有防空，没有储备，没有仓库，也不再能在交通线外接收苏军补充兵。城里的德军得不到城市的恢复加成。莫斯科在德军手中期间，苏军每支部队在每个苏军回合开始时 +1 疲劳，直到夺回莫斯科。莫斯科仍值 5 个胜利点。陷落时会为双方各弹出一份全屏文书。</li>
       </ul>
       <h4>解放城市</h4>
-      <p>敌方部队进入一座城市，这座城市就易手；撤退时路过的城市不会因此易手。德军只有在守住城市时才控制它：一旦苏军的进攻消灭或赶走了德军守军，这座城市立即回到苏军手中，即使没有苏军部队推进进去，德军也不能再在那里补充兵力。在苏军回合中夺回德军占领的城市，就是解放：苏军在下一个补充阶段多得 1 个补充兵步数，解放它的部队疲劳降一级。</p>
+      <p>敌方部队进入一座城市，这座城市就易手；撤退时路过的城市不会因此易手。德军只有在守住城市时才控制它：一旦苏军的进攻消灭或赶走了德军守军，这座城市立即回到苏军手中，即使没有苏军部队推进进去，德军也不能再在那里补充兵力。在苏军回合中夺回德军占领的城市，就是解放：苏军在下一个补充阶段多得 1 级补充兵员，解放它的部队疲劳降一级。</p>
       <div id="zh_winter" class="help_section_title">冬季反攻</div>
       <p>游戏一直打到苏军冬季反攻，在<strong>第 9 回合</strong>（1941 年 12 月 15 日）后结束。第 8 和第 9 回合是冬季回合。</p>
       <h4>第 8 回合：大本营预备队投入战斗</h4>
@@ -494,15 +494,15 @@
       <h4>骑兵</h4>
       <p>骑兵军在一个阶段里进入第一个敌方控制区格子后还可以继续移动，但进入第二个时必须停下。</p>
       <h4>滑雪加强的集团军</h4>
-      <p>冬季回合里，有滑雪营加强的集团军进入森林格只需 1 点移动力；只要有一个滑雪加强的集团军参加进攻，森林就不降低战斗比例。集团军被消灭时，滑雪营也随之失去。</p>
+      <p>冬季回合里，有滑雪营加强的集团军进入森林格只需 1 点移动力；只要有一个滑雪加强的集团军参加进攻，森林就不再使兵力比左移。集团军被消灭时，滑雪营也随之失去。</p>
       <h4>游击队</h4>
       <p>台风行动开始之前，游击队就已经在战斗了。苏联档案记载，1941 年夏天起就有游击队在德军后方作战：游戏开始时地图上有两支力量为 2 的游击队，一支是布良斯克以西森林里的克林齐游击队（0109 格），一支是斯摩棱斯克州和加里宁州交界处的«阿列克谢»游击队（地图西北角的 0101 格）。还有一些游击队是预先留下的，事先在森林里选好了基地：德军攻占<strong>布良斯克</strong>（力量 2）、<strong>维亚济马</strong>、<strong>勒热夫</strong>或<strong>莫扎伊斯克</strong>（力量 1）后，在下一个苏军增援步骤开始时，该城的游击队进入 2 格内最近的、不与德军相邻的空森林格，从再下一回合起行动。如果红军先把城市夺回来，这支游击队就留在原地不动。</p>
       <p>游击队在德军后方（与苏军交通线隔断，或比德军前沿离莫斯科更远）、不与德军相邻的空森林格里组建，初始力量 1（最多 3；第 3 回合空投的 NKVD 分队为 2）。德军的交通线不能穿过游击队所在的格子（游击队没有控制区：它周围的格子不妨碍德军的补给和移动），而位于游击队格子或其相邻格子的苏军部队算作在交通线上。每个苏军回合开始时，每支不是刚组建的游击队可以采取一个行动（在地图上点击某支游击队给它下令）：</p>
       <ul>
         <li><strong>伏击</strong>：伏击 2 格内一支德军部队的补给车队：它每受游击队 1 点力量的伏击就增加 2 点疲劳（力量 3 的游击队一次就让它进入“疲劳”），并且在下一个德军回合开始时不能恢复疲劳。</li>
         <li><strong>破坏铁路</strong>：炸毁 1 格内某个格子的铁路（红叉），切断德军补给线。在本游戏中只有苏军能沿铁路移动，但德军靠铁路运送弹药、燃料和口粮：在接下来的两个德军回合里，被炸点 2 格内的德军部队在回合开始时 +1 疲劳，并且不能恢复。</li>
-        <li><strong>为大军带路</strong>：本回合苏军进攻该游击队 1 格内的德军部队时，战斗比例 +1 栏。</li>
-        <li><strong>城中起义</strong>：2 格内一座德军控制的城镇，城里及其相邻格都没有德军，并且该城 2 格内的游击队力量合计 3 点或以上时可以发动。掷一个骰子：点数不超过游击队总力量（最多算 5）时，城镇起义成功，变为苏军控制（插上红旗，苏军 +1 个补充兵步数）；否则每支参加的游击队损失 1 点力量。德军部队进入该城镇即可收复。</li>
+        <li><strong>为大军带路</strong>：本回合苏军进攻该游击队 1 格内的德军部队时，兵力比右移 1 栏。</li>
+        <li><strong>城中起义</strong>：2 格内一座德军控制的城镇，城里及其相邻格都没有德军，并且该城 2 格内的游击队力量合计 3 点或以上时可以发动。掷一个骰子：点数不超过游击队总力量（最多算 5）时，城镇起义成功，变为苏军控制（插上红旗，苏军 +1 级补充兵员）；否则每支参加的游击队损失 1 点力量。德军部队进入该城镇即可收复。</li>
         <li><strong>转移</strong>到 2 格内的空森林格，或<strong>扩编</strong>（+1 力量，只有在 2 格内没有德军时才行）。</li>
       </ul>
       <p>德军也会反击：德军部队进入游击队所在的格子会进行清剿，由德军玩家选择方式：<strong>全面清剿</strong>能消灭这支游击队，但游击队每有 1 点力量，部队就增加 4 点疲劳；<strong>驱散</strong>只增加 2 点疲劳，但游击队只损失 1 点力量，幸存者逃进 2 格内不与德军相邻的森林（没有这样的森林就被打散）。另外，每个德军回合开始时，与德军相邻的游击队损失 1 点力量。1941 年占领当局以大规模恐怖回应游击队：1941 年 9 月 16 日的一道命令规定，每有一名德军士兵被杀，就处决 50 到 100 名人质。恐怖只让游击运动越来越广。</p>
@@ -511,7 +511,7 @@
       <div id="zh_decisions" class="help_section_title">指挥决策与天气</div>
       <p>在战役的关键时刻，你坐到最高统帅部大本营、总参谋部、内务人民委员部或德国陆军总司令部的办公桌前，决定那些地图上的部队自己决定不了的事：铁路运力、一个特种旅、一次阅兵、战略预备队、希特勒的命令。在那一方的回合开始之前，一份全屏电报会配上当时的文件和广播，介绍当时的形势。<strong>把鼠标放在命令上</strong>（触屏上点一下），可以看到它对游戏的确切影响，再点击就下达命令；之后电报会告诉你 1941 年实际是怎么做的。由电脑操纵的一方会按史实选择，并用横幅宣布。已经做出的决策列在回合报告里（点击回合栏）。电报里的重点词句用红铅笔划了出来。</p>
       <p>12 月 5 日和 6 日的反攻（第 8 回合）以及 12 月 13 日的电台公报（第 9 回合）也用同样的方式宣布，只有一个命令可选。</p>
-      <p>冬装：中央集团军群每天需要约 26 到 30 列火车，而它的铁路终点站每天只收到 8 到 10 列。近两百万人的毛织衣物和手套，每人约 5 公斤，共约 1 万吨，约合 20 列 500 吨的火车，相当于前线两天的全部到货。在游戏里，选择冬装优先要付出两个回合的德军补充兵。</p>
+      <p>冬装：中央集团军群每天需要约 26 到 30 列火车，而它的铁路卸载站每天只收到 8 到 10 列。近两百万人的毛织衣物和手套，每人约 5 公斤，共约 1 万吨，约合 20 列 500 吨的火车，相当于前线两天的全部到货。在游戏里，选择冬装优先要付出两个回合的德军补充兵。</p>
       <div id="help_decisions_list_zh"></div>
       <p>回合栏会显示当时莫斯科一带的典型天气。泥泞回合（第 3 和第 4 回合）地图会变成土黄色。</p>
       <div id="zh_chronicle" class="help_section_title">编年史</div>
@@ -519,9 +519,9 @@
       <div id="help_chronicle_list_zh"></div>
       <p style="font-size: 0.9em;">资料来源：A. M. 萨姆索诺夫的莫斯科会战史（militera.lib.ru/h/samsonov2）；B. M. 沙波什尼科夫主编的总参谋部战役研究《西方面军的莫斯科战役，1941 年 11 月 16 日至 1942 年 1 月 31 日》（1943 年）。</p>
       <div id="zh_terrain" class="help_section_title">地形与战斗</div>
-      <img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" class="help_img terrain_chart" />
+      <div class="help_charts terrain_chart"></div>
       <div id="zh_crt" class="help_section_title">空军、疲劳与回合</div>
-      <img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" class="help_img crt_chart" />
+      <div class="help_charts crt_chart"></div>
       </div>
     </div>
     <!-- Service Worker Registration -->

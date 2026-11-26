@@ -1120,9 +1120,9 @@ const SMOLENSK = { x: 1, y: 4 },
   VYAZMA_RAILHEAD_TURN = 4,
   RAILHEAD_RANGE = 6,
   RAILHEAD_RANGE_MUD = 4;
-// ---------------------------------------------------------------- Moscow, the distribution station of the fronts
+// ---------------------------------------------------------------- Moscow, the regulating station of the fronts
 // Ten railway lines met in Moscow; most supplies for the Western Front were sent there first and distributed
-// from its stations ("in fact Moscow was the distribution station", I. V. Kovalev). The government left for
+// from its stations ("in essence Moscow was the regulating station", I. V. Kovalev). The government left for
 // Kuibyshev on 15 October 1941 and 498 factories were evacuated, but the front depots stayed in and around
 // Moscow, with 57 hospitals in the city. Its defences make it the hardest city to take; the evacuation trains
 // filled the railways in October; if it fell, the stations further east would still work, and the Germans
@@ -1317,7 +1317,7 @@ function refreshAirInfo() {
           : L("Air: contested", "制空权：双方争夺")) + L(" (" + g + " to " + s + ")", "（" + g + " 对 " + s + "）")),
     (e.title = L(
       "Air strength: Luftwaffe " + g + ", Soviet air force " + s + ". In the movement phases (rail and panzer movement included) and in its retreats after combat, each unit that moves is bombed on a die roll up to the enemy strength less the cover of the most exposed hex of its march, and gains 2 fatigue at once. Cover: forest, town and, for the Russians, a defence line 1; major city and, for the Russians, within 2 hexes of Moscow 2; the Russian garrison of Moscow is never bombed. Once Moscow has fallen it is an ordinary town, without air defence.",
-      "空中力量：德国空军 " + g + "，苏联空军 " + s + "。在移动阶段（包括铁路机动和装甲部队特别移动）以及战斗后的撤退中，每支移动的部队按它这次行军中最暴露的一格计算：掷骰点数不超过“敌方空中力量减掩护”就被炸，当场 +2 疲劳。掩护：森林、城镇、苏军在防线上为 1；大城市、苏军在莫斯科 2 格内为 2；莫斯科城里的苏军不会被炸。莫斯科一旦陷落就只算普通城镇，没有防空。",
+      "空中力量：德国空军 " + g + "，苏联空军 " + s + "。在移动阶段（包括铁路机动和装甲部队特别移动）以及战斗后的撤退中，每支移动的部队按它这次行军中最暴露的一格计算：掷骰点数不超过“敌方空中力量减对空防护”就被炸，当场 +2 疲劳。对空防护：森林、城镇、苏军在防线上为 1；大城市、苏军在莫斯科 2 格内为 2；莫斯科城里的苏军不会被炸。莫斯科一旦陷落就只算普通城镇，没有防空。",
     )));
 }
 // Moscow, Tula and Smolensk: the cities that defend as major cities (Moscow only until it has fallen)
@@ -1371,7 +1371,7 @@ function unitSupplyStatus(e, t) {
         stretched: !0,
         text: L(
           "In communication, but " + d + " hexes from the nearest railhead (at most " + railheadRange() + "): the truck columns cannot keep up, no recovery",
-          "在交通线上，但离最近的铁路终点站 " + d + " 格（最多 " + railheadRange() + " 格）：卡车运不过来，不能恢复疲劳",
+          "在交通线上，但离最近的铁路卸载站 " + d + " 格（最多 " + railheadRange() + " 格）：汽车运输跟不上，不能恢复疲劳",
         ),
       };
   }
@@ -1414,6 +1414,12 @@ function strokeRoundRect(e, t, n, i, o, r) {
     e.stroke());
 }
 // Status layers: a status is drawn only while its box in the layer bar is ticked; several can be ticked together
+// While a counter is on its way, the marks drawn with it (fatigue bar, men, the bomb, the supply frame) follow it
+// hex by hex: the hex it is shown in, by unit id, until it stops
+const unitDisplayPos = {};
+function shownHex(u) {
+  return grid.get(unitDisplayPos[u.id] || u.position);
+}
 function refreshStatusMarkers() {
   statusRefreshTimer = null;
   const e = document.getElementById("status_markers"),
@@ -1430,7 +1436,7 @@ function refreshStatusMarkers() {
       if (!o || (o.ok && !o.stretched)) continue;
       if (o.ok) {
         // out of reach of the railhead: a gold dashed frame
-        const r = grid.get(t.position),
+        const r = shownHex(t),
           a = r.center().add(r.toPoint());
         (stretched++,
           n.save(),
@@ -1442,7 +1448,7 @@ function refreshStatusMarkers() {
         continue;
       }
       e[t.army]++;
-      const r = grid.get(t.position),
+      const r = shownHex(t),
         a = r.center().add(r.toPoint());
       (highlightHex(n, r, o.siege ? "rgba(239, 159, 39, 0.3)" : "rgba(226, 75, 74, 0.35)"),
         n.save(),
@@ -1475,10 +1481,10 @@ function refreshStatusMarkers() {
     const heads = germanRailheads(i),
       lost = smolenskBaseLost(i);
     for (const [pos, label] of [
-      [SMOLENSK, lost ? L("Supply base lost", "补给基地已失") : L("Supply base · railhead", "补给基地 · 铁路终点站")],
-      [ROSLAVL, L("Depot · railhead", "补给仓库 · 铁路终点站")],
-      [VYAZMA, L("Railhead", "铁路终点站")],
-      [MOSCOW, L("Distribution station", "分配站")],
+      [SMOLENSK, lost ? L("Supply base lost", "补给基地已失") : L("Supply base · railhead", "补给基地 · 铁路卸载站")],
+      [ROSLAVL, L("Depot · railhead", "补给仓库 · 铁路卸载站")],
+      [VYAZMA, L("Railhead", "铁路卸载站")],
+      [MOSCOW, L("Regulating station", "调配站")],
     ]) {
       const h = grid.get(pos);
       if (((pos === VYAZMA || pos === ROSLAVL) && heads.indexOf(h) < 0) || (pos === MOSCOW && (moscowLost() || moscowRuined()))) continue;
@@ -1499,8 +1505,9 @@ function refreshStatusMarkers() {
     for (const e of b4mUnits) {
       const t = fatigueLevel(e),
         p = Math.min(FATIGUE.max, e.fatigue || 0);
-      if (!e.position || p < 1) continue;
-      const i = grid.get(e.position),
+      // (a unit on its way has no position until it stops: it is drawn where it is shown)
+      if (!(e.position || unitDisplayPos[e.id]) || p < 1) continue;
+      const i = shownHex(e),
         o = i.center().add(i.toPoint()),
         r = ["#fac775", "#fac775", "#ef9f27", "#e24b4a"][t];
       // one box per level; the points towards the next level fill the next box part of the way
@@ -1518,8 +1525,8 @@ function refreshStatusMarkers() {
   // Manpower: the estimated number of men of each unit, above its counter
   if (menView)
     for (const e of b4mUnits) {
-      if (!e.position) continue;
-      const t = grid.get(e.position),
+      if (!(e.position || unitDisplayPos[e.id])) continue;
+      const t = shownHex(e),
         i = t.center().add(t.toPoint()),
         o = "\u2248" + fmtMen(currentMen(e));
       (n.save(), (n.font = "bold 10px Arial, sans-serif"), (n.textAlign = "center"), (n.textBaseline = "middle"));
@@ -1532,8 +1539,8 @@ function refreshStatusMarkers() {
     }
   // Units bombed from the air in this phase (the mark goes when the phase ends)
   for (const e of b4mUnits)
-    if (e.position && e.bombed && e.bombed.turn === currentTurn.turn && e.bombed.army === currentTurn.army && e.bombed.phase === currentTurn.phase) {
-      const t = grid.get(e.position),
+    if ((e.position || unitDisplayPos[e.id]) && e.bombed && e.bombed.turn === currentTurn.turn && e.bombed.army === currentTurn.army && e.bombed.phase === currentTurn.phase) {
+      const t = shownHex(e),
         i = t.center().add(t.toPoint());
       // (the status canvas lies under the counters: the mark sits just right of the counter)
       drawBombedIcon(n, i.x + 39, i.y - 18, e.bombed.by);
@@ -1858,9 +1865,9 @@ function applyBattleFatigue(e) {
 function attackFatigueFactor(e) {
   return [1, 1, 0.5, 0.5][fatigueLevel(e)];
 }
-// Defending, tired and exhausted troops still hold their positions; a broken unit falls apart (2/5)
+// Defending, tired and exhausted troops still hold their positions; a broken unit falls apart (half)
 function fatigueFactor(e) {
-  return [1, 1, 1, 0.4][fatigueLevel(e)];
+  return [1, 1, 1, 0.5][fatigueLevel(e)];
 }
 function fmtStrength(e) {
   return String(Math.round(10 * e) / 10);
@@ -1877,8 +1884,8 @@ function strengthHtml(army, strength, lost) {
         fmtStrength(strength + lost) +
         '</s> <span class="tired_strength" title="' +
         L(
-          "Weakened by fatigue: an exhausted unit (level 2) attacks at half its strength, a broken one (level 3) defends at 2/5 of it; tired and exhausted units still defend at full strength. The odds are worked out with this reduced strength. An exhausted attacker also loses a step on a DE or DRL result, a broken unit cannot attack, and a broken defender turns a DR into a DRL.",
-          "因疲劳而削弱：疲惫（2 级）的部队进攻时只有一半兵力，崩溃（3 级）的部队防守时只有 2/5 兵力；疲劳和疲惫的部队防守时仍是满兵力。战斗比例按削弱后的兵力计算。疲惫的进攻部队在 DE 或 DRL 结果时还要损失 1 级，崩溃的部队不能进攻，崩溃的防守部队遇到 DR 时变成 DRL。",
+          "Weakened by fatigue: an exhausted unit (level 2) attacks at half its strength, a broken one (level 3) defends at half of it; tired and exhausted units still defend at full strength. The odds are worked out with this reduced strength. An exhausted attacker also loses a step on a DE or DRL result, a broken unit cannot attack, and a broken defender turns a DR into a DRL.",
+          "因疲劳而削弱：疲惫（2 级）的部队进攻时只有一半兵力，崩溃（3 级）的部队防守时只有一半兵力；疲劳和疲惫的部队防守时仍是满兵力。兵力比按削弱后的兵力计算。疲惫的进攻部队在 DE 或 DRL 结果时还要损失 1 级，崩溃的部队不能进攻，崩溃的防守部队遇到 DR 时变成 DRL。",
         ) +
         '">' +
         fmtStrength(strength) +
@@ -1910,7 +1917,7 @@ function modifiersHtml(e) {
         '<span class="modifier_badge moscow" title="' +
         L(
           "The defences of the capital: the defence lines on its approaches and in the city, barricades, the workers' battalions and the state of siege of 19 October 1941. An attack on the Russian garrison of Moscow loses a second odds column, and the garrison never retreats.",
-          "首都的防御：城郊和城内的防线、街垒、工人营，以及 1941 年 10 月 19 日宣布的戒严。进攻莫斯科的苏军守军再减 1 栏，而且守军决不后退。",
+          "首都的防御：城郊和城内的防线、街垒、工人营，以及 1941 年 10 月 19 日宣布的戒严。进攻莫斯科的苏军守军时兵力比再左移 1 栏，而且守军决不后退。",
         ) +
         '">' +
         L("Moscow \u22121", "莫斯科 \u22121") +
@@ -1949,7 +1956,7 @@ function cityLiberated(e, t) {
         "<span>" +
         L(
           "After fierce fighting the Red Army has driven the German-fascist invaders out of " + n + ". +1 replacement step next turn · the liberators shake off some fatigue.",
-          "经过激烈战斗，红军把德国法西斯侵略者赶出了" + n + "。下回合 +1 个补充兵步数 · 解放者的疲劳减轻。",
+          "经过激烈战斗，红军把德国法西斯侵略者赶出了" + n + "。下回合 +1 级补充兵员 · 解放者的疲劳减轻。",
         ) +
         "</span>",
       6e3,
@@ -2076,7 +2083,7 @@ function moscowFallEvent(side) {
             },
           ],
           options: { fight: { label: "Отстоять Родину！保卫祖国", order: "守住首都以东的战线，把首都夺回来。", effects: moscowFallRulesZh("soviet") } },
-          history: "1941 年莫斯科并没有陷落。德军最近推进到离克里姆林宫[[25 至 30 公里]]的克拉斯纳亚波良纳和莫斯科—伏尔加运河一线；12 月 5、6 日，加里宁方面军、西方面军和西南方面军转入反攻，把他们打了回去。埋在工厂和地铁里的炸药一直没有引爆。首都会遭遇什么，看看被占领了几个星期到三个月的莫斯科州就知道：占领者[[烧毁了伊斯特拉]]，毁坏了纳罗—福明斯克、韦列亚、鲁扎、博罗夫斯克，炸毁了新耶路撒冷修道院，烧掉了博罗季诺博物馆，洗劫了托尔斯泰的庄园雅斯纳亚—波良纳，全州有[[640 个村庄被彻底毁灭]]（萨姆索诺夫，第 7 章）。",
+          history: "1941 年莫斯科并没有陷落。德军最近推进到离克里姆林宫[[25 至 30 公里]]的克拉斯纳亚波利亚纳和莫斯科—伏尔加运河一线；12 月 5、6 日，加里宁方面军、西方面军和西南方面军转入反攻，把他们打了回去。埋在工厂和地铁里的炸药一直没有引爆。首都会遭遇什么，看看被占领了几个星期到三个月的莫斯科州就知道：占领者[[烧毁了伊斯特拉]]，毁坏了纳罗—福明斯克、韦列亚、鲁扎、博罗夫斯克，炸毁了新耶路撒冷修道院，烧掉了博罗季诺博物馆，洗劫了托尔斯泰的庄园雅斯纳亚—波良纳，全州有[[640 个村庄被彻底毁灭]]（萨姆索诺夫，第 7 章）。",
         },
       }
     : {
@@ -2486,7 +2493,7 @@ function announceRising(result) {
   const note = result.success
     ? L(
         "Die roll " + result.roll + " (" + result.need + " or less needed): the glorious Soviet patriots fall upon the unsuspecting enemy and take " + result.name + "! +1 Russian replacement step.",
-        "掷骰 " + result.roll + "（需要 " + result.need + " 或更小）：光荣的苏维埃爱国者突袭了毫无防备的敌人，夺取了" + result.name + "！苏军 +1 个补充兵步数。",
+        "掷骰 " + result.roll + "（需要 " + result.need + " 或更小）：光荣的苏维埃爱国者突袭了毫无防备的敌人，夺取了" + result.name + "！苏军 +1 级补充兵员。",
       )
     : L(
         "Die roll " + result.roll + " (" + result.need + " or less needed): the fascist punitive troops crush the rising in " + result.name + "; every band taking part loses 1 strength.",
@@ -3355,7 +3362,7 @@ function chartHexSample(ctx, x, y, w, hx, hy, marks) {
 function renderChartSheetA(look) {
   const cv = document.createElement("canvas"),
     k = screenScale();
-  ((cv.width = CHART_W * k), (cv.height = 840 * k));
+  ((cv.width = CHART_W * k), (cv.height = 1400 * k));
   const ctx = cv.getContext("2d");
   ctx.scale(k, k);
   ((ctx.fillStyle = look.paper), ctx.fillRect(0, 0, cv.width, cv.height));
@@ -3380,18 +3387,18 @@ function renderChartSheetA(look) {
   let y = chartHead(ctx, look, 0, 0, 700, "terrain");
   const rows = [
     [icon(11, 8), { text: L("Open", "开阔地"), bold: !0 }, none, none, "—"],
-    [icon(1, 8), { text: L("Forest", "森林"), bold: !0 }, L("Counts as 2 hexes (1 in Russian rail movement)", "算 2 格（苏军铁路机动算 1 格）"), L("1 column left (none against ski troops in winter)", "左移 1 栏（冬季对滑雪部队无效）"), L("Cover 1 from aircraft", "对空掩护 1")],
-    [icon(7, 9), { text: L("Town", "城镇"), bold: !0 }, none, none, L("Replacements come in here. Recovers " + FATIGUE.city + " fatigue a turn; air cover 1; 1 VP", "补充兵入口。每回合恢复 " + FATIGUE.city + " 点疲劳；对空掩护 1；1 胜利点")],
-    [icon(10, 6), { text: L("Major city (Tula, Smolensk)", "大城市（图拉、斯摩棱斯克）"), bold: !0 }, none, L("1 column left; a full-strength defender takes a step loss instead of a DR", "左移 1 栏；满编守军遇 DR 改为损失 1 级、不撤退"), L("Recovers " + FATIGUE.majorCity + "; air cover 2; 3 VP. Smolensk is the German supply base", "恢复 " + FATIGUE.majorCity + "；对空掩护 2；3 胜利点。斯摩棱斯克是德军补给基地")],
-    [icon(10, 2), { text: L("Moscow", "莫斯科"), bold: !0 }, none, L("2 columns left against the Soviet garrison; a DR has no effect on it. Once taken: an ordinary town, for both sides", "攻击苏军守军左移 2 栏；DR 对守军无效。一旦被攻占：双方都只按普通城镇算"), L("Garrison safe from aircraft, Soviet cover 2 within 2 hexes. Recovers " + FATIGUE.moscow + "; 5 VP. If the Germans take it, it is a ruin for good (no air defence, stocks or depots), and every Soviet unit gains " + FATIGUE.moscowLost + " fatigue a turn until it is retaken", "守军不受空袭，周围 2 格苏军对空掩护 2。恢复 " + FATIGUE.moscow + "；5 胜利点。被德军攻占后永久成为废墟（没有防空、储备和仓库），夺回之前苏军全军每回合 +" + FATIGUE.moscowLost + " 疲劳")],
-    [icon(7, 4), { text: L("Defence line", "防线"), bold: !0 }, none, L("1 column left for Soviet defenders only", "仅苏军防守时左移 1 栏"), L("Cover 1 for Soviet units", "苏军对空掩护 1")],
+    [icon(1, 8), { text: L("Forest", "森林"), bold: !0 }, L("Counts as 2 hexes (1 in Russian rail movement)", "算 2 格（苏军铁路机动算 1 格）"), L("1 column left (none against ski troops in winter)", "左移 1 栏（冬季对滑雪部队无效）"), L("Cover 1 from aircraft", "对空防护 1")],
+    [icon(7, 9), { text: L("Town", "城镇"), bold: !0 }, none, none, L("Replacements come in here. Recovers " + FATIGUE.city + " fatigue a turn; air cover 1; 1 VP", "补充兵员进入地。每回合恢复 " + FATIGUE.city + " 点疲劳；对空防护 1；1 胜利点")],
+    [icon(10, 6), { text: L("Major city (Tula, Smolensk)", "大城市（图拉、斯摩棱斯克）"), bold: !0 }, none, L("1 column left; a full-strength defender takes a step loss instead of a DR", "左移 1 栏；满编守军遇 DR 改为损失 1 级、不撤退"), L("Recovers " + FATIGUE.majorCity + "; air cover 2; 3 VP. Smolensk is the German supply base", "恢复 " + FATIGUE.majorCity + "；对空防护 2；3 胜利点。斯摩棱斯克是德军补给基地")],
+    [icon(10, 2), { text: L("Moscow", "莫斯科"), bold: !0 }, none, L("2 columns left against the Soviet garrison; a DR has no effect on it. Once taken: an ordinary town, for both sides", "攻击苏军守军左移 2 栏；DR 对守军无效。一旦被攻占：双方都只按普通城镇算"), L("Garrison safe from aircraft, Soviet cover 2 within 2 hexes. Recovers " + FATIGUE.moscow + "; 5 VP. If the Germans take it, it is a ruin for good (no air defence, stocks or depots), and every Soviet unit gains " + FATIGUE.moscowLost + " fatigue a turn until it is retaken", "守军不受空袭，周围 2 格苏军对空防护 2。恢复 " + FATIGUE.moscow + "；5 胜利点。被德军攻占后永久成为废墟（没有防空、储备和仓库），夺回之前苏军全军每回合 +" + FATIGUE.moscowLost + " 疲劳")],
+    [icon(7, 4), { text: L("Defence line", "防线"), bold: !0 }, none, L("1 column left for Soviet defenders only", "仅苏军防守时左移 1 栏"), L("Cover 1 for Soviet units", "苏军对空防护 1")],
     [icon(6, 4), { text: L("River", "河流"), bold: !0 }, none, L("1 column left if all the attackers are across it", "所有进攻部队都隔河时左移 1 栏"), "—"],
-    [icon(5, 2), { text: L("Railway", "铁路"), bold: !0 }, L("Russian rail movement phase (turns 3–4: at most " + EVACUATION_RAIL_LIMIT + " units, the evacuation)", "苏军铁路机动阶段（第 3–4 回合疏散，最多 " + EVACUATION_RAIL_LIMIT + " 支）"), none, L("German supply: within " + RAILHEAD_RANGE + " hexes of a railhead (" + RAILHEAD_RANGE_MUD + " in the mud): Smolensk, Roslavl, from turn " + VYAZMA_RAILHEAD_TURN + " Vyazma", "德军补给：距铁路终点站 " + RAILHEAD_RANGE + " 格内（泥泞时 " + RAILHEAD_RANGE_MUD + " 格）：斯摩棱斯克、罗斯拉夫利，第 " + VYAZMA_RAILHEAD_TURN + " 回合起加维亚济马")],
-    [icon(11, 8, !0), { text: L("Star or cross", "红星或十字"), bold: !0 }, none, none, L("Set-up hexes: Russian (star), German (cross)", "布阵位置：苏军（红星）、德军（十字）")],
+    [icon(5, 2), { text: L("Railway", "铁路"), bold: !0 }, L("Russian rail movement phase (turns 3–4: at most " + EVACUATION_RAIL_LIMIT + " units, the evacuation)", "苏军铁路机动阶段（第 3–4 回合疏散，最多 " + EVACUATION_RAIL_LIMIT + " 支）"), none, L("German supply: within " + RAILHEAD_RANGE + " hexes of a railhead (" + RAILHEAD_RANGE_MUD + " in the mud): Smolensk, Roslavl, from turn " + VYAZMA_RAILHEAD_TURN + " Vyazma", "德军补给：距铁路卸载站 " + RAILHEAD_RANGE + " 格内（泥泞时 " + RAILHEAD_RANGE_MUD + " 格）：斯摩棱斯克、罗斯拉夫利，第 " + VYAZMA_RAILHEAD_TURN + " 回合起加维亚济马")],
+    [icon(11, 8, !0), { text: L("Star or cross", "红星或十字"), bold: !0 }, none, none, L("Set-up hexes: Russian (star), German (cross)", "初始部署位置：苏军（红星）、德军（十字）")],
     [badge("3–4"), { text: L("Mud", "泥泞"), bold: !0 }, L("1 hex per move outside the rail phase", "铁路机动以外每次只能走 1 格"), L("Panzer attack strength halved", "装甲部队进攻力减半"), L("Game turns 3 and 4", "第 3、4 回合")],
-    [badge(WINTER_START + "–" + LAST_TURN), { text: L("Winter", "冬季"), bold: !0 }, L("Ski troops cross forests at no extra cost", "滑雪部队穿越森林不额外耗费"), L("Forests give no shift against ski troops", "森林对滑雪部队不左移"), L("Germans without winter clothing: +" + FATIGUE.winterOutsideCity + " fatigue a turn outside towns, +" + FATIGUE.winterInTown + " in towns, none in major cities", "德军若无冬装：城外每回合 +" + FATIGUE.winterOutsideCity + " 疲劳，城镇里 +" + FATIGUE.winterInTown + "，大城市里不加")],
+    [badge(WINTER_START + "–" + LAST_TURN), { text: L("Winter", "冬季"), bold: !0 }, L("Ski troops cross forests at no extra cost", "滑雪部队穿越森林不额外消耗移动力"), L("Forests give no shift against ski troops", "森林对滑雪部队不左移"), L("Germans without winter clothing: +" + FATIGUE.winterOutsideCity + " fatigue a turn outside towns, +" + FATIGUE.winterInTown + " in towns, none in major cities", "德军若无冬装：城外每回合 +" + FATIGUE.winterOutsideCity + " 疲劳，城镇里 +" + FATIGUE.winterInTown + "，大城市里不加")],
   ];
-  y = chartTable(ctx, look, 0, y, [62, 108, 160, 190, 180], [L("Symbol", "图示"), L("Terrain", "地形"), L("Movement", "移动"), L("Combat", "战斗"), L("Notes", "说明")], rows, 12, 52);
+  y = chartTable(ctx, look, 0, y, [62, 108, 160, 190, 180], [L("Symbol", "图示"), L("Terrain", "地形"), L("Movement", "移动"), L("Combat", "战斗"), L("Notes", "说明")], rows, 14, 54);
   // combat results
   let yc = chartHead(ctx, look, 715, 0, 405, "combat");
   const CRT = [
@@ -3405,7 +3412,7 @@ function renderChartSheetA(look) {
     resCell = function (r) {
       return { text: r, bold: "DE" === r || "DRL" === r, color: "EX" === r || "AL" === r ? look.red : look.ink, align: "center" };
     };
-  yc = chartTable(ctx, look, 715, yc, [45, 60, 60, 60, 60, 60, 60], [L("Die", "骰点"), "1:1", "2:1", "3:1", "4:1", "5:1", "6:1"], CRT.map((r, i) => [{ text: String(i + 1), bold: !0, align: "center" }].concat(r.map(resCell))), 14, 26);
+  yc = chartTable(ctx, look, 715, yc, [45, 60, 60, 60, 60, 60, 60], [L("Die", "骰点"), "1:1", "2:1", "3:1", "4:1", "5:1", "6:1"], CRT.map((r, i) => [{ text: String(i + 1), bold: !0, align: "center" }].concat(r.map(resCell))), 16, 30);
   yc += 8;
   const legend = [
     ["NE", L("No effect.", "无效果。")],
@@ -3416,27 +3423,32 @@ function renderChartSheetA(look) {
     ["AL", L("One attacking unit loses 1 step.", "一支进攻部队损失 1 级。")],
   ];
   for (const [k, t] of legend) {
-    ((ctx.font = "bold 13px " + look.font), (ctx.fillStyle = "EX" === k || "AL" === k ? look.red : look.ink), (ctx.textAlign = "left"), (ctx.textBaseline = "top"), ctx.fillText(k, 722, yc));
-    yc += Math.max(16, chartText(ctx, look, t, 762, yc, 350, 12)) + 3;
+    ((ctx.font = "bold 15px " + look.font), (ctx.fillStyle = "EX" === k || "AL" === k ? look.red : look.ink), (ctx.textAlign = "left"), (ctx.textBaseline = "top"), ctx.fillText(k, 722, yc));
+    yc += Math.max(18, chartText(ctx, look, t, 766, yc, 346, 14)) + 4;
   }
   yc += 6;
   const rules = [
-    L("Odds: attack ÷ defence, rounded down, at most 6:1.", "比值：进攻力 ÷ 防御力，向下取整，最高 6:1。"),
+    L("Odds: attack ÷ defence, rounded down, at most 6:1.", "兵力比：进攻力 ÷ 防御力，向下取整，最高 6:1。"),
     L("Each terrain effect moves the odds one column left; partisans guiding a Soviet attack move them one column right.", "每种地形效果左移一栏；游击队为苏军进攻带路时右移一栏。"),
-    L("Fatigue: exhausted and broken attackers fight at half strength, a broken defender at 2/5 and its DR becomes DRL. When a battle ends in DE or DRL, the most exhausted attacker loses a step.", "疲劳：疲惫和崩溃的进攻部队只发挥一半战斗力，崩溃的守军只剩 2/5，且 DR 变为 DRL。战斗结果为 DE 或 DRL 时，最疲惫的一支进攻部队损失 1 级。"),
+    L("Fatigue: exhausted and broken attackers fight at half strength, a broken defender at half and its DR becomes DRL. When a battle ends in DE or DRL, the most exhausted attacker loses a step.", "疲劳：疲惫和崩溃的进攻部队只发挥一半战斗力，崩溃的守军只剩一半，且 DR 变为 DRL。战斗结果为 DE 或 DRL 时，最疲惫的一支进攻部队损失 1 级。"),
     L("Every battle: +" + FATIGUE.attack + " fatigue to each attacker, +" + FATIGUE.defend + " to the defender (unless NE).", "每次战斗：每支进攻部队 +" + FATIGUE.attack + " 疲劳，守方 +" + FATIGUE.defend + "（NE 除外）。"),
   ];
-  for (const t of rules) yc += chartText(ctx, look, "• " + t, 722, yc, 392, 12) + 5;
+  for (const t of rules) yc += chartText(ctx, look, "• " + t, 722, yc, 392, 14) + 6;
   const used = Math.max(y, yc) + 10;
   const out = document.createElement("canvas");
   ((out.width = CHART_W * k), (out.height = used * k), out.getContext("2d").drawImage(cv, 0, 0));
+  // the tables of the sheet, for the help: terrain, combat results
+  out.sections = [
+    { x: 0, w: 700, h: y + 6 },
+    { x: 715, w: 405, h: yc + 4 },
+  ];
   return out;
 }
 // Sheet B: air power, fatigue and the turns
 function renderChartSheetB(look) {
   const cv = document.createElement("canvas"),
     k = screenScale();
-  ((cv.width = CHART_W * k), (cv.height = 840 * k));
+  ((cv.width = CHART_W * k), (cv.height = 1400 * k));
   const ctx = cv.getContext("2d");
   ctx.scale(k, k);
   ((ctx.fillStyle = look.paper), ctx.fillRect(0, 0, cv.width, cv.height));
@@ -3448,15 +3460,15 @@ function renderChartSheetB(look) {
       sky = a.german > a.soviet ? L("German", "德军") : a.soviet > a.german ? L("Soviet", "苏军") : L("Contested", "争夺");
     rowsA.push([{ text: String(t), bold: !0, align: "center" }, { text: String(a.german), align: "center" }, { text: String(a.soviet), align: "center" }, { text: sky, align: "center", bold: a.german !== a.soviet }]);
   }
-  ya = chartTable(ctx, look, 0, ya, [60, 90, 90, 120], [L("Turn", "回合"), L("German air", "德军空军"), L("Soviet air", "苏军空军"), L("The sky", "制空权")], rowsA, 12, 22);
+  ya = chartTable(ctx, look, 0, ya, [60, 90, 90, 120], [L("Turn", "回合"), L("German air", "德军空军"), L("Soviet air", "苏军空军"), L("The sky", "制空权")], rowsA, 14, 26);
   ya += 8;
   const airRules = [
-    L("A unit that moves in a movement phase (rail and panzer moves too), or retreats after a battle, is bombed on a die roll up to the enemy air strength less its cover. The cover is that of the most exposed hex of its march.", "在移动阶段移动（含铁路和装甲机动）或战后撤退的部队，掷骰点数不超过“敌方空军强度 − 掩护”即被空袭。掩护按其行军路线上最暴露的一格计算。"),
+    L("A unit that moves in a movement phase (rail and panzer moves too), or retreats after a battle, is bombed on a die roll up to the enemy air strength less its cover. The cover is that of the most exposed hex of its march.", "在移动阶段移动（含铁路和装甲机动）或战后撤退的部队，掷骰点数不超过“敌方空中力量 − 对空防护”即被空袭。对空防护按其行军路线上最暴露的一格计算。"),
     L("Bombed: +" + INTERDICTION_FATIGUE + " fatigue at once.", "被空袭：立即 +" + INTERDICTION_FATIGUE + " 疲劳。"),
-    L("Cover 1: forest, town; for the Russians also the defence lines. Cover 2: major city; Russians within 2 hexes of a Soviet Moscow. The Soviet garrison of Moscow cannot be bombed. Once Moscow has fallen it is an ordinary town: cover 1, no air defence around it.", "掩护 1：森林、城镇；苏军在防线上也算。掩护 2：大城市；在苏军控制的莫斯科周围 2 格内的苏军。莫斯科的苏军守军不会被空袭。莫斯科一旦陷落就只算普通城镇：掩护 1，周围不再有防空。"),
+    L("Cover 1: forest, town; for the Russians also the defence lines. Cover 2: major city; Russians within 2 hexes of a Soviet Moscow. The Soviet garrison of Moscow cannot be bombed. Once Moscow has fallen it is an ordinary town: cover 1, no air defence around it.", "对空防护 1：森林、城镇；苏军在防线上也算。对空防护 2：大城市；在苏军控制的莫斯科周围 2 格内的苏军。莫斯科的苏军守军不会被空袭。莫斯科一旦陷落就只算普通城镇：对空防护 1，周围不再有防空。"),
     L("An advance after combat is not exposed.", "战后推进不会遭空袭。"),
   ];
-  for (const t of airRules) ya += chartText(ctx, look, "• " + t, 6, ya, 350, 12) + 5;
+  for (const t of airRules) ya += chartText(ctx, look, "• " + t, 6, ya, 350, 14) + 6;
   // fatigue
   let yf = chartHead(ctx, look, 375, 0, 380, "fatigue");
   const P = FATIGUE.perLevel,
@@ -3464,16 +3476,16 @@ function renderChartSheetB(look) {
       [0 + "–" + (P - 1), L("Fresh", "精力充沛"), L("Full", "全额"), L("Full", "全额")],
       [P + "–" + (2 * P - 1), L("Tired", "疲劳"), L("Full", "全额"), L("Full", "全额")],
       [2 * P + "–" + (3 * P - 1), L("Exhausted", "疲惫"), L("Half", "一半"), L("Full", "全额")],
-      [String(FATIGUE.max), L("Broken", "崩溃"), L("Cannot attack", "不能进攻"), L("2/5; DR → DRL", "2/5；DR → DRL")],
+      [String(FATIGUE.max), L("Broken", "崩溃"), L("Cannot attack", "不能进攻"), L("Half; DR → DRL", "一半；DR → DRL")],
     ];
-  yf = chartTable(ctx, look, 375, yf, [70, 100, 105, 105], [L("Points", "点数"), L("State", "状态"), L("Attack", "进攻"), L("Defence", "防御")], lv.map((r) => r.map((t, i) => ({ text: t, align: "center", bold: 1 === i }))), 12, 22);
+  yf = chartTable(ctx, look, 375, yf, [70, 100, 105, 105], [L("Points", "点数"), L("State", "状态"), L("Attack", "进攻"), L("Defence", "防御")], lv.map((r) => r.map((t, i) => ({ text: t, align: "center", bold: 1 === i }))), 14, 26);
   yf += 8;
   const gain = [
-    L("Gains: battle +" + FATIGUE.attack + " (attacker) / +" + FATIGUE.defend + " (defender); bombed +" + INTERDICTION_FATIGUE + "; cut off from its map edge +" + FATIGUE.cutOff + ", +" + FATIGUE.ringed + " more if ringed (a besieged city's stocks hold it to +" + FATIGUE.siegeCutOff + "); Germans near a cut railway +" + FATIGUE.railCut + "; sweeping partisans +" + SWEEP_FATIGUE_PER_STRENGTH + " per band strength, driving them off +" + DRIVE_OFF_FATIGUE + "; every Soviet unit +" + FATIGUE.moscowLost + " a turn while Moscow is in German hands.", "增加：战斗 +" + FATIGUE.attack + "（攻方）/ +" + FATIGUE.defend + "（守方）；被空袭 +" + INTERDICTION_FATIGUE + "；与己方地图边缘断开 +" + FATIGUE.cutOff + "，被合围再 +" + FATIGUE.ringed + "（被围城市有存粮时只 +" + FATIGUE.siegeCutOff + "）；德军靠近被切断的铁路 +" + FATIGUE.railCut + "；清剿游击队每级兵力 +" + SWEEP_FATIGUE_PER_STRENGTH + "，驱散 +" + DRIVE_OFF_FATIGUE + "；莫斯科在德军手中期间，苏军全军每回合 +" + FATIGUE.moscowLost + "。"),
+    L("Gains: battle +" + FATIGUE.attack + " (attacker) / +" + FATIGUE.defend + " (defender); bombed +" + INTERDICTION_FATIGUE + "; cut off from its map edge +" + FATIGUE.cutOff + ", +" + FATIGUE.ringed + " more if ringed (a besieged city's stocks hold it to +" + FATIGUE.siegeCutOff + "); Germans near a cut railway +" + FATIGUE.railCut + "; sweeping partisans +" + SWEEP_FATIGUE_PER_STRENGTH + " per band strength, driving them off +" + DRIVE_OFF_FATIGUE + "; every Soviet unit +" + FATIGUE.moscowLost + " a turn while Moscow is in German hands.", "增加：战斗 +" + FATIGUE.attack + "（攻方）/ +" + FATIGUE.defend + "（守方）；被空袭 +" + INTERDICTION_FATIGUE + "；交通线被切断 +" + FATIGUE.cutOff + "，被合围再 +" + FATIGUE.ringed + "（被围城市有储备物资时只 +" + FATIGUE.siegeCutOff + "）；德军靠近被切断的铁路 +" + FATIGUE.railCut + "；清剿游击队每级兵力 +" + SWEEP_FATIGUE_PER_STRENGTH + "，驱散 +" + DRIVE_OFF_FATIGUE + "；莫斯科在德军手中期间，苏军全军每回合 +" + FATIGUE.moscowLost + "。"),
     L("Recovery each turn, if it did not fight: " + FATIGUE.rest + " at rest, " + FATIGUE.idle + " if it moved; " + FATIGUE.rear + " more in the rear (no enemy within " + FATIGUE.rearDistance + " hexes); in a town of its side " + FATIGUE.city + ", a major city " + FATIGUE.majorCity + ", Moscow " + FATIGUE.moscow + " (a town once it has fallen); Russians supplied from the Moscow depots " + FATIGUE.moscowDepots + " more (none once it has fallen).", "每回合恢复（未参战时）：原地休整 " + FATIGUE.rest + "，移动过 " + FATIGUE.idle + "；在后方（" + FATIGUE.rearDistance + " 格内无敌军）再 " + FATIGUE.rear + "；在己方城镇 " + FATIGUE.city + "，大城市 " + FATIGUE.majorCity + "，莫斯科 " + FATIGUE.moscow + "（陷落后按城镇算）；由莫斯科仓库补给的苏军再 " + FATIGUE.moscowDepots + "（陷落后没有）。"),
-    L("No recovery when cut off, raided by partisans, or for Germans beyond railhead range or while Smolensk is lost. Liberating a town: −" + FATIGUE.liberation + ".", "被切断、遭游击队袭扰时不恢复；德军超出铁路终点补给范围或斯摩棱斯克失守时也不恢复。解放一座城镇：−" + FATIGUE.liberation + "。"),
+    L("No recovery when cut off, raided by partisans, or for Germans beyond railhead range or while Smolensk is lost. Liberating a town: −" + FATIGUE.liberation + ".", "被切断、遭游击队袭扰时不恢复；德军超出铁路卸载站补给范围或斯摩棱斯克失守时也不恢复。解放一座城镇：−" + FATIGUE.liberation + "。"),
   ];
-  for (const t of gain) yf += chartText(ctx, look, "• " + t, 381, yf, 370, 12) + 5;
+  for (const t of gain) yf += chartText(ctx, look, "• " + t, 381, yf, 370, 14) + 6;
   // turns
   let yt = chartHead(ctx, look, 770, 0, 350, "turns");
   const DATES_EN = ["", "2 Oct", "10 Oct", "17 Oct", "1 Nov", "16 Nov", "23 Nov", "1 Dec", "5 Dec", "15 Dec"],
@@ -3488,12 +3500,18 @@ function renderChartSheetB(look) {
     rowsT = [];
   for (let t = 1; t <= LAST_TURN; t++)
     rowsT.push([{ text: String(t), bold: !0, align: "center" }, isZh() ? TURN_DATES_ZH[t].replace("1941 年 ", "") : DATES_EN[t], L(WEATHER[t], WEATHER_ZH[t]) + (notes[t] ? (isZh() ? "。" : ". ") + notes[t] : "")]);
-  yt = chartTable(ctx, look, 770, yt, [44, 80, 226], [L("Turn", "回合"), L("Date", "日期"), L("Weather and events", "天气与事件")], rowsT, 12, 24);
+  yt = chartTable(ctx, look, 770, yt, [44, 80, 226], [L("Turn", "回合"), L("Date", "日期"), L("Weather and events", "天气与事件")], rowsT, 14, 28);
   yt += 8;
-  yt += chartText(ctx, look, "• " + L("Victory points: Moscow 5, Tula 3, Smolensk 3, other towns 1.", "胜利点：莫斯科 5，图拉 3，斯摩棱斯克 3，其他城镇 1。"), 776, yt, 340, 12) + 5;
+  yt += chartText(ctx, look, "• " + L("Victory points: Moscow 5, Tula 3, Smolensk 3, other towns 1.", "胜利点：莫斯科 5，图拉 3，斯摩棱斯克 3，其他城镇 1。"), 776, yt, 340, 14) + 6;
   const used = Math.max(ya, yf, yt) + 10;
   const out = document.createElement("canvas");
   ((out.width = CHART_W * k), (out.height = used * k), out.getContext("2d").drawImage(cv, 0, 0));
+  // the tables of the sheet, for the help: air power, fatigue, the turns
+  out.sections = [
+    { x: 0, w: 360, h: ya + 4 },
+    { x: 375, w: 380, h: yf + 4 },
+    { x: 770, w: 350, h: yt + 4 },
+  ];
   return out;
 }
 // the charts on the board, and the same charts in the help
@@ -3509,10 +3527,20 @@ function drawBoardCharts() {
     board.drawImage(a, CHART_A.x, CHART_A.y, a.width / k, a.height / k);
     board.drawImage(b, CHART_B.x, CHART_B.y, b.width / k, b.height / k);
   }
-  const ua = a.toDataURL("image/png"),
-    ub = b.toDataURL("image/png");
-  for (const e of document.querySelectorAll(".terrain_chart")) e.src = ua;
-  for (const e of document.querySelectorAll(".crt_chart")) e.src = ub;
+  const pieces = function (sheet) {
+      const k = screenScale();
+      return sheet.sections
+        .map(function (s) {
+          const c = document.createElement("canvas");
+          ((c.width = Math.round(s.w * k)), (c.height = Math.round(Math.min(s.h, sheet.height / k) * k)), c.getContext("2d").drawImage(sheet, -s.x * k, 0));
+          return '<img src="' + c.toDataURL("image/png") + '" style="width: ' + s.w + 'px" alt="" />';
+        })
+        .join("");
+    },
+    ha = pieces(a),
+    hb = pieces(b);
+  for (const e of document.querySelectorAll(".terrain_chart")) e.innerHTML = ha;
+  for (const e of document.querySelectorAll(".crt_chart")) e.innerHTML = hb;
 }
 window.addEventListener("load", function () {
   const select = document.getElementById("layer_map");
@@ -4348,7 +4376,7 @@ const DISPATCH_ZH = {
         effects: function () {
           const candidates = nkvdCandidates();
           return [
-            "由你选一个[[有补给的半血步兵集团军]]：它变成突击集团军，立即为 5-4，补满后为 10-4。",
+            "由你选一个[[有补给的减员步兵集团军]]：它变成突击集团军，立即为 5-4，补充至满编后为 10-4。",
             candidates.length ? "现在可以接收的集团军：" + namesOf(candidates) + "。" : "",
           ];
         },
@@ -4398,7 +4426,7 @@ const DISPATCH_ZH = {
             });
           return [
             "莫斯科及其相邻格的苏军[[疲劳减 4 点，即降一级]]（" + (near.length ? "现有 " + near.length + " 支：" + namesOf(near) : "现在那里没有部队") + "）。",
-            "本回合苏军 +1 个补充兵步数。",
+            "本回合苏军 +1 级补充兵员。",
             "风险：掷骰掷出 1，德国空军轰炸红场，莫斯科城内的满编部队损失一级。",
           ];
         },
@@ -4419,7 +4447,7 @@ const DISPATCH_ZH = {
     date: "1941 年 11 月 13 日",
     title: "冬装还是弹药？",
     text: [
-      "中央集团军群每天需要 [[26 到 30 列火车]]，而残破的俄国铁路每天只能把 [[8 到 10 列]]送到它的铁路终点站。",
+      "中央集团军群每天需要 [[26 到 30 列火车]]，而残破的俄国铁路每天只能把 [[8 到 10 列]]送到它的铁路卸载站。",
       "全集团军群近两百万人的冬衣——毛衣、手套、帽子、袜子和羊毛内衣——要装满[[约 20 列火车]]，相当于前线两天的全部到货。它们还堆在波兰的仓库里。每多运一列冬衣，就[[少运一列炮弹、燃料和补充兵]]，而这次攻势必须在冬天之前拿下莫斯科。",
     ],
     quotes: [{ translation: "……这个敌人[[已经被打垮]]，再也站不起来了！", source: "希特勒在柏林体育宫的演讲，1941 年 10 月 3 日" }],
@@ -4448,7 +4476,7 @@ const DISPATCH_ZH = {
         ],
       },
     },
-    history: "弹药、燃料和口粮仍然优先。霜冻来临时，冬衣还堆在铁路终点站的仓库里：到 12 月中旬，[[发到部队手里的还不到三分之一]]。12 月 20 日，戈培尔号召德国民众为东线士兵捐献皮衣和毛织品。",
+    history: "弹药、燃料和口粮仍然优先。霜冻来临时，冬衣还堆在铁路卸载站的仓库里：到 12 月中旬，[[发到部队手里的还不到三分之一]]。12 月 20 日，戈培尔号召德国民众为东线士兵捐献皮衣和毛织品。",
     historyQuote: { translation: "弹药、汽油和口粮的运输[[必须享有绝对优先]]。", source: "美国陆军官方战史（E. F. 齐姆克《从莫斯科到斯大林格勒》），据德方档案" },
   },
   reserves: {
@@ -4472,8 +4500,8 @@ const DISPATCH_ZH = {
       }
     ],
     options: {
-      commit: { label: "现在投入", order: "把新组建的师投到战线崩溃的地方：首都决不能丢。", effects: ["本回合苏军 [[+2 个补充兵步数]]。"] },
-      keep: { label: "留给反攻", order: "前线必须用现有的兵力坚持到最后一人。", effects: ["第 8 回合反攻开始时，苏军 [[+2 个补充兵步数]]。"] },
+      commit: { label: "现在投入", order: "把新组建的师投到战线崩溃的地方：首都决不能丢。", effects: ["本回合苏军 [[+2 级补充兵员]]。"] },
+      keep: { label: "留给反攻", order: "前线必须用现有的兵力坚持到最后一人。", effects: ["第 8 回合反攻开始时，苏军 [[+2 级补充兵员]]。"] },
     },
     history: "最高统帅部大本营只给各方面军补充了挡住敌人钳形攻势所必需的兵力，把新组建的集团军[[留给了 12 月 5 日和 6 日的决定性打击]]。",
     historyQuote: { translation: "对我们来说，重要的是[[坚持到预备队赶到]]。", source: "G. K. 朱可夫，1966 年" },
@@ -4508,7 +4536,7 @@ const DISPATCH_ZH = {
             "本回合到达：[[近卫骑兵第 1、第 2 军（6-6）]]、" + plan.ski + " 个滑雪营和 " + plan.partisans + " 支游击队。",
             "冬季：苏军滑雪集团军穿越森林只需 1 点移动力；" +
               ("clothing" === decisions.trains ? "德军已经拿到冬装。" : "没有冬装的德军在城镇外很快就会疲劳。"),
-            "keep" === decisions.reserves ? "你留下的大本营预备队：本回合 +2 个补充兵步数。" : "",
+            "keep" === decisions.reserves ? "你留下的大本营预备队：本回合 +2 级补充兵员。" : "",
           ];
         },
       },
@@ -4743,9 +4771,12 @@ function highlightHex(e, t, n) {
     e.fill(),
     e.stroke());
 }
-// The hexes a unit can move to: a pale gold wash and, inside the hex, a gold rim on a dark one, so that it reads
-// on the cream Soviet sheet, the white German one and the painted landscape alike
+// The hexes a unit can move to: on the German staff map a pale gold wash and, inside the hex, a gold rim on a dark
+// one; on the other maps the white wash of the original
 function highlightMoveHex(e, t) {
+  // the white wash of the original reads well on the Red Army and painted maps; only on the pale German staff map
+  // does a hex the unit can reach need the gold rim
+  if ("german" !== mapArtStyle()) return void highlightHex(e, t, "rgba(255, 255, 255, 0.35)");
   const i = t.corners().map((p) => p.add(t.toPoint())),
     c = t.center().add(t.toPoint()),
     path = function (k) {
@@ -4861,6 +4892,8 @@ function moveUnit(e, t, n, retreat) {
   (unitsMoving++, s && pendingDestinations.push(s));
   const mv = b4mUnits[b4mUnitsIndex(e)];
   (mv && (mv.moved = !0), t.length > 0 && soundMove(e));
+  // its marks stay with the counter until it stops
+  unitDisplayPos[e.id] = { x: e.position.x, y: e.position.y };
   let i = { x: e.position.x, y: e.position.y },
     o = Hex(i).center().add(Hex(i).toPoint()),
     r = null;
@@ -4878,6 +4911,8 @@ function moveUnit(e, t, n, retreat) {
           "german" === e.army && partisanSweep(e),
           airInterdiction(e, route, retreat),
           clearInterval(a),
+          delete unitDisplayPos[e.id],
+          refreshStatusMarkers(),
           finishUnitMove(s))
         : (clearUnit(board, e, o.x - 40, o.y - 40),
           r && r.id !== e.id && drawUnit(board, r, o.x - 30, o.y - 30),
@@ -4885,6 +4920,8 @@ function moveUnit(e, t, n, retreat) {
           (r = lookupUnit(Hex(i))),
           (o = Hex(i).center().add(Hex(i).toPoint())),
           (e.position = { x: i.x, y: i.y }),
+          (unitDisplayPos[e.id] = { x: i.x, y: i.y }),
+          refreshStatusMarkers(),
           retreat && t.length > 0
             ? keepCityControl(i, function () {
                 drawUnit(board, e, o.x - 30, o.y - 30);
@@ -7477,7 +7514,7 @@ function replacementPhase(e) {
             ((o = []),
               (document.getElementById("step_replacement_tip").innerText += L(
                 " All your eliminated units are back on the map, so no new unit can be placed: the remaining steps can only restore a half-strength unit in communication or rest a tired full-strength one (orange).",
-                "被消灭的部队已经全部重建，没有新部队可以放了：剩下的补充兵步数只能补满有补给的半血部队，或者让疲劳的满编部队（橙色）休整。",
+                "被消灭的部队已经全部重建，没有新部队可以放了：剩下的补充兵员只能补充有补给的减员部队，或者让疲劳的满编部队（橙色）休整。",
               )));
           }
         } else if (l && l.army === currentTurn.army) {
@@ -8319,7 +8356,7 @@ const SAMSONOV_EN = "A. M. Samsonov, «Крах фашистской агрес�
         {
           orig: "«А когда ей в поддержку были повернуты 2-я полевая армия и 2-я танковая группа, то это более чем на месяц задержало наступление немецко-фашистских войск на Москву.»",
           en: "And when the 2nd Army and the 2nd Panzer Group were turned south to support it, this held up the German-fascist offensive on Moscow for more than a month.",
-          zh: "而当第 2 野战集团军和第 2 坦克集群被调去支援它（南方集团军群）时，德国法西斯军队对莫斯科的进攻因此推迟了一个多月。",
+          zh: "而当第 2 集团军和第 2 装甲集群被调去支援它（南方集团军群）时，德国法西斯军队对莫斯科的进攻因此推迟了一个多月。",
           src: [SAMSONOV_EN + "4", SAMSONOV_ZH + "4 章"],
         },
       ],
@@ -8657,7 +8694,7 @@ const ZH_WORDS = {
 };
 // Sentences, translated wherever they appear (the longest first)
 const ZH_PHRASES = [
-  ["Show the units cut off from their map edge (key S)", "显示与地图边缘失去联系的部队（S 键）"],
+  ["Show the units cut off from their map edge (key S)", "显示交通线被切断的部队（S 键）"],
   ["Show unit fatigue (key F)", "显示部队疲劳（F 键）"],
   ["Show the estimated manpower of each unit (key P)", "显示每支部队的估计兵力（P 键）"],
   ["Sound effects on or off (key M)", "开关音效（M 键）"],
@@ -8682,15 +8719,15 @@ const ZH_PHRASES = [
   [" The attacking unit is eliminated during the exchange.", "进攻部队在交换中被消灭。"],
   [" The attacking unit loses 1 step during the exchange.", "进攻部队在交换中损失 1 级。"],
   ["Select the attacking unit(s) to match the defending unit's loss", "选择进攻部队，抵消防守部队的损失"],
-  [" The attacking unit strength is already reduced so it is eliminated.", "进攻部队已经是半血，因此被消灭。"],
+  [" The attacking unit strength is already reduced so it is eliminated.", "进攻部队已经减员，因此被消灭。"],
   ["The battle has no effect.", "这场战斗没有结果。"],
   ["The defending unit needs to retreat 2 hexes.", "防守部队必须后撤 2 格。"],
   [" But it is in a major city, so it takes a step loss instead and doesn't retreat.", "但它在大城市里，因此改为损失 1 级，不撤退。"],
   [" But Hitler's stand-fast order holds it in the city: it takes a step loss instead and doesn't retreat.", "但希特勒的死守令把它钉在城里：改为损失 1 级，不撤退。"],
   ["The defending unit loses 1 step and is retreated 2 hexes.", "防守部队损失 1 级，并后撤 2 格。"],
-  [" But its strength is already reduced so it is eliminated.", "但它已经是半血，因此被消灭。"],
+  [" But its strength is already reduced so it is eliminated.", "但它已经减员，因此被消灭。"],
   ["The defending unit is eliminated.", "防守部队被消灭。"],
-  [" The defending unit strength is already reduced so it is eliminated.", "防守部队已经是半血，因此被消灭。"],
+  [" The defending unit strength is already reduced so it is eliminated.", "防守部队已经减员，因此被消灭。"],
   ["One attacking unit needs to lose 1 step.", "一支进攻部队必须损失 1 级。"],
   ["Select the attacking unit", "选择受影响的进攻部队"],
   [" to be impacted...", "……"],
@@ -8701,7 +8738,7 @@ const ZH_PHRASES = [
   ["The enemy has selected units to move in order to complete this turn.", "敌方已选好要移动的部队，以结束本回合。"],
   ["Ambush the supply columns of a German unit within 2 hexes: it gains 2 fatigue points for each strength point of the band, and cannot recover any fatigue at the start of the next German turn.", "伏击 2 格内一支德军部队的补给车队：游击队每有 1 点力量，它就增加 2 点疲劳，并且在下一个德军回合开始时不能恢复疲劳。"],
   ["Cut the German supply line: blow up the railway in a hex within 1 hex. Only the Russians move by rail in this game, but the German armies lived on the railways for their ammunition, fuel and food. For the next two German turns, German units within 2 hexes of the cut gain +1 fatigue at the start of their turn and cannot recover.", "切断德军补给线：炸毁 1 格内某个格子的铁路。本游戏中只有苏军能沿铁路移动，但德军靠铁路运送弹药、燃料和口粮。在接下来的两个德军回合里，被炸点 2 格内的德军部队在回合开始时 +1 疲劳，并且不能恢复。"],
-  ["This turn, Russian attacks on German units within 1 hex of the band gain one odds column.", "本回合苏军进攻该游击队 1 格内的德军部队时，战斗比例 +1 栏。"],
+  ["This turn, Russian attacks on German units within 1 hex of the band gain one odds column.", "本回合苏军进攻该游击队 1 格内的德军部队时，兵力比右移 1 栏。"],
   ["A German-held town within 2 hexes with no German unit in or next to it, if the bands within 2 hexes of it total 3 strength or more: roll a die; up to their total strength (at most 5) the town becomes Russian, otherwise every band taking part loses 1 strength.", "2 格内一座德军控制、城里及相邻格都没有德军的城镇，且该城 2 格内的游击队力量合计 3 点或以上时：掷一个骰子，点数不超过游击队总力量（最多算 5）时城镇变为苏军控制，否则每支参加的游击队损失 1 点力量。"],
   ["Slip through the forests to an empty forest hex within 2 hexes.", "穿过森林，转移到 2 格内的空森林格。"],
   ["+1 strength (at most 3), only with no German unit within 2 hexes.", "+1 力量（最多 3），只有 2 格内没有德军时才行。"],
@@ -8709,9 +8746,9 @@ const ZH_PHRASES = [
   ["The Stavka reserves are committed! Place the reinforcement units in the eligible area of the map (red-bordered edge).", "大本营预备队投入战斗！把增援部队放到地图上的可放置区域（红边地图边缘）。"],
   ["Place the reinforcement unit in the eligible area of the map.", "把增援部队放到地图上的可放置区域。"],
   ["The enemy places the reinforcement units in the eligible area of the map.", "敌方把增援部队放到地图上的可放置区域。"],
-  ["The NKVD brigade joins the line: click a half-strength infantry army in communication (highlighted). It becomes a shock army, 5-4 now and 10-4 once restored.", "NKVD 旅投入防线：点击一个有补给的半血步兵集团军（已高亮）。它变成突击集团军，现在是 5-4，补满后是 10-4。"],
+  ["The NKVD brigade joins the line: click a half-strength infantry army in communication (highlighted). It becomes a shock army, 5-4 now and 10-4 once restored.", "NKVD 旅投入防线：点击一个有补给的减员步兵集团军（已高亮）。它变成突击集团军，现在是 5-4，补充至满编后是 10-4。"],
   ["The NKVD brigade joins an army in the line.", "NKVD 旅加入了前线的一个集团军。"],
-  ["Ski battalions arrive: select infantry armies in communication to reinforce them (optional). In winter, ski-reinforced armies move through forests at 1 MP per hex and ignore the forest shift when they attack.", "滑雪营到达：选择有补给的步兵集团军进行加强（可选）。冬季里，滑雪加强的集团军穿越森林每格只需 1 点移动力，进攻时不受森林降栏影响。"],
+  ["Ski battalions arrive: select infantry armies in communication to reinforce them (optional). In winter, ski-reinforced armies move through forests at 1 MP per hex and ignore the forest shift when they attack.", "滑雪营到达：选择有补给的步兵集团军进行加强（可选）。冬季里，滑雪加强的集团军穿越森林每格只需 1 点移动力，进攻时森林不再使兵力比左移。"],
   ["The enemy reinforces infantry armies with ski battalions.", "敌方用滑雪营加强了步兵集团军。"],
   ["The NKVD detachments parachute behind the German lines: place them as partisan bands of strength 2 on forest hexes behind the German lines, not next to German units (optional).", "NKVD 分队伞降到德军后方：把它们作为力量 2 的游击队，放到德军后方、不与德军相邻的森林格里（可选）。"],
   ["New partisan bands form behind the German lines: place them on forest hexes behind the German lines, not next to German units (optional).", "新的游击队在德军后方组建：把它们放到德军后方、不与德军相邻的森林格里（可选）。"],
@@ -8720,17 +8757,17 @@ const ZH_PHRASES = [
   ["Partisan operations behind the German lines.", "游击队在德军后方行动。"],
   ["All the reinforcements have been deployed and the partisans have acted.", "增援已全部部署，游击队也已行动。"],
   ["The enemy has deployed its reinforcements and its partisans have acted.", "敌方已部署增援，它的游击队也已行动。"],
-  ["Place new half-strength units in the eligible area of the map or flip a half-strength unit that is currently on the map over to its full-strength side.", "在地图上的可放置区域放下新的半血部队，或者把地图上的半血部队翻回满编面。"],
-  ["The enemy places new half-strength units in the eligible area of the map or flips half-strength units that are currently on the map over to their full-strength side.", "敌方在地图上放下新的半血部队，或者把地图上的半血部队翻回满编面。"],
+  ["Place new half-strength units in the eligible area of the map or flip a half-strength unit that is currently on the map over to its full-strength side.", "在地图上的可放置区域放下新的减员部队，或者把地图上的减员部队翻回满编面。"],
+  ["The enemy places new half-strength units in the eligible area of the map or flips half-strength units that are currently on the map over to their full-strength side.", "敌方在地图上放下新的减员部队，或者把地图上的减员部队翻回满编面。"],
   ["You have finished assigning your replacements.", "你已经分配完补充兵。"],
   ["The enemy has finished assigning replacements.", "敌方已经分配完补充兵。"],
-  [" No unit of yours is off the map to be rebuilt now, so a step can only restore a half-strength unit in communication or rest a tired full-strength one.", "现在你没有被消灭、可以重建的部队，所以补充兵步数只能补满有补给的半血部队，或者让疲劳的满编部队休整。"],
-  [" A step spent on a full-strength unit in communication (orange) clears all its fatigue.", "一个步数用在有补给的满编部队上（橙色），可以清除它的全部疲劳。"],
+  [" No unit of yours is off the map to be rebuilt now, so a step can only restore a half-strength unit in communication or rest a tired full-strength one.", "现在你没有被消灭、可以重建的部队，所以补充兵员只能补充有补给的减员部队，或者让疲劳的满编部队休整。"],
+  [" A step spent on a full-strength unit in communication (orange) clears all its fatigue.", "一级补充兵员用在有补给的满编部队上（橙色），可以清除它的全部疲劳。"],
   ["All units that begin this phase on a rail line may move along it.", "本阶段开始时位于铁路上的所有部队可以沿铁路移动。"],
   ["All armor/panzer units may move.", "所有装甲部队可以移动。"],
   [" Select the ones you choose to move and their destination.", "选择你要移动的部队和它们的目的地。"],
   [" But the enemy has decided not to use this capability during this phase.", "但敌方决定本阶段不使用这个能力。"],
-  ["+1 Russian replacement step next turn · the liberators shake off some fatigue", "下回合苏军 +1 个补充兵步数 · 解放城市的部队疲劳降一级"],
+  ["+1 Russian replacement step next turn · the liberators shake off some fatigue", "下回合苏军 +1 级补充兵员 · 解放城市的部队疲劳降一级"],
   ["The German Army took Moscow and held it to the end of the game.", "德军攻占了莫斯科，并一直守到游戏结束。"],
   ["The counteroffensive went far beyond what the Red Army achieved in 1941.", "这次反攻的战果远远超过了红军在 1941 年的实际成就。"],
   ["The Red Army did better than in 1941.", "红军打得比 1941 年更好。"],
@@ -8750,8 +8787,8 @@ const ZH_PHRASES = [
 // Sentences with numbers and names
 const ZH_LEVELS = { fresh: "精力充沛", tired: "疲劳", exhausted: "疲惫", broken: "崩溃" };
 const ZH_PATTERNS = [
-  [/You have <strong>(\d+)<\/strong> replacement steps? left to assign\./g, "你还有 <strong>$1</strong> 个补充兵步数可以分配。"],
-  [/The enemy has <strong>(\d+)<\/strong> replacement steps? left to assign\./g, "敌方还有 <strong>$1</strong> 个补充兵步数可以分配。"],
+  [/You have <strong>(\d+)<\/strong> replacement steps? left to assign\./g, "你还有 <strong>$1</strong> 级补充兵员可以分配。"],
+  [/The enemy has <strong>(\d+)<\/strong> replacement steps? left to assign\./g, "敌方还有 <strong>$1</strong> 级补充兵员可以分配。"],
   [/Ski battalions left: <strong>(\d+)<\/strong>/g, "剩余滑雪营：<strong>$1</strong>"],
   [/New bands left: <strong>(\d+)<\/strong>/g, "剩余可组建的游击队：<strong>$1</strong>"],
   [/ \(at least (\d+) strength points\)\.\.\./g, "（至少 $1 点兵力）……"],
@@ -8762,7 +8799,7 @@ const ZH_PATTERNS = [
   [/Partisans will guide the Red Army around (\d{4}) this turn\./g, "本回合游击队将在 $1 一带为红军带路。"],
   [/A partisan band moves to (\d{4})\./g, "一支游击队转移到 $1。"],
   [/A partisan band grows to strength (\d)\./g, "一支游击队扩编到力量 $1。"],
-  [/Die roll (\d) \((\d) or less needed\): the partisans rise and take (.+?)! \+1 Russian replacement step\./g, "掷骰 $1（需要 $2 或更小）：游击队起义，夺取了$3！苏军 +1 个补充兵步数。"],
+  [/Die roll (\d) \((\d) or less needed\): the partisans rise and take (.+?)! \+1 Russian replacement step\./g, "掷骰 $1（需要 $2 或更小）：游击队起义，夺取了$3！苏军 +1 级补充兵员。"],
   [/Die roll (\d) \((\d) or less needed\): the rising in (.+?) is crushed; every band taking part loses 1 strength\./g, "掷骰 $1（需要 $2 或更小）：$3的起义被镇压，每支参加的游击队损失 1 点力量。"],
   [/([^>]+?) taken by the partisans!/g, "$1被游击队夺取！"],
   [/The rising in ([^<]+?) is crushed/g, "$1的起义被镇压"],

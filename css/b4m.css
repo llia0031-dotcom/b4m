@@ -1333,9 +1333,18 @@ html[lang="zh-CN"] #splash_chronicle .chron_head {
     font-size: 1.2em;
 }
 
-.help_img {
-    width: 100%;
-    max-width: 780px;
+/* the reference tables in the help, each at its own size (narrow screens shrink them to fit) */
+.help_charts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    align-items: flex-start;
+    margin: 6px 0 14px;
+}
+
+.help_charts img {
+    max-width: 100%;
+    height: auto;
 }
 
 .hud {
