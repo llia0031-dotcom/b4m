@@ -134,6 +134,16 @@ html[lang="zh-CN"] #splash_main {
     opacity: 0;
 }
 
+#splash_chronicle .chron_kicker {
+    margin-bottom: 8px;
+    padding-bottom: 5px;
+    border-bottom: 1px solid rgba(232, 200, 114, 0.35);
+    color: #cdbf9f;
+    font-family: "STZhongsong", "华文中宋", "Georgia", serif;
+    font-size: calc(13px * var(--cs, 1));
+    letter-spacing: 0.12em;
+}
+
 #splash_chronicle .chron_head {
     margin-bottom: 10px;
     color: #e8c872;
@@ -206,7 +216,7 @@ html[lang="zh-CN"] #splash_chronicle .chron_head {
     color: #f1e6d0;
 }
 
-#next_solitaire_button, #next_continue_button, .splash_side {
+#next_solitaire_button, #next_continue_button, #achievements_button, .splash_side {
     cursor: pointer;
     width: 300px;
     margin: 9px 0;
@@ -223,7 +233,7 @@ html[lang="zh-CN"] #splash_chronicle .chron_head {
     letter-spacing: 0.04em;
 }
 
-#next_solitaire_button:hover, #next_continue_button:hover, .splash_side:hover {
+#next_solitaire_button:hover, #next_continue_button:hover, #achievements_button:hover, .splash_side:hover {
     background: rgba(84, 58, 38, 0.95);
 }
 
@@ -1496,4 +1506,153 @@ img.die_roll {
 
 @keyframes animatedExplosion {
     100% {background-position: -1050px;}
+}
+
+/* ---------------------------------------------------------------- Achievements */
+#achievements_button {
+    font-size: 1em;
+    padding: 7px 0;
+}
+
+#achievements_menu {
+    position: fixed;
+    z-index: 110;
+    top: 35px;
+    margin-left: 330px;
+    color: #f3d27a;
+    font-size: 1.3em;
+    cursor: pointer;
+}
+
+#achievements_panel {
+    display: none;
+    position: fixed;
+    z-index: 260;
+    inset: 0;
+    overflow: auto;
+    background: rgba(0, 0, 0, 0.72);
+}
+
+#achievements_panel .ach_box {
+    box-sizing: border-box;
+    max-width: 820px;
+    width: calc(100vw - 24px);
+    margin: 40px auto;
+    padding: 16px 22px 18px 22px;
+    background: #efe6d2;
+    color: #2a1f14;
+    border: 2px solid #2a1c12;
+    font-family: "Georgia", "STZhongsong", "华文中宋", "SimSun", serif;
+}
+
+#achievements_panel .ach_head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+    border-bottom: 3px double #2a1c12;
+    padding-bottom: 6px;
+}
+
+#achievements_panel .ach_title { font-size: 1.6em; font-weight: bold; }
+#achievements_panel .ach_count { font-size: 0.95em; }
+#achievements_panel .ach_note { font-size: 0.85em; color: #5a4a35; margin: 8px 0 0 0; }
+
+#achievements_panel .ach_section {
+    margin-top: 16px;
+    padding-bottom: 3px;
+    font-weight: bold;
+    font-size: 1.1em;
+    border-bottom: 1px solid #2a1c12;
+}
+
+#achievements_panel .ach_section.soviet { color: #8b1a1a; }
+#achievements_panel .ach_section.german { color: #2f2f2f; }
+#achievements_panel .ach_section.all { color: #5a4528; }
+
+#achievements_panel .ach_item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 4px;
+    border-bottom: 1px solid #cdbd98;
+}
+
+#achievements_panel .ach_item.locked { opacity: 0.5; filter: grayscale(1); }
+#achievements_panel .ach_text { flex: 1; min-width: 0; }
+#achievements_panel .ach_name { font-weight: bold; }
+#achievements_panel .ach_orig { font-style: italic; }
+#achievements_panel .ach_how { font-size: 0.86em; color: #4a3d2c; margin-top: 2px; }
+#achievements_panel .ach_date { font-size: 0.8em; white-space: nowrap; color: #4a3d2c; }
+#achievements_panel .ach_award { font-size: 0.8em; color: #5a4a35; margin-top: 3px; }
+#achievements_panel .ach_kind {
+    display: inline-block;
+    margin-right: 6px;
+    padding: 0 5px;
+    border: 1px solid #8a7652;
+    border-radius: 3px;
+    font-size: 0.92em;
+    color: #3a2c1c;
+}
+
+.ach_medal {
+    flex: none;
+    width: 58px;
+    height: 58px;
+    object-fit: cover;
+    border-radius: 6px;
+    border: 2px solid #c9a24a;
+    background: #2b241c;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.35);
+}
+
+#achievement_toast .ach_medal { width: 52px; height: 52px; }
+#achievement_toast em { display: block; font-style: normal; font-size: 0.72em; color: #cdbf9f; margin-top: 2px; }
+#achievements_panel .ach_buttons { text-align: center; margin-top: 14px; }
+
+.ach_emblem {
+    flex: none;
+    width: 34px;
+    height: 34px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    border: 2px solid #c9a24a;
+    background: #8b1a1a;
+    color: #f3d27a;
+    font-size: 19px;
+}
+
+.ach_emblem.german { background: #3a3a3a; }
+.ach_emblem.german img { height: 20px; }
+.ach_emblem.all { background: #6b5a3a; font-size: 15px; }
+
+#achievement_toast {
+    display: none;
+    position: fixed;
+    z-index: 400;
+    right: 18px;
+    bottom: 18px;
+    max-width: min(340px, calc(100vw - 36px));
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px 10px 12px;
+    background: #2a1f14;
+    color: #f3e6c8;
+    border: 2px solid #c9a24a;
+    border-radius: 6px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6);
+    font-family: "Georgia", "STZhongsong", "华文中宋", "SimSun", serif;
+    pointer-events: none;
+}
+
+#achievement_toast small { display: block; color: #c9a24a; letter-spacing: 0.08em; font-size: 0.75em; }
+#achievement_toast b { display: block; font-style: italic; }
+#achievement_toast span { display: block; font-size: 0.9em; }
+
+@media (max-width: 700px) {
+    #achievements_panel .ach_box { margin: 12px auto; padding: 12px 14px; }
+    #achievements_panel .ach_item { flex-wrap: wrap; }
+    #achievements_panel .ach_date { width: 100%; padding-left: 46px; }
 }

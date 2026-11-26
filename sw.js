@@ -2,7 +2,7 @@
 // Handles offline caching and resource serving
 
 // Cache version - increment this to force cache refresh
-const CACHE_VERSION = 'b4m-v1.10.26';
+const CACHE_VERSION = 'b4m-v1.10.31';
 const CACHE_NAME = `battle-for-moscow-${CACHE_VERSION}`;
 
 // All resources to precache for offline functionality
@@ -33,6 +33,25 @@ const PRECACHE_URLS = [
   'img/5.png',
   'img/6.png',
   'img/arrows_counter.png',
+  'img/medals/s_defence.jpg',
+  'img/medals/s_retaken.jpg',
+  'img/medals/s_tula.jpg',
+  'img/medals/s_depot.jpg',
+  'img/medals/s_smolensk.jpg',
+  'img/medals/s_partisans.jpg',
+  'img/medals/s_wiped.jpg',
+  'img/medals/s_win.jpg',
+  'img/medals/s_decisive.jpg',
+  'img/medals/g_kessel.jpg',
+  'img/medals/g_moscow.jpg',
+  'img/medals/g_tula.jpg',
+  'img/medals/g_wiped.jpg',
+  'img/medals/g_win.jpg',
+  'img/medals/g_decisive.jpg',
+  'img/medals/g_frozen.jpg',
+  'img/medals/a_first.jpg',
+  'img/medals/a_history.jpg',
+  'img/medals/a_both.jpg',
   'img/b4m.png',
   'img/check_counter.png',
   'img/combat_example_1.png',
@@ -112,6 +131,7 @@ const PRECACHE_URLS = [
   'audio/stuka_dive.wav',
   // the AM-38 engine of an Il-2, from a 1943 Soviet Air Force film
   'audio/il2_engine.wav',
+  'audio/soviet_barrage_1941.wav',
 
   // Font Awesome, kept locally so the copy works offline
   'css/font-awesome.min.css',
