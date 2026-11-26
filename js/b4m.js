@@ -2214,7 +2214,9 @@ function eventDate() {
   return { en: MOSCOW_FALL_DATES[currentTurn.turn] + " 1941", zh: TURN_DATES_ZH[currentTurn.turn] };
 }
 function showSideDispatches(build, order, outcome) {
-  const sides = "" === playAIAs ? order : ["soviet" === playAIAs ? "german" : "soviet"],
+  const sides = ("" === playAIAs ? order : ["soviet" === playAIAs ? "german" : "soviet"]).filter(function (side) {
+      return order.indexOf(side) > -1;
+    }),
     step = function (k) {
       k < sides.length &&
         showDispatch(
@@ -2696,19 +2698,19 @@ function partisanEvent(side) {
         },
       };
 }
-// -------- a shock army on the map: announced the first time one appears (the 1st Shock Army, or the one the NKVD
-// brigade makes of an army at half strength)
+// -------- a shock army on the map: announced to the Russian side the first time one appears (the 1st Shock Army, or
+// the one the NKVD brigade makes of an army at half strength). The Germans get no word of it: Foreign Armies East
+// still held that the Red Army had no reserves left when the counteroffensive began on 5 December.
 function shockArmyAppears() {
   decisions.shockArmy ||
     ((decisions.shockArmy = currentTurn.turn),
     setTimeout(function () {
-      showSideDispatches(shockArmyEvent, ["soviet", "german"]);
+      showSideDispatches(shockArmyEvent, ["soviet"]);
     }, 900));
 }
-function shockArmyEvent(side) {
+function shockArmyEvent() {
   const date = eventDate();
-  return "soviet" === side
-    ? {
+  return {
         id: "shockArmy",
         army: "soviet",
         kind: "order",
@@ -2738,37 +2740,6 @@ function shockArmyEvent(side) {
           ],
           options: { fire: { label: "Огонь！开火", order: "把突击集团军投到必须突破战线的地方。", effects: [] } },
           history: "列车在夜里卸车；天亮之前，火炮已经挖好阵地，用雪伪装起来。炮手们等着命令，[[命令一定会来]]。",
-        },
-      }
-    : {
-        id: "shockArmy",
-        army: "german",
-        musicSrc: "audio/erika.webm",
-        kind: "order",
-        office: "Oberkommando des Heeres, Abteilung Fremde Heere Ost",
-        officeEn: "German Army High Command, Foreign Armies East (intelligence)",
-        stamp: "Geheime Kommandosache",
-        place: "Ostpreußen",
-        date: date.en,
-        title: "A new Russian shock army",
-        text: [
-          "Prisoners and radio intercepts report a new Russian “shock army” on the central front, strong in artillery and rocket launchers.",
-          "Foreign Armies East had reckoned that the Red Army had [[no reserves left]] worth the name. The estimate must be revised.",
-        ],
-        options: [{ id: "noted", label: "Zur Kenntnis. Noted", order: "Warn the corps facing it.", effects: [] }],
-        outcomeTitle: ["What happens next", "接下来发生了什么"],
-        history: "The corps facing it dig in deeper. Their divisions are at a third of their strength, and [[there is nothing behind them]].",
-        zh: {
-          officeEn: "德国陆军总司令部东线外军处（情报）",
-          place: "东普鲁士",
-          date: date.zh,
-          title: "俄国人新出现一个突击集团军",
-          text: [
-            "俘虏和无线电截收报告：中路战线出现了一个新的俄国“突击集团军”，火炮和火箭炮很多。",
-            "东线外军处原先估计，红军已经[[没有像样的预备队了]]。这个判断必须修正。",
-          ],
-          options: { noted: { label: "Zur Kenntnis！已知悉", order: "通知当面的各军。", effects: [] } },
-          history: "当面的各军把工事挖得更深。他们的师只剩三分之一的兵力，[[身后什么都没有]]。",
         },
       };
 }
@@ -4420,7 +4391,6 @@ const HISTORY_EVENTS = [
     id: "trains",
     turn: 5,
     army: "german",
-    musicSrc: "audio/erika.webm",
     office: "Oberkommando des Heeres",
     officeEn: "High Command of the Army, Quartermaster General",
     stamp: "Geheime Kommandosache",
