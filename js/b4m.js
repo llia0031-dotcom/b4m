@@ -1783,7 +1783,10 @@ function processTurnFatigue(e) {
       o = !t[e](i),
       s = "german" === e && railCutNear(i, 2),
       c = o && isFullyRinged(i, e),
-      l = o ? cityStock(i, e) : null;
+      l = o ? cityStock(i, e) : null,
+      // in winter, a German unit without winter clothing out in the open cannot rest the cold away: no rest and no
+      // rear recovery outside the towns (in a town the houses give shelter, and it recovers as usual)
+      freezing = "german" === e && (!i.city || "none" === i.city) && germanWinterFatigue(i) > 0;
     let r = 0;
     (o &&
       (l && l.value > 0
@@ -1798,7 +1801,7 @@ function processTurnFatigue(e) {
         s ||
         n.raided === currentTurn.turn ||
         ("german" === e && (baseLost || railheadDistance(i, heads) > railheadRange())) ||
-        (n.fought || (r -= (n.moved ? FATIGUE.idle : FATIGUE.rest) + (inTheRear(i, e) ? FATIGUE.rear : 0)),
+        (n.fought || freezing || (r -= (n.moved ? FATIGUE.idle : FATIGUE.rest) + (inTheRear(i, e) ? FATIGUE.rear : 0)),
         "none" !== i.city &&
           i.control === e &&
           // the Germans in Moscow find the factories and depots blown up: no city recovery
@@ -4086,7 +4089,7 @@ function chartTable(ctx, look, x, y, widths, header, rows, size, minH) {
   };
   header && drawRow(header.map((t) => ({ text: t, bold: !0, align: "center" })), size, look.sub);
   rows.forEach(function (r, i) {
-    drawRow(r, size, i % 2 ? look.alt : null);
+    drawRow(r, size, r.bg || (i % 2 ? look.alt : null));
   });
   return yy;
 }
@@ -4152,7 +4155,7 @@ function renderChartSheetA(look) {
     [icon(5, 2), { text: L("Railway", "铁路"), bold: !0 }, L("Russian rail movement phase: any number of units", "苏军铁路机动阶段：支数不限"), none, L("German supply: within " + RAILHEAD_RANGE + " hexes of a railhead (" + RAILHEAD_RANGE_MUD + " in the mud): Smolensk, Roslavl, from turn " + VYAZMA_RAILHEAD_TURN + " Vyazma", "德军补给：距铁路卸载站 " + RAILHEAD_RANGE + " 格内（泥泞时 " + RAILHEAD_RANGE_MUD + " 格）：斯摩棱斯克、罗斯拉夫利，第 " + VYAZMA_RAILHEAD_TURN + " 回合起加维亚济马")],
     [icon(11, 8, !0), { text: L("Star or cross", "红星或十字"), bold: !0 }, none, none, L("Set-up hexes: Russian (star), German (cross)", "初始部署位置：苏军（红星）、德军（十字）")],
     [badge("3–4"), { text: L("Mud", "泥泞"), bold: !0 }, L("1 hex per move outside the rail phase", "铁路机动以外每次只能走 1 格"), L("Panzer attack strength halved", "装甲部队进攻力减半"), L("Game turns 3 and 4", "第 3、4 回合")],
-    [badge(WINTER_START + "–" + LAST_TURN), { text: L("Winter", "冬季"), bold: !0 }, L("Ski troops cross forests at no extra cost", "滑雪部队穿越森林不额外消耗移动力"), L("Forests give no shift against ski troops", "森林对滑雪部队不左移"), L("Germans without winter clothing: +" + FATIGUE.winterOutsideCity + " fatigue a turn outside towns, +" + FATIGUE.winterInTown + " in towns, none in major cities", "德军若无冬装：城外每回合 +" + FATIGUE.winterOutsideCity + " 疲劳，城镇里 +" + FATIGUE.winterInTown + "，大城市里不加")],
+    [badge(WINTER_START + "–" + LAST_TURN), { text: L("Winter", "冬季"), bold: !0 }, L("Ski troops cross forests at no extra cost", "滑雪部队穿越森林不额外消耗移动力"), L("Forests give no shift against ski troops", "森林对滑雪部队不左移"), L("Germans without winter clothing: +" + FATIGUE.winterOutsideCity + " fatigue a turn outside towns, where rest does not offset it, +" + FATIGUE.winterInTown + " in towns, none in major cities", "德军若无冬装：城外每回合 +" + FATIGUE.winterOutsideCity + " 疲劳，且休整不能抵消；城镇里 +" + FATIGUE.winterInTown + "，大城市里不加")],
   ];
   y = chartTable(ctx, look, 0, y, [62, 108, 160, 190, 180], [L("Symbol", "图示"), L("Terrain", "地形"), L("Movement", "移动"), L("Combat", "战斗"), L("Notes", "说明")], rows, 14, 54);
   // combat results
@@ -4239,24 +4242,40 @@ function renderChartSheetB(look) {
   const gain = [
     L("Gains: battle +" + FATIGUE.attack + " (attacker) / +" + FATIGUE.defend + " (defender); bombed +" + INTERDICTION_FATIGUE + "; cut off from its map edge +" + FATIGUE.cutOff + ", +" + FATIGUE.ringed + " more if ringed (a besieged city's stocks hold it to +" + FATIGUE.siegeCutOff + "); Germans near a cut railway +" + FATIGUE.railCut + "; sweeping partisans +" + SWEEP_FATIGUE_PER_STRENGTH + " per band strength, driving them off +" + DRIVE_OFF_FATIGUE + "; every Soviet unit +" + FATIGUE.moscowLost + " a turn while Moscow is in German hands; Germans whose depot is taken +" + DEPOT_LOSS_FATIGUE + "; every German unit +" + MOSCOW_LOST_FATIGUE + " when the Russians retake Moscow.", "增加：战斗 +" + FATIGUE.attack + "（攻方）/ +" + FATIGUE.defend + "（守方）；被空袭 +" + INTERDICTION_FATIGUE + "；交通线被切断 +" + FATIGUE.cutOff + "，被合围再 +" + FATIGUE.ringed + "（被围城市有储备物资时只 +" + FATIGUE.siegeCutOff + "）；德军靠近被切断的铁路 +" + FATIGUE.railCut + "；清剿游击队每级兵力 +" + SWEEP_FATIGUE_PER_STRENGTH + "，驱散 +" + DRIVE_OFF_FATIGUE + "；莫斯科在德军手中期间，苏军全军每回合 +" + FATIGUE.moscowLost + "；补给仓库被夺，靠它补给的德军 +" + DEPOT_LOSS_FATIGUE + "；莫斯科被苏军夺回，德军全军 +" + MOSCOW_LOST_FATIGUE + "。"),
     L("Recovery each turn, if it did not fight: " + FATIGUE.rest + " at rest, " + FATIGUE.idle + " if it moved; " + FATIGUE.rear + " more in the rear (no enemy within " + FATIGUE.rearDistance + " hexes); in a town of its side " + FATIGUE.city + ", a major city " + FATIGUE.majorCity + ", Moscow " + FATIGUE.moscow + " (a town once it has fallen); Russians supplied from the Moscow depots " + FATIGUE.moscowDepots + " more (none once it has fallen).", "每回合恢复（未参战时）：原地休整 " + FATIGUE.rest + "，移动过 " + FATIGUE.idle + "；在后方（" + FATIGUE.rearDistance + " 格内无敌军）再 " + FATIGUE.rear + "；在己方城镇 " + FATIGUE.city + "，大城市 " + FATIGUE.majorCity + "，莫斯科 " + FATIGUE.moscow + "（陷落后按城镇算）；由莫斯科仓库补给的苏军再 " + FATIGUE.moscowDepots + "（陷落后没有）。"),
-    L("No recovery when cut off, raided by partisans, or for Germans beyond railhead range or while Smolensk is lost. Liberating a town: −" + FATIGUE.liberation + "; taking a German depot: −4 in and next to it; Moscow retaken: −" + MOSCOW_RETAKEN_RELIEF + " for every Soviet unit; Tula relieved: −4 in Tula.", "被切断、遭游击队袭扰时不恢复；德军超出铁路卸载站补给范围或斯摩棱斯克失守时也不恢复。解放一座城镇：−" + FATIGUE.liberation + "；夺取德军补给仓库：城内和相邻格再 −4；夺回莫斯科：苏军全军 −" + MOSCOW_RETAKEN_RELIEF + "；图拉解围：城内 −4。"),
+    L("No recovery when cut off, raided by partisans, or for Germans beyond railhead range or while Smolensk is lost; in winter, Germans without winter clothing get no rest or rear recovery outside towns. Liberating a town: −" + FATIGUE.liberation + "; taking a German depot: −4 in and next to it; Moscow retaken: −" + MOSCOW_RETAKEN_RELIEF + " for every Soviet unit; Tula relieved: −4 in Tula.", "被切断、遭游击队袭扰时不恢复；德军超出铁路卸载站补给范围或斯摩棱斯克失守时也不恢复；冬季没有冬装的德军在城镇外得不到休整和后方恢复。解放一座城镇：−" + FATIGUE.liberation + "；夺取德军补给仓库：城内和相邻格再 −4；夺回莫斯科：苏军全军 −" + MOSCOW_RETAKEN_RELIEF + "；图拉解围：城内 −4。"),
   ];
   for (const t of gain) yf += chartText(ctx, look, "• " + t, 381, yf, 370, 14) + 6;
   // turns
   let yt = chartHead(ctx, look, 770, 0, 350, "turns");
   const DATES_EN = ["", "2 Oct", "10 Oct", "17 Oct", "1 Nov", "16 Nov", "23 Nov", "1 Dec", "5 Dec", "15 Dec"],
-    notes = {
-      1: L("Typhoon begins", "“台风”开始"),
-      3: L("Mud", "泥泞"),
-      4: L("Mud; 1st Shock Army", "泥泞；突击第 1 集团军"),
-      6: L("Snow lies: the winter map", "积雪：换冬季地图"),
-      8: L("Winter; Soviet counter-offensive: Guards cavalry, ski battalions, partisans", "冬季；苏军反攻：近卫骑兵、滑雪营、游击队"),
-      9: L("Winter; last turn", "冬季；最后一回合"),
+    MUD = L("MUD: 1 hex a move (rail phase apart); panzer attack halved; German supply within " + RAILHEAD_RANGE_MUD + " hexes of a railhead", "泥泞：铁路机动以外每次只走 1 格；装甲部队进攻力减半；德军补给范围缩到铁路卸载站 " + RAILHEAD_RANGE_MUD + " 格内"),
+    WINTER = L("WINTER: Germans without winter clothing +" + FATIGUE.winterOutsideCity + " fatigue a turn outside towns (rest does not offset it), +" + FATIGUE.winterInTown + " in towns; ski armies enter a forest for 1 hex, no forest shift against them", "冬季：没有冬装的德军城外每回合疲劳 +" + FATIGUE.winterOutsideCity + "（休整不能抵消），城镇里 +" + FATIGUE.winterInTown + "；滑雪集团军进森林只算 1 格，森林对它不左移"),
+    // [weather in a word, what the turn changes in the game]
+    TURNS = {
+      1: [L("Dry", "干燥"), L("Typhoon begins. German railheads: Smolensk, Roslavl", "“台风”开始。德军铁路卸载站：斯摩棱斯克、罗斯拉夫利")],
+      2: [L("First snow", "初雪"), L("Last turn before the mud; the pockets of Vyazma and Bryansk are reckoned when it begins", "泥泞前最后一回合；泥泞开始时检查维亚济马、布良斯克包围圈")],
+      3: [L("Mud", "泥泞"), MUD],
+      4: [L("Mud", "泥泞"), MUD + L(". 1st Shock Army; Vyazma a railhead", "。突击第 1 集团军到达；维亚济马成为铁路卸载站")],
+      5: [L("Frozen ground", "地面冻硬"), L("The mud is over. German decision: winter clothing or ammunition", "泥泞结束。德军决策：冬装还是弹药")],
+      6: [L("Snow", "积雪"), L("Winter map only: no change to the rules", "只换冬季地图，规则不变")],
+      7: [L("Hard frost", "严寒"), L("Soviet decision: commit the Stavka reserves or keep them", "苏军决策：大本营预备队现在投入还是留给反攻")],
+      8: [L("Deep frost", "酷寒深雪"), WINTER + L(". Counter-offensive: Guards cavalry, ski battalions, partisans", "。苏军反攻：近卫骑兵、滑雪营、游击队")],
+      9: [L("Deep snow", "深雪"), WINTER + L(". German decision: Hitler's halt order. Last turn", "。德军决策：希特勒的死守令。最后一回合")],
     },
+    MUD_BG = "rgba(139, 94, 52, 0.22)",
+    WINTER_BG = "rgba(70, 120, 185, 0.2)",
     rowsT = [];
-  for (let t = 1; t <= LAST_TURN; t++)
-    rowsT.push([{ text: String(t), bold: !0, align: "center" }, isZh() ? TURN_DATES_ZH[t].replace("1941 年 ", "") : DATES_EN[t], L(WEATHER[t], WEATHER_ZH[t]) + (notes[t] ? (isZh() ? "。" : ". ") + notes[t] : "")]);
-  yt = chartTable(ctx, look, 770, yt, [44, 80, 226], [L("Turn", "回合"), L("Date", "日期"), L("Weather and events", "天气与事件")], rowsT, 14, 28);
+  for (let t = 1; t <= LAST_TURN; t++) {
+    const row = [
+      { text: String(t), bold: !0, align: "center" },
+      (isZh() ? TURN_DATES_ZH[t].replace("1941 年 ", "") : DATES_EN[t]) + "\n" + TURNS[t][0],
+      { text: TURNS[t][1], bold: 3 === t || 4 === t || t >= WINTER_START },
+    ];
+    (3 === t || 4 === t) && (row.bg = MUD_BG);
+    t >= WINTER_START && (row.bg = WINTER_BG);
+    rowsT.push(row);
+  }
+  yt = chartTable(ctx, look, 770, yt, [40, 84, 226], [L("Turn", "回合"), L("Date", "日期"), L("What changes in the game", "对游戏的影响")], rowsT, 13, 24);
   yt += 8;
   yt += chartText(ctx, look, "• " + L("Victory points: Moscow 5, Tula 3, Smolensk 3, other towns 1.", "胜利点：莫斯科 5，图拉 3，斯摩棱斯克 3，其他城镇 1。"), 776, yt, 340, 14) + 6;
   const used = Math.max(ya, yf, yt) + 10;
@@ -4602,7 +4621,7 @@ const HISTORY_EVENTS = [
             });
           return [
             "No change now: German replacements as usual.",
-            "In winter (turns 8 and 9), at the start of each German turn: +2 fatigue outside the towns, +1 in a town, none in Moscow, Tula or Smolensk.",
+            "In winter (turns 8 and 9), at the start of each German turn: +2 fatigue outside the towns, which rest and the rear do not offset, +1 in a town, none in Moscow, Tula or Smolensk.",
             "German units outside the towns now: " + outside.length + " of " + german.length + ".",
           ];
         },
@@ -5225,7 +5244,7 @@ const DISPATCH_ZH = {
             });
           return [
             "现在没有变化：德军补充兵照常。",
-            "冬季（第 8、9 回合）每个德军回合开始时：[[在城镇外 +2 疲劳]]，在城镇里 +1，在莫斯科、图拉或斯摩棱斯克不加。",
+            "冬季（第 8、9 回合）每个德军回合开始时：[[在城镇外 +2 疲劳，休整和后方恢复都不能抵消]]，在城镇里 +1，在莫斯科、图拉或斯摩棱斯克不加。",
             "现在在城镇外的德军：" + outside.length + " / " + german.length + " 支。",
           ];
         },
