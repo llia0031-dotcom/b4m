@@ -1106,13 +1106,16 @@ function supplyContext() {
 // Supply status of a unit on the map, based on the "in communication" rule
 // Supply status of a unit on the map, based on the "in communication" rule
 // ---------------------------------------------------------------- Smolensk, the supply base of Army Group Centre
-// The converted standard-gauge railway reached Smolensk on 16 August 1941, and Smolensk remained the only
-// standard-gauge forward base of Army Group Centre: the trains unloaded there and trucks carried everything on
-// to the front, 250 to 300 km by November. The army group needed 30 to 32 trains a day; some 16 to 20 reached
-// Smolensk. The converted line was used as far as Vyazma from 23 October 1941. A German unit too far from a
-// railhead cannot recover fatigue; while Smolensk is lost or cut off, no German unit recovers and the Germans
-// get no replacements.
+// The converted standard-gauge railway reached Smolensk on 16 August 1941, and Smolensk was the main forward base
+// of Army Group Centre: the trains unloaded there and trucks carried everything on to the front, 250 to 300 km by
+// November. For Typhoon the army group laid in depots at Gomel, Roslavl, Smolensk and Vitebsk (K. Reinhardt,
+// Die Wende vor Moskau, 1972); to fill them it needed 27 trains a day in September and 29 in October, and got 22
+// at the end of September and in October, 20 in November. On the map Smolensk and Roslavl are railheads from the
+// start (Gomel and Vitebsk lie off it); the converted line was used as far as Vyazma from 23 October 1941. A German
+// unit too far from a railhead cannot recover fatigue; while Smolensk is lost or cut off, no German unit recovers
+// and the Germans get no replacements.
 const SMOLENSK = { x: 1, y: 4 },
+  ROSLAVL = { x: 2, y: 6 },
   VYAZMA = { x: 5, y: 3 },
   VYAZMA_RAILHEAD_TURN = 4,
   RAILHEAD_RANGE = 6,
@@ -1328,12 +1331,15 @@ function smolenskBaseLost(ctx) {
   const h = grid.get(SMOLENSK);
   return "german" !== h.control || !(ctx || supplyContext()).german(h);
 }
-// The railheads in use: Smolensk, and Vyazma from turn 4 while it is German-held and in communication
+// The railheads in use: Smolensk; Roslavl, the depot behind the southern half of the front; and Vyazma from turn 4;
+// Roslavl and Vyazma while they are German-held and in communication
 function germanRailheads(ctx) {
   ctx = ctx || supplyContext();
   const heads = [],
+    r = grid.get(ROSLAVL),
     v = grid.get(VYAZMA);
   (smolenskBaseLost(ctx) || heads.push(grid.get(SMOLENSK)),
+    "german" === r.control && ctx.german(r) && heads.push(r),
     currentTurn.turn >= VYAZMA_RAILHEAD_TURN && "german" === v.control && ctx.german(v) && heads.push(v));
   return heads;
 }
@@ -1470,11 +1476,12 @@ function refreshStatusMarkers() {
       lost = smolenskBaseLost(i);
     for (const [pos, label] of [
       [SMOLENSK, lost ? L("Supply base lost", "补给基地已失") : L("Supply base · railhead", "补给基地 · 铁路终点站")],
+      [ROSLAVL, L("Depot · railhead", "补给仓库 · 铁路终点站")],
       [VYAZMA, L("Railhead", "铁路终点站")],
       [MOSCOW, L("Distribution station", "分配站")],
     ]) {
       const h = grid.get(pos);
-      if ((pos === VYAZMA && heads.indexOf(h) < 0) || (pos === MOSCOW && (moscowLost() || moscowRuined()))) continue;
+      if (((pos === VYAZMA || pos === ROSLAVL) && heads.indexOf(h) < 0) || (pos === MOSCOW && (moscowLost() || moscowRuined()))) continue;
       const r = h.center().add(h.toPoint());
       (n.save(), (n.font = "bold 11px Arial, sans-serif"), (n.textAlign = "center"), (n.textBaseline = "middle"));
       const s = n.measureText(label).width + 10;
@@ -3379,7 +3386,7 @@ function renderChartSheetA(look) {
     [icon(10, 2), { text: L("Moscow", "莫斯科"), bold: !0 }, none, L("2 columns left against the Soviet garrison; a DR has no effect on it. Once taken: an ordinary town, for both sides", "攻击苏军守军左移 2 栏；DR 对守军无效。一旦被攻占：双方都只按普通城镇算"), L("Garrison safe from aircraft, Soviet cover 2 within 2 hexes. Recovers " + FATIGUE.moscow + "; 5 VP. If the Germans take it, it is a ruin for good (no air defence, stocks or depots), and every Soviet unit gains " + FATIGUE.moscowLost + " fatigue a turn until it is retaken", "守军不受空袭，周围 2 格苏军对空掩护 2。恢复 " + FATIGUE.moscow + "；5 胜利点。被德军攻占后永久成为废墟（没有防空、储备和仓库），夺回之前苏军全军每回合 +" + FATIGUE.moscowLost + " 疲劳")],
     [icon(7, 4), { text: L("Defence line", "防线"), bold: !0 }, none, L("1 column left for Soviet defenders only", "仅苏军防守时左移 1 栏"), L("Cover 1 for Soviet units", "苏军对空掩护 1")],
     [icon(6, 4), { text: L("River", "河流"), bold: !0 }, none, L("1 column left if all the attackers are across it", "所有进攻部队都隔河时左移 1 栏"), "—"],
-    [icon(5, 2), { text: L("Railway", "铁路"), bold: !0 }, L("Russian rail movement phase (turns 3–4: at most " + EVACUATION_RAIL_LIMIT + " units, the evacuation)", "苏军铁路机动阶段（第 3–4 回合疏散，最多 " + EVACUATION_RAIL_LIMIT + " 支）"), none, L("German supply: within " + RAILHEAD_RANGE + " hexes of a railhead (" + RAILHEAD_RANGE_MUD + " in the mud)", "德军补给：距铁路终点 " + RAILHEAD_RANGE + " 格内（泥泞时 " + RAILHEAD_RANGE_MUD + " 格）")],
+    [icon(5, 2), { text: L("Railway", "铁路"), bold: !0 }, L("Russian rail movement phase (turns 3–4: at most " + EVACUATION_RAIL_LIMIT + " units, the evacuation)", "苏军铁路机动阶段（第 3–4 回合疏散，最多 " + EVACUATION_RAIL_LIMIT + " 支）"), none, L("German supply: within " + RAILHEAD_RANGE + " hexes of a railhead (" + RAILHEAD_RANGE_MUD + " in the mud): Smolensk, Roslavl, from turn " + VYAZMA_RAILHEAD_TURN + " Vyazma", "德军补给：距铁路终点站 " + RAILHEAD_RANGE + " 格内（泥泞时 " + RAILHEAD_RANGE_MUD + " 格）：斯摩棱斯克、罗斯拉夫利，第 " + VYAZMA_RAILHEAD_TURN + " 回合起加维亚济马")],
     [icon(11, 8, !0), { text: L("Star or cross", "红星或十字"), bold: !0 }, none, none, L("Set-up hexes: Russian (star), German (cross)", "布阵位置：苏军（红星）、德军（十字）")],
     [badge("3–4"), { text: L("Mud", "泥泞"), bold: !0 }, L("1 hex per move outside the rail phase", "铁路机动以外每次只能走 1 格"), L("Panzer attack strength halved", "装甲部队进攻力减半"), L("Game turns 3 and 4", "第 3、4 回合")],
     [badge(WINTER_START + "–" + LAST_TURN), { text: L("Winter", "冬季"), bold: !0 }, L("Ski troops cross forests at no extra cost", "滑雪部队穿越森林不额外耗费"), L("Forests give no shift against ski troops", "森林对滑雪部队不左移"), L("Germans without winter clothing: +" + FATIGUE.winterOutsideCity + " fatigue a turn outside towns, +" + FATIGUE.winterInTown + " in towns, none in major cities", "德军若无冬装：城外每回合 +" + FATIGUE.winterOutsideCity + " 疲劳，城镇里 +" + FATIGUE.winterInTown + "，大城市里不加")],
