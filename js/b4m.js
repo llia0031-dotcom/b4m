@@ -1753,7 +1753,7 @@ function inTheRear(hex, army) {
 // (the "fought" and "moved" marks cover the side's previous turn and the enemy turn that followed)
 function processTurnFatigue(e) {
   "soviet" === e && tulaCheck(!0);
-  "german" === e && crusadeCheck();
+  "german" === e && (crusadeCheck(), pocketsCheck());
   const t = supplyContext();
   // At the start of the German turn: old rail cuts are repaired, and security sweeps wear down
   // the partisan bands that are next to German units
@@ -2816,6 +2816,112 @@ function townOccupied(hex) {
     ((k = +(window.localStorage.getItem("b4mOstlandSong") || 0)), window.localStorage.setItem("b4mOstlandSong", String(1 - k)));
   } catch (e) {}
   playEndingMusic(0 === k ? "audio/ostland_reiten.webm" : "audio/ostland_ritt.webm");
+}
+// -------- the double battle of Vyazma and Bryansk: in October 1941 seven Soviet armies were cut off before the mud
+// (the 19th, 20th, 24th and 32nd at Vyazma, the 3rd, 13th and 50th at Bryansk). If the Red Army has lost as many men
+// by the time the mud begins (the start of the German turn 3): seven armies of 40,000, a dispatch for each side, once.
+const POCKETS_ARMIES = 7;
+function pocketsCheck() {
+  3 === currentTurn.turn &&
+    !decisions.pockets &&
+    currentLosses().soviet >= POCKETS_ARMIES * MEN.soviet &&
+    ((decisions.pockets = currentTurn.turn),
+    setTimeout(function () {
+      showSideDispatches(pocketsEvent, ["german", "soviet"]);
+    }, 900));
+}
+function pocketsEvent(side) {
+  const date = eventDate(),
+    lost = fmtMen(currentLosses().soviet);
+  return "soviet" === side
+    ? {
+        id: "pockets",
+        army: "soviet",
+        kind: "order",
+        office: "Ставка Верховного Главнокомандования",
+        officeEn: "Headquarters of the Supreme High Command",
+        stamp: "Совершенно секретно",
+        slogan: { original: "Наше дело правое. Враг будет разбит. Победа будет за нами!", en: "Our cause is just. The enemy will be beaten. Victory will be ours!", zh: "我们的事业是正义的。敌人必将被击溃。胜利必将属于我们！" },
+        place: "Moscow",
+        date: date.en,
+        title: "The pockets of Vyazma and Bryansk",
+        text: [
+          "The German panzer groups have broken through on both flanks and closed the ring behind Vyazma: the 19th, 20th, 24th and 32nd Armies are surrounded west of the city. To the south the 3rd, 13th and 50th Armies of the Bryansk Front are cut off and fight their way east through the forests.",
+          "Before the mud the Red Army has lost [[" + lost + " men]], as many as in the autumn of 1941. The surrounded armies fight on and tie down the enemy's divisions: every day they hold is [[a day won for the Mozhaisk line]].",
+        ],
+        quotes: [
+          {
+            original: "Благодаря упорству и стойкости, которые проявили наши войска, дравшиеся в окружении в районе Вязьмы, мы выиграли драгоценное время для организации обороны на можайской линии. Кровь и жертвы, понесенные войсками окруженной группировки, оказались не напрасными.",
+            translation: "Thanks to the tenacity and steadfastness of our troops fighting in the encirclement around Vyazma, we gained precious time to organise the defence of the Mozhaisk line. The blood and the sacrifices of the encircled troops [[were not in vain]].",
+            source: "G. K. Zhukov, memoirs (quoted by A. M. Samsonov, «Крах фашистской агрессии 1939–1945», 1980, ch. 7)",
+          },
+        ],
+        options: [{ id: "hold", label: "Ни шагу назад! Not a step back", order: "Hold the Mozhaisk line while the surrounded armies fight on.", effects: [] }],
+        outcomeTitle: ["What happens next", "接下来发生了什么"],
+        history: "The remnants of the surrounded armies break out in small groups through the forests; many stay behind the German lines and [[go over to the partisans]]. Behind them the Mozhaisk line fills with fresh divisions from the reserve and from the Far East.",
+        zh: {
+          officeEn: "最高统帅部大本营",
+          place: "莫斯科",
+          date: date.zh,
+          title: "维亚济马和布良斯克包围圈",
+          text: [
+            "德军装甲集群在两翼突破，在维亚济马背后合上了包围圈：第 19、20、24、32 集团军被围在城西。南面，布良斯克方面军的第 3、13、50 集团军被切断，正穿过森林向东突围。",
+            "泥泞到来之前，红军已经损失了 [[" + lost + " 人]]，和 1941 年秋天一样多。被围的集团军仍在战斗，拖住敌人的师团：他们多守一天，[[莫扎伊斯克防线就多赢得一天]]。",
+          ],
+          quotes: [
+            {
+              translation: "由于在维亚济马地区陷入包围的我军表现出顽强和坚定，我们赢得了组织莫扎伊斯克防线的宝贵时间。被围部队流的血、作出的牺牲[[没有白费]]。",
+              source: "Г. К. 朱可夫回忆录（引自 А. М. 萨姆索诺夫《法西斯侵略的破产（1939—1945）》，1980 年，第 7 章）",
+            },
+          ],
+          options: { hold: { label: "Ни шагу назад！一步也不许后退", order: "被围的集团军还在战斗，守住莫扎伊斯克防线。", effects: [] } },
+          history: "被围集团军的残部分成小股穿过森林突围；很多人留在德军后方，[[投入了游击队]]。在他们身后，莫扎伊斯克防线上布满了从预备队和远东调来的新锐师。",
+        },
+      }
+    : {
+        id: "pockets",
+        army: "german",
+        kind: "order",
+        musicSrc: "audio/russlandlied.webm",
+        office: "Oberkommando der Wehrmacht",
+        officeEn: "Wehrmacht High Command",
+        stamp: "Sondermeldung",
+        place: "Führerhauptquartier",
+        date: date.en,
+        title: "The double battle of Vyazma and Bryansk",
+        text: [
+          "The armies of Army Group Centre have closed two great pockets: at Vyazma the 3rd and 4th Panzer Groups have met behind four Soviet armies, and at Bryansk the 2nd Panzer Army and the 2nd Army have cut off three more.",
+          "Before the mud the Red Army has lost [[" + lost + " men]], as many as in the autumn of 1941. The Reich press chief tells the world that [[the war in the East is decided]].",
+        ],
+        quotes: [
+          {
+            original: "Противник перед фронтом группы армий разбит. Остатки отступают, переходя местами в контратаки. Группа армий преследует противника.",
+            translation: "The enemy before the front of the army group is beaten. Its remnants are falling back, counter-attacking in places. [[The army group is pursuing the enemy.]]",
+            source: "Order of Army Group Centre for the continuation of the operations against Moscow, 14 October 1941 (Russian text quoted by A. M. Samsonov, ch. 7)",
+          },
+        ],
+        options: [{ id: "onward", label: "Weiter nach Moskau! On to Moscow", order: "Clear the pockets and pursue towards Moscow.", effects: [] }],
+        outcomeTitle: ["What happens next", "接下来发生了什么"],
+        history: "Clearing the pockets takes until 20 October; the Wehrmacht communiqué will report 663,000 prisoners, 1,242 tanks and 5,412 guns. The panzer divisions wait for fuel, and then the rain begins: [[the roads to Moscow turn to mud]].",
+        zh: {
+          officeEn: "德国国防军最高统帅部",
+          place: "元首大本营",
+          date: date.zh,
+          title: "维亚济马和布良斯克的双重合围战",
+          text: [
+            "中央集团军群合上了两个大包围圈：在维亚济马，第 3、第 4 装甲集群在四个苏联集团军背后会师；在布良斯克，第 2 装甲集团军和第 2 集团军又切断了三个。",
+            "泥泞到来之前，红军已经损失了 [[" + lost + " 人]]，和 1941 年秋天一样多。帝国新闻局长向全世界宣布，[[东方的战争已经决出胜负]]。",
+          ],
+          quotes: [
+            {
+              translation: "集团军群当面之敌已被击溃。其残部正在后退，有些地方转入反冲击。[[集团军群正在追击敌人。]]",
+              source: "中央集团军群关于继续对莫斯科作战的命令，1941 年 10 月 14 日（俄译本引自萨姆索诺夫，第 7 章）",
+            },
+          ],
+          options: { onward: { label: "Weiter nach Moskau！向莫斯科前进", order: "肃清包围圈，向莫斯科追击。", effects: [] } },
+          history: "肃清包围圈一直打到 10 月 20 日；国防军公报将宣布俘虏 663,000 人，坦克 1,242 辆，火炮 5,412 门。装甲师在等燃料，然后雨季来了：[[通往莫斯科的道路变成了烂泥]]。",
+        },
+      };
 }
 // A German unit entering a band's hex sweeps it. The German commander chooses: a full sweep combs the
 // forest until the band is destroyed, at a heavy cost in fatigue (4 points for each strength point of
